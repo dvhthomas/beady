@@ -10,6 +10,7 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
     private var issues: [IssueID: BeadsCore.Issue]
     private var _applied: [IssueChange] = []
     private var _applyStarted = false
+    private var _loads = 0
     private var gate: CheckedContinuation<Void, Never>?
     var failure: Error?
     /// When set, `apply` waits for `release()`, so tests can act while a write is in flight.
@@ -20,6 +21,7 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
     }
 
     var applied: [IssueChange] { lock.withLock { _applied } }
+    var loads: Int { lock.withLock { _loads } }
     var applyStarted: Bool { lock.withLock { _applyStarted } }
 
     /// Simulates another session writing.
@@ -40,7 +42,10 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
     }
 
     func loadSnapshot() async throws -> IssueSnapshot {
-        lock.withLock { IssueSnapshot(issues: Array(issues.values)) }
+        lock.withLock {
+            _loads += 1
+            return IssueSnapshot(issues: Array(issues.values))
+        }
     }
 
     func changeToken() async -> String { lock.withLock { "\(_applied.count)" } }

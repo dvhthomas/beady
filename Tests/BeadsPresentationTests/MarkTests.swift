@@ -79,3 +79,46 @@ struct ModelMarkTests {
         #expect(model.filter.isEmpty)
     }
 }
+
+@MainActor
+@Suite("Marking feels instant")
+struct OptimisticMarkTests {
+    func makeModel() async -> (WorkspaceModel, MemoryStore) {
+        let store = MemoryStore([makeIssue("a", title: "Tile cache")])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
+        await model.load()
+        return (model, store)
+    }
+
+    @Test("the star appears before bd has finished writing it")
+    func optimistic() async {
+        let (model, store) = await makeModel()
+        store.holdsApply = true
+        let writing = Task { await model.toggleMark(.starred, on: "a") }
+
+        #expect(await waitUntil(seconds: 2) { model.isMarked(.starred, "a") }, "the UI shouldn't wait for bd")
+        #expect(store.applyStarted)
+        store.release()
+        await writing.value
+        #expect(model.isMarked(.starred, "a"), "and it stays once the write lands")
+    }
+
+    @Test("a write that fails puts the mark back and says so")
+    func reverts() async {
+        let (model, store) = await makeModel()
+        store.failure = LoadFailure()
+        await model.toggleMark(.starred, on: "a")
+        #expect(!model.isMarked(.starred, "a"), "the optimistic star is taken back")
+        #expect(model.activity.first?.succeeded == false)
+        #expect(model.activity.first?.message?.isEmpty == false)
+    }
+
+    @Test("marking one bead doesn't reload the whole database")
+    func noFullReload() async {
+        let (model, store) = await makeModel()
+        let before = store.loads
+        await model.toggleMark(.pinned, on: "a")
+        #expect(store.loads == before, "the bead is patched from the read-back instead")
+        #expect(model.isMarked(.pinned, "a"))
+    }
+}

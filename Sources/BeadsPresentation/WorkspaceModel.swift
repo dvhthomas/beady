@@ -57,6 +57,7 @@ public final class WorkspaceModel {
     @ObservationIgnored private var lastAttempt: (token: String, at: Date)?
     /// When we wrote each bead, so our own changes aren't read as another session's.
     @ObservationIgnored private var ownWrites: [IssueID: [Date]] = [:]
+    @ObservationIgnored private var inFlightMarks: [IssueID: [IssueMark: Bool]] = [:]
     @ObservationIgnored private let activityWindow: TimeInterval
     /// Where `unfocus()` goes back to.
     @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
@@ -112,6 +113,7 @@ public final class WorkspaceModel {
         }
         do {
             snapshot = try await store.loadSnapshot()
+            reapplyInFlightMarks()
             loadState = .loaded
             lastLoaded = now()
             refreshError = nil
@@ -340,12 +342,18 @@ public final class WorkspaceModel {
 
     // MARK: Pins and stars
 
-    /// Adds or removes the bd label behind a mark. Marks are reversible metadata that can't lose
-    /// anyone's work, so they apply immediately — the confirmation sheet is for content and the
-    /// graph. The write still goes through `ChangeRunner`: validated, applied, read back.
+    /// Adds or removes the bd label behind a mark.
+    ///
+    /// The label is applied to the loaded snapshot straight away and written afterwards: a bd
+    /// write costs the best part of a second (process start, then Dolt), and waiting for it made
+    /// a pin feel broken. The write still goes through `ChangeRunner` — validated, applied, read
+    /// back — and a failure puts the mark back where it was and says why. Marks are reversible
+    /// metadata, so showing one early can't lose anyone's work; edits keep the confirmation sheet.
     public func toggleMark(_ mark: IssueMark, on id: IssueID) async {
-        guard canEdit, !isWriting, let snapshot, let issue = snapshot.issue(id) else { return }
-        let change = IssueChange.setMark(id, mark, on: !issue.has(mark))
+        guard canEdit, let snapshot, let issue = snapshot.issue(id) else { return }
+        guard inFlightMarks[id]?[mark] == nil else { return }
+        let target = !issue.has(mark)
+        let change = IssueChange.setMark(id, mark, on: target)
         let pending = PendingChange(
             change: change,
             base: issue,
@@ -357,16 +365,39 @@ public final class WorkspaceModel {
         )
         guard pending.canConfirm else { return }
 
-        isWriting = true
+        inFlightMarks[id, default: [:]][mark] = target
+        setMarkLocally(mark, on: target, for: id)
         noteOwnWrite(id)
+        defer { inFlightMarks[id]?[mark] = nil }
+
         do {
             _ = try await ChangeRunner(writer: store).run(change, seenIn: snapshot, base: issue)
             record(pending, issueID: id, error: nil)
+            // One bead changed, so read back that bead rather than the whole database.
+            if let fresh = try? await store.currentIssue(id), let current = self.snapshot {
+                self.snapshot = current.replacing(fresh)
+            }
         } catch {
+            setMarkLocally(mark, on: !target, for: id)
             record(pending, issueID: id, error: error)
         }
-        isWriting = false
-        await reloadAfterWrite()
+    }
+
+    /// Shows a mark as though bd had already recorded it.
+    private func setMarkLocally(_ mark: IssueMark, on: Bool, for id: IssueID) {
+        guard let snapshot, var issue = snapshot.issue(id) else { return }
+        var labels = issue.labels.filter { $0 != mark.label }
+        if on { labels.append(mark.label) }
+        issue.labels = labels
+        self.snapshot = snapshot.replacing(issue)
+    }
+
+    /// Marks written but not yet confirmed, so a refresh landing mid-write doesn't flicker them
+    /// back off.
+    private func reapplyInFlightMarks() {
+        for (id, marks) in inFlightMarks {
+            for (mark, on) in marks { setMarkLocally(mark, on: on, for: id) }
+        }
     }
 
     /// Filters the current view by a mark's label, using the ordinary labels rule so it reads as
