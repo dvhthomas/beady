@@ -77,6 +77,20 @@ struct CommandPaletteTests {
         #expect(CommandCatalog.results(for: "kanban", model: model).first == .setLayout(.board))
     }
 
+    @Test("a short query filters on what's written on screen, not on hidden aliases")
+    func shortQueriesAreLiteral() async {
+        let model = await makeModel()
+        for command in CommandCatalog.results(for: "c", model: model) {
+            #expect(command.title.lowercased().contains("c"), "\(command.title) has no c in it")
+        }
+        for command in CommandCatalog.results(for: "ne", model: model) {
+            #expect(command.title.lowercased().contains("ne"), "\(command.title) doesn't contain \"ne\"")
+        }
+        // Three letters is enough to mean something, so aliases come back.
+        #expect(CommandCatalog.results(for: "fin", model: model).first == .focusSearch)
+        #expect(CommandCatalog.results(for: "kanban", model: model).first == .setLayout(.board))
+    }
+
     @Test("a title match still beats an alias match")
     func titleWins() async {
         let model = await makeModel()

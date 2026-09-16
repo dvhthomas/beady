@@ -297,9 +297,13 @@ public enum CommandCatalog {
         let words = query.lowercased().split(separator: " ").map(String.init)
         guard !words.isEmpty else { return all(for: model) }
 
+        // One or two letters can't mean a word, so they filter on what's written on screen.
+        // Any more, and aliases come into play — "fin" should find Find, "kanban" the board.
+        let aliasesCount = query.trimmingCharacters(in: .whitespaces).count >= 3
         let commands = all(for: model)
             .compactMap { command -> (AppCommand, Int)? in
                 if let score = score(command.title, words) { return (command, score) }
+                guard aliasesCount else { return nil }
                 // An alias still finds the command, but never outranks a match on its name.
                 guard let score = score(command.keywords.joined(separator: " "), words) else { return nil }
                 return (command, max(1, score - 3))
