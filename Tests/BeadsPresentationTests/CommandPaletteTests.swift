@@ -110,3 +110,20 @@ struct CommandPaletteTests {
         #expect(CommandCatalog.results(for: "", model: model).allSatisfy { !$0.group.isEmpty })
     }
 }
+
+@MainActor
+@Suite("Palette matching stays honest")
+struct PaletteMatchingTests {
+    @Test("a query only matches commands that actually relate to it")
+    func noFalsePositives() async {
+        let store = MemoryStore([makeIssue("a", title: "Tile cache")])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
+        await model.load()
+        let results = CommandCatalog.results(for: "them", model: model)
+        #expect(!results.isEmpty, "\"them\" should find the theme commands")
+        for command in results {
+            let text = (command.title + " " + command.keywords.joined(separator: " ")).lowercased()
+            #expect(text.contains("them") || text.contains("theme"), "\(command.title) has nothing to do with \"them\"")
+        }
+    }
+}

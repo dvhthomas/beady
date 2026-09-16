@@ -1,3 +1,4 @@
+import AppKit
 import BeadsCore
 import BeadsPresentation
 import SwiftUI
@@ -13,6 +14,8 @@ struct CommandPaletteView: View {
     private var query = State(initialValue: "")
     private var highlighted = State(initialValue: 0)
     private var isFocused = FocusState<Bool>()
+    /// The key monitor, kept alive while the palette is open.
+    private var monitor = State<Any?>(initialValue: nil)
 
     init(model: WorkspaceModel, run: @escaping (AppCommand) -> Void, onClose: @escaping () -> Void) {
         self.model = model
@@ -28,13 +31,6 @@ struct CommandPaletteView: View {
                 .font(.title3)
                 .padding(14)
                 .focused(isFocused.projectedValue)
-                .onSubmit { activate(results) }
-                .onKeyPress(.downArrow) { move(1, in: results) }
-                .onKeyPress(.upArrow) { move(-1, in: results) }
-                .onKeyPress(.escape) {
-                    onClose()
-                    return .handled
-                }
                 .onChange(of: query.wrappedValue) { highlighted.wrappedValue = 0 }
             Divider()
             if results.isEmpty {
@@ -46,7 +42,55 @@ struct CommandPaletteView: View {
             }
         }
         .frame(width: 580, height: 420)
-        .onAppear { isFocused.wrappedValue = true }
+        .onAppear {
+            isFocused.wrappedValue = true
+            startWatchingKeys()
+        }
+        .onDisappear(perform: stopWatchingKeys)
+    }
+
+    /// Arrow keys, Return and Escape come through a local event monitor rather than
+    /// `onKeyPress`: the text field's editor takes arrows first to move the caret, so a key
+    /// handler on the field never sees them.
+    private func startWatchingKeys() {
+        guard monitor.wrappedValue == nil else { return }
+        let query = query.projectedValue
+        let highlighted = highlighted.projectedValue
+        let model = model
+        let run = run
+        let onClose = onClose
+        // The monitor is delivered on the main thread; NSEvent isn't Sendable, so the handler
+        // keeps it local rather than capturing it anywhere.
+        monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
+            let results = CommandCatalog.results(for: query.wrappedValue, model: model)
+            func move(_ delta: Int) {
+                guard !results.isEmpty else { return }
+                highlighted.wrappedValue = (highlighted.wrappedValue + delta + results.count) % results.count
+            }
+            switch event.keyCode {
+            case 126: // up
+                move(-1)
+                return nil
+            case 125: // down
+                move(1)
+                return nil
+            case 36, 76: // return, enter
+                if results.indices.contains(highlighted.wrappedValue) {
+                    run(results[highlighted.wrappedValue])
+                }
+                return nil
+            case 53: // escape
+                onClose()
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func stopWatchingKeys() {
+        if let monitor = monitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+        monitor.wrappedValue = nil
     }
 
     private func list(_ results: [AppCommand]) -> some View {
@@ -88,16 +132,6 @@ struct CommandPaletteView: View {
         .background(isHighlighted ? theme.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
     }
 
-    private func move(_ delta: Int, in results: [AppCommand]) -> KeyPress.Result {
-        guard !results.isEmpty else { return .handled }
-        highlighted.wrappedValue = (highlighted.wrappedValue + delta + results.count) % results.count
-        return .handled
-    }
-
-    private func activate(_ results: [AppCommand]) {
-        guard results.indices.contains(highlighted.wrappedValue) else { return }
-        run(results[highlighted.wrappedValue])
-    }
 }
 
 /// The `?` sheet: every command, where it lives, and the key that runs it.
