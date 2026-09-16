@@ -29,6 +29,11 @@ final class WorkspaceUI {
 
     @ObservationIgnored let columns = ColumnLayout()
 
+    /// True while anything modal is up, so background key handling stands down.
+    var isSheetOpen: Bool {
+        showsPalette || showsThemes || showsGraph || showsNewBead || showsShortcuts
+    }
+
     /// Opens the palette empty, wherever it was left last time.
     func openPalette() {
         paletteQuery = ""

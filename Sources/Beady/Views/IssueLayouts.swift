@@ -128,6 +128,9 @@ struct IssueListView: View {
         .tableStyle(.inset(alternatesRowBackgrounds: false))
         .scrollContentBackground(.hidden)
         .background(theme.background)
+        // A narrow column truncates its header with an ellipsis; this puts the full name back
+        // within reach on hover, which SwiftUI's Table has no API for.
+        .background(TableHeaderTooltips())
     }
 
     @ViewBuilder
@@ -288,9 +291,17 @@ private struct TreeIssueRow: View {
 /// on a column proposes that column's value, where the grouping allows it.
 struct IssueBoardView: View {
     let model: WorkspaceModel
+    let ui: WorkspaceUI
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var monitor = State<Any?>(initialValue: nil)
+
+    init(model: WorkspaceModel, ui: WorkspaceUI) {
+        self.model = model
+        self.ui = ui
+    }
 
     var body: some View {
-        ScrollView(.horizontal) {
+        ScrollView([.horizontal, .vertical]) {
             HStack(alignment: .top, spacing: 12) {
                 ForEach(model.boardGroups) { group in
                     BoardColumnView(group: group, model: model)
@@ -300,6 +311,34 @@ struct IssueBoardView: View {
             .padding(12)
             .frame(maxHeight: .infinity, alignment: .top)
         }
+        .onAppear(perform: startWatchingKeys)
+        .onDisappear(perform: stopWatchingKeys)
+    }
+
+    /// The board is a grid we drew ourselves, so the arrow keys have to be caught here — left to
+    /// AppKit they walk the sidebar's list instead. Anything modal, or a text field with the
+    /// keyboard, gets the key first.
+    private func startWatchingKeys() {
+        guard monitor.wrappedValue == nil else { return }
+        let model = model
+        let ui = ui
+        monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
+            guard model.layout == .board, !ui.isSheetOpen, !ui.isSearchFocused,
+                  !(NSApp.keyWindow?.firstResponder is NSTextView) else { return event }
+            switch event.keyCode {
+            case 126: model.moveSelection(.up)
+            case 125: model.moveSelection(.down)
+            case 123: model.moveSelection(.left)
+            case 124: model.moveSelection(.right)
+            default: return event
+            }
+            return nil
+        }
+    }
+
+    private func stopWatchingKeys() {
+        if let monitor = monitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+        monitor.wrappedValue = nil
     }
 }
 
@@ -422,5 +461,45 @@ private struct IssueCard: View {
                 .strokeBorder(isSelected ? theme.accent : theme.border, lineWidth: isSelected ? 2 : 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+
+/// Gives the table's column headers their own tooltips.
+///
+/// SwiftUI's `Table` offers no way to build a header view, and AppKit truncates a header that
+/// doesn't fit — so the full column name would otherwise be unreachable. `NSTableColumn` has
+/// `headerToolTip` for exactly this; finding the table means a short walk through the view
+/// hierarchy, and if that ever fails the table simply keeps its truncated headers.
+private struct TableHeaderTooltips: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let table = Self.tableView(near: view) else { return }
+            for column in table.tableColumns where column.headerToolTip != column.title {
+                column.headerToolTip = column.title
+            }
+        }
+    }
+
+    /// The table this background view sits behind: up to the nearest common ancestor, then down.
+    private static func tableView(near view: NSView) -> NSTableView? {
+        var ancestor: NSView? = view
+        while let current = ancestor {
+            if let found = descendantTable(of: current) { return found }
+            ancestor = current.superview
+        }
+        return nil
+    }
+
+    private static func descendantTable(of view: NSView) -> NSTableView? {
+        if let table = view as? NSTableView { return table }
+        for subview in view.subviews {
+            if let found = descendantTable(of: subview) { return found }
+        }
+        return nil
     }
 }

@@ -111,7 +111,7 @@ struct WorkspaceView: View {
             } else {
                 switch model.layout {
                 case .list: IssueListView(model: model, columns: ui.columns)
-                case .board: IssueBoardView(model: model)
+                case .board: IssueBoardView(model: model, ui: ui)
                 case .tree: IssueOutlineView(model: model)
                 }
             }

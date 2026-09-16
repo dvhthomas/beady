@@ -358,6 +358,43 @@ public final class WorkspaceModel {
         return entries
     }
 
+    // MARK: Moving around the board
+
+    public enum MoveDirection: Sendable {
+        case up, down, left, right
+    }
+
+    /// Moves the highlight around the board. The list and the tree are real AppKit lists and
+    /// handle their own arrows; the board is a grid of columns we drew ourselves, so it needs
+    /// this — otherwise the arrows wander off into the sidebar.
+    public func moveSelection(_ direction: MoveDirection) {
+        guard layout == .board else { return }
+        let columns = boardGroups.filter { !$0.issues.isEmpty }
+        guard !columns.isEmpty else { return }
+
+        guard let selection,
+              let column = columns.firstIndex(where: { $0.issues.contains { $0.id == selection } }),
+              let row = columns[column].issues.firstIndex(where: { $0.id == selection })
+        else {
+            // Nothing selected yet: start at the top of the first column with anything in it.
+            self.selection = columns[0].issues.first?.id
+            return
+        }
+
+        switch direction {
+        case .up:
+            self.selection = columns[column].issues[max(row - 1, 0)].id
+        case .down:
+            self.selection = columns[column].issues[min(row + 1, columns[column].issues.count - 1)].id
+        case .left, .right:
+            let next = direction == .left ? column - 1 : column + 1
+            guard columns.indices.contains(next) else { return }
+            // Keep your place down the column, or land on the last card of a shorter one.
+            let issues = columns[next].issues
+            self.selection = issues[min(row, issues.count - 1)].id
+        }
+    }
+
     // MARK: Where you've been
 
     /// A view and the bead that was selected in it — one step of history.
