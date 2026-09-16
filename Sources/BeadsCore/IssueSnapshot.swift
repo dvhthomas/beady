@@ -151,6 +151,17 @@ public struct IssueSnapshot: Sendable {
     }
 
     /// Closed vs total across all descendants; nil for leaves.
+    /// The same snapshot with one bead replaced. Indexes are rebuilt, so blocked flags and
+    /// completion stay consistent; it's cheap enough to do on a keystroke.
+    public func replacing(_ issue: Issue) -> IssueSnapshot {
+        guard byID[issue.id] != nil else { return self }
+        return IssueSnapshot(
+            issues: issues.map { $0.id == issue.id ? issue : $0 },
+            catalog: catalog,
+            unreadableRecordCount: unreadableRecordCount
+        )
+    }
+
     public func progress(of id: IssueID) -> Completion? {
         completionByID[id]
     }
