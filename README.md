@@ -1,17 +1,82 @@
-# Beady
+<h1 align="center">Beady</h1>
 
-A native macOS app for looking at, and carefully changing, a
-[beads](https://github.com/steveyegge/beads) (`bd`) database: what's open, what's in flight, what's
-blocked, what got closed, and how work breaks down. Loading always uses `bd --readonly`. Editing is
-always available, and every change goes through the checks described under **Editing** before it is
-written.
+<p align="center">
+  A native macOS app for seeing what a <a href="https://github.com/steveyegge/beads">beads</a>
+  (<code>bd</code>) database is doing — and changing it without holding your breath.
+</p>
+
+![Beady showing in-flight work, grouped by status](docs/images/list-dark.png)
+
+Beads is an issue tracker built for agents: dependencies are first class, and several agents may
+be writing to the same database while you read it. Beady is the window onto that. It reads with
+`bd --readonly`, watches the database for changes so the view is never stale, and puts every write
+behind validation, a preview of the exact `bd` commands, and a read-back check.
+
+The screenshot above is Beady noticing that something else moved while you were looking: an agent
+touched that bead four seconds ago, and the app says so rather than pretending it owns the data.
+
+## What it's for
+
+- **See the shape of the work.** Lifecycle views (Open, Ready, In Flight, Blocked, Deferred,
+  Closed, All), each keeping its own filters, grouping, ordering and layout.
+- **Filter the way you think.** Pick a property, tick values; rules read as chips —
+  `Priority · is any of · P1, P2 · ✕` — and combine with AND.
+- **Three ways to look.** A resizable table, a tree that keeps ancestors visible, and a board you
+  can drag between.
+- **Change things carefully.** Nothing is written until you confirm a sheet showing the change,
+  its warnings, and the commands themselves.
+
+| | |
+|---|---|
+| ![Board](docs/images/board.png) | ![Tree](docs/images/tree.png) |
+| Board — drag between columns; the grouping decides what a drop means | Tree — a bead's subtree, ancestors kept visible when a filter matches a child |
+
+## Everything from the keyboard
+
+`⌘P` runs any command or jumps to a bead by id or title. It answers to the words you'd actually
+type: `fin` finds Find, `kanban` finds the board, `drac` finds the theme.
+
+![Command palette](docs/images/palette.png)
+
+`/` search · `F` filter · `⇧V` display · `⌘T` theme · `⌘N` new bead · `⌘E` edit · `⌘I` details ·
+`⌘1/2/3` layout · `⌘R` refresh · `?` the full list.
+
+## Themes, and eyes that need help
+
+![Theme picker](docs/images/themes.png)
+
+System, light or dark, with the best-known editor themes on both sides — Dracula, One Dark, Nord,
+Solarized Light, GitHub Light, One Light — plus a high-contrast pair that macOS's own
+**Increase Contrast** setting switches to on its own. Text scales from Small to Extra Large.
+
+Every colour in the app is a design token, and the contrast of every theme is checked by tests:
+body text clears WCAG AA (4.5:1) on both the background and a row, status and priority colours
+clear 3:1, and the high-contrast themes clear AAA (7:1).
+
+## Writing to a live database
+
+![Change confirmation](docs/images/confirm.png)
+
+bd has no lease or lock, and agents write whenever they like, so Beady is built to be one writer
+among several:
+
+- **Validation** against the loaded data — titles, priorities, known statuses and types, parents
+  that exist, no parent loops. Closing needs a reason; bd's own rules (no closing pinned beads or
+  epics with open children) are respected.
+- **A conflict check** immediately before writing, comparing what you saw with what's in bd now.
+- **The exact commands**, shown before you agree to them.
+- **A read-back** afterwards. If anything goes wrong, the result is resolved into landed, failed or
+  uncertain by re-reading — never guessed.
+- **Live-work warnings.** If another actor touched a bead recently (bd's interaction log), the row
+  is marked and the confirmation sheet says so. It informs; it never blocks, because a lock bd
+  doesn't offer can't be faked.
 
 ## Install
 
 Requirements: macOS 15 or later, and `bd` on your PATH.
 
-**Build it yourself** (recommended — an app you build is never quarantined). You also need a
-Swift 6 toolchain, from Xcode or the Command Line Tools:
+**Build it yourself** — recommended, because an app you build is never quarantined. You also need
+a Swift 6 toolchain, from Xcode or the Command Line Tools:
 
 ```bash
 git clone https://github.com/dvhthomas/beady.git
@@ -19,25 +84,18 @@ cd beady
 scripts/bundle.sh && open build/Beady.app
 ```
 
-**Or download a release.** Grab the zip from
-[Releases](https://github.com/dvhthomas/beady/releases), unzip it, and move
-Beady to /Applications. The app is ad-hoc signed but not notarised — there's no Apple
-Developer ID behind it — so macOS quarantines it the first time. Either open it and then choose
-**Open Anyway** in System Settings → Privacy & Security, or clear the flag yourself:
+**Or download a release.** Take the zip from
+[Releases](https://github.com/dvhthomas/beady/releases), unzip, and move Beady to /Applications.
+It's ad-hoc signed but not notarised — there's no Apple Developer ID behind it — so macOS
+quarantines it the first time. Either open it and choose **Open Anyway** in System Settings →
+Privacy & Security, or clear the flag yourself:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Beady.app
 ```
 
-`scripts/release.sh` builds that zip locally; tagging `v*` builds and publishes it from CI.
-
-## Run it
-
-Open a project folder that contains `.beads` (or the `.beads` folder itself) with ⌘O. The last
+Open a project folder containing `.beads` (or the `.beads` folder itself) with ⌘O. The last
 workspace reopens on launch; `--workspace /path/to/project` overrides it.
-
-While developing, `scripts/dev-watch.sh /path/to/project` rebuilds and relaunches the app whenever
-`Sources/` changes (into its own `.build-app` folder, so it doesn't fight `swift test` for the lock).
 
 ## What you can see
 
@@ -78,54 +136,6 @@ While developing, `scripts/dev-watch.sh /path/to/project` rebuilds and relaunche
 - **Other sessions**: bd has no lease or lock, so when another actor changed a bead recently
   (from `.beads/interactions.jsonl`) the details panel says who and when, the row is marked, and a
   change to that bead carries a warning on the confirmation sheet. It informs; it never blocks.
-
-## Keyboard
-
-`⌘P` opens the command palette: type a few letters to run any command or jump to a bead by id or
-title. `?` lists every shortcut. `/` focuses search, `F` opens the filter menu, `⇧V` the display
-options, `⌘N` a new bead, `⌘E` edits the selected one, `⌘I` toggles the details panel, `⌘1/2/3`
-switch layout, `⌘O` opens a workspace, `⌘R` refreshes. Everything in the palette is also in the
-menu bar.
-
-## Editing
-
-Editing is always on, and the confirmation sheet is the gate. You can:
-
-- edit a bead's title, priority, description and notes (**Edit** in the details panel, or `⌘E`);
-- move it under another bead (**Move To** in the details panel — anything that already holds work,
-  not only epics — or drag a card or tree row onto another tree row);
-- change its lifecycle, status, priority or parent by dragging a card to another board column
-  (the board's grouping decides which), or change status with **Status** in the details panel;
-- create a bead (**+** in the toolbar, or `⌘N`).
-
-Nothing is written until you confirm a sheet showing the change, any warnings, and the exact bd
-commands. Confirming runs `BeadsCore.ChangeRunner`, the only path to a write:
-
-1. **Validate** against the loaded data: one-line, non-blank titles; priorities P0–P4; statuses the
-   database knows; known types; parents that exist; no parent loops. Closing needs a reason, and
-   epics with unfinished children and pinned beads can't be closed (bd refuses both). Clearing text,
-   or closing a non-epic with unfinished children, is allowed but flagged. The checks run again when
-   you confirm; if a refresh changed their outcome, you're asked to look again before anything is
-   written.
-2. **Check the live parent chain** for loops, one `bd show` per ancestor. bd itself doesn't prevent
-   them.
-3. **Compare with the live bead**, as the last step before writing: re-read it and refuse if any field
-   being changed differs from the version you started from. An edit form keeps its starting version
-   across auto-refreshes. bd has no atomic check-and-write, so a write by another session in the
-   instant between this read and the write can't be stopped beforehand; step 5 catches its effects.
-4. **Write through bd**: values as `--flag=value` with the id after `--` (text that looks like a flag
-   stays text), closing via `bd close --reason`, leaving closed via `bd reopen`, and creates
-   preflighted with bd's `--dry-run`. Descriptions and notes are written exactly as typed.
-5. **Verify** by reading the bead back: every intended field, including the close reason, must be
-   there. If bd reports an error or times out, the app waits for bd to exit and re-reads. A change
-   that landed cleanly is recognised (for a create, by finding the new bead, so retrying won't
-   duplicate it). A bead left as it was is a plain failure, safe to retry. Anything in between, such
-   as a half-finished reopen or another session writing at the same moment, is reported as uncertain
-   along with the bead's actual state.
-
-While a change is being written the sheet can't be dismissed and nothing new can be proposed.
-
-Outcomes are listed under **Changes** in the toolbar.
 
 ## Architecture
 
@@ -215,12 +225,12 @@ bd when you point them at one:
 
 ```bash
 BEADY_IT_WORKSPACE=/path/to/project scripts/test.sh            # read-only
-BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh   # writes; needs a
-                                                                      # .beady-scratch marker
+BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh   # writes; needs a .beady-scratch marker
 ```
 
-`BEADY_SNAPSHOT_DIR=/tmp/shots scripts/bundle.sh && … --workspace <project>` renders the
-main views to PNGs offscreen, which is how UI changes get checked without a window.
+`BEADY_SNAPSHOT_DIR=/tmp/shots build/Beady.app/Contents/MacOS/Beady --workspace <project>` renders
+the main views to PNGs offscreen, which is how UI changes get checked without a window — the
+screenshots above were made that way, from a small demo database.
 
 `swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.
 
