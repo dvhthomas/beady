@@ -44,7 +44,7 @@ struct IssueListView: View {
                         .lineLimit(1)
                         .rowForeground(theme.text)
                         .help(DisplayText.preview(issue.title) ?? "")
-                    if model.snapshot?.isBlocked(issue) == true { BlockedMark() }
+                    if let reason = model.blockedReason(for: issue.id) { WaitingMark(reason: reason) }
                 }
             }
             column(.labels) { issue in
@@ -71,6 +71,21 @@ struct IssueListView: View {
                             .font(.caption.monospacedDigit())
                             .rowForeground(theme.secondaryText, secondary: true)
                     }
+                }
+            }
+            column(.blockedBy) { issue in
+                if let reason = model.blockedReason(for: issue.id) {
+                    Button {
+                        // The fastest answer is the blocker itself, so the cell jumps to it.
+                        if let first = reason.blockers.first { model.selection = first.id }
+                    } label: {
+                        Text(reason.summary)
+                            .lineLimit(1)
+                            .rowForeground(theme.color(.frozen), secondary: true)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(reason.blockers.isEmpty)
+                    .help(DisplayText.preview(reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: ", ")) ?? reason.summary)
                 }
             }
             column(.date) { issue in
@@ -153,7 +168,7 @@ struct IssueListView: View {
         }
         .width(min: column.minimumWidth, ideal: column.idealWidth, max: column.maximumWidth.map { CGFloat($0) })
         .customizationID(column.id)
-        .defaultVisibility(column.isVisibleByDefault ? .visible : .hidden)
+        .defaultVisibility(columns.isVisible(column, in: model.source) ? .visible : .hidden)
         .disabledCustomizationBehavior(column.isAlwaysVisible ? .visibility : [])
     }
 }
@@ -243,7 +258,9 @@ private struct TreeIssueRow: View {
             Text(issue.title)
                 .lineLimit(1)
                 .help(DisplayText.preview(issue.title) ?? "")
-            if snapshot?.isBlocked(issue) == true { BlockedMark() }
+            if let snapshot, let reason = BlockedReason.of(issue.id, in: snapshot) {
+                WaitingMark(reason: reason)
+            }
             Spacer(minLength: 8)
             if let completion = snapshot?.progress(of: issue.id) {
                 CompletionMeter(completion: completion)
@@ -357,7 +374,9 @@ private struct IssueCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .help(DisplayText.preview(issue.title) ?? "")
             HStack(spacing: 6) {
-                if snapshot?.isBlocked(issue) == true { BlockedMark() }
+                if let snapshot, let reason = BlockedReason.of(issue.id, in: snapshot) {
+                    WaitingMark(reason: reason)
+                }
                 if let assignee = issue.assignee {
                     Label(assignee, systemImage: "person")
                         .font(.caption)

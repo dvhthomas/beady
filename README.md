@@ -28,8 +28,10 @@ touched that bead four seconds ago, and the app says so rather than pretending i
   --label pinned` sees exactly what Beady sees. The mark appears at once and is written behind
   it — a bd write costs the better part of a second — and if the write fails the mark goes back
   and the Changes menu says why.
-- **Ask what's in the way.** A blocked bead shows the chain that has to finish first, grouped into
-  "start now" and "then"; ⌘G opens the same thing as a one-hop graph.
+- **Ask what's in the way.** bd's "blocked" means something upstream has to land first, so Beady
+  says so rather than sounding an alarm: a quiet waiting mark, a **Blocked by** column (on by
+  default in the Blocked and Ready views) naming the blocker, and a details section with the chain
+  grouped into "start now" and "then". ⌘G opens the same thing as a one-hop graph.
 - **Change things carefully.** Nothing is written until you confirm a sheet showing the change,
   its warnings, and the commands themselves.
 

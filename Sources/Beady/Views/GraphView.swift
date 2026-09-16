@@ -8,12 +8,24 @@ struct UnblockPathView: View {
     @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let path: UnblockPath
+    /// What kind of waiting this is, so the heading can say something true about it.
+    var reason: BlockedReason?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Blocked by \(path.work.count) unfinished \(path.work.count == 1 ? "bead" : "beads")", systemImage: "exclamationmark.octagon")
+            Label(heading, systemImage: "pause.circle")
                 .font(.headline)
-                .foregroundStyle(theme.blocked)
+                .foregroundStyle(theme.color(.frozen))
+            if let reason, reason.isDeclared, reason.kind != .declared {
+                Text("Its status is also set to blocked.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
+            if let reason, reason.kind == .waitingOnAnotherProject {
+                Text("Another project has to ship \(reason.externalCapabilities.joined(separator: ", ")).")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
             if path.hasCycle {
                 Label("These blockers form a loop, so nothing here can finish first.", systemImage: "arrow.triangle.capsulepath")
                     .font(.caption)
@@ -45,6 +57,12 @@ struct UnblockPathView: View {
                 }
             }
         }
+    }
+
+    private var heading: String {
+        let count = path.work.count
+        guard count > 0 else { return reason?.summary ?? "Waiting" }
+        return "Waiting on \(count) unfinished \(count == 1 ? "bead" : "beads")"
     }
 }
 

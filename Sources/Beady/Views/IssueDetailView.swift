@@ -56,8 +56,12 @@ private struct IssueDetailContent: View {
                     progress(completion)
                 }
                 metadata
-                if let path = model.unblockPath(for: issue.id) {
-                    UnblockPathView(model: model, path: path)
+                if let reason = model.blockedReason(for: issue.id) {
+                    if let path = model.unblockPath(for: issue.id) {
+                        UnblockPathView(model: model, path: path, reason: reason)
+                    } else {
+                        declaredBlocked(reason)
+                    }
                 }
                 relations
                 textSection("Description", issue.description)
@@ -66,6 +70,26 @@ private struct IssueDetailContent: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Status set to blocked with nothing upstream: bd keeps no reason for that, so the app
+    /// says who set it and when, and stops there rather than inventing an explanation.
+    @ViewBuilder
+    private func declaredBlocked(_ reason: BlockedReason) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(reason.summary, systemImage: "pause.circle")
+                .font(.headline)
+                .foregroundStyle(theme.color(.frozen))
+            if let entry = model.recentChange(to: issue.id), entry.field == "status" {
+                Text("Set by \(entry.actor) \(entry.date.formatted(.relative(presentation: .named))).")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
+            Text("Nothing upstream is recorded. Open History for the full record, or add the bead that's in the way with bd dep.")
+                .font(.caption)
+                .foregroundStyle(theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -83,10 +107,11 @@ private struct IssueDetailContent: View {
                 StatusBadge(status: issue.status, category: snapshot.category(of: issue))
                 PriorityBadge(priority: issue.priority)
                 TypeLabel(type: issue.type)
-                if snapshot.isBlocked(issue) {
-                    Label("Blocked", systemImage: "exclamationmark.octagon.fill")
+                if let reason = model.blockedReason(for: issue.id) {
+                    Label(reason.summary, systemImage: "pause.circle")
                         .font(.caption)
-                        .foregroundStyle(theme.blocked)
+                        .foregroundStyle(theme.color(.frozen))
+                        .help("bd calls this blocked; it means something upstream has to finish first.")
                 }
             }
         }

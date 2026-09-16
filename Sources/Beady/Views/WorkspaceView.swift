@@ -199,14 +199,6 @@ struct WorkspaceView: View {
             .help("Changes made this session")
 
             Button {
-                Task { await model.load() }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .disabled(model.isLoading)
-            .help("Reload from bd (⌘R). Changes are picked up automatically too.")
-
-            Button {
                 run(.toggleDetails)
             } label: {
                 Label("Details", systemImage: "sidebar.right")
