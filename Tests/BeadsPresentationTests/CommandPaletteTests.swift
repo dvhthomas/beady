@@ -57,6 +57,29 @@ struct CommandPaletteTests {
         #expect(CommandCatalog.results(for: "workspace open", model: model).contains(.openWorkspace))
     }
 
+    @Test("commands answer to the words people actually type")
+    func aliases() async {
+        let model = await makeModel()
+        // "fin" is what you type when you want Find; the command needn't be titled that exactly.
+        #expect(CommandCatalog.results(for: "fin", model: model).first == .focusSearch)
+        #expect(CommandCatalog.results(for: "find", model: model).first == .focusSearch)
+        #expect(CommandCatalog.results(for: "reload", model: model).first == .refresh)
+        #expect(CommandCatalog.results(for: "column", model: model).first == .displayOptions)
+// "sort" should reach the ordering commands themselves before the menu that holds them.
+        if case .setOrdering = CommandCatalog.results(for: "sort", model: model).first {} else {
+            Testing.Issue.record("sort should offer an ordering first")
+        }
+        #expect(CommandCatalog.results(for: "help", model: model).first == .showShortcuts)
+        #expect(CommandCatalog.results(for: "kanban", model: model).first == .setLayout(.board))
+    }
+
+    @Test("a title match still beats an alias match")
+    func titleWins() async {
+        let model = await makeModel()
+        #expect(CommandCatalog.results(for: "refresh", model: model).first == .refresh)
+        #expect(CommandCatalog.results(for: "display", model: model).first == .displayOptions)
+    }
+
     @Test("beads are searchable from the palette, by id or by title")
     func beads() async {
         let model = await makeModel()

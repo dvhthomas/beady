@@ -56,6 +56,8 @@ struct FilterBar: View {
                         .help("Refresh failed; showing the last good data.\n\(error)")
                 }
 
+                layoutSwitcher
+
                 Button {
                     ui.showsDisplayOptions = true
                 } label: {
@@ -74,6 +76,22 @@ struct FilterBar: View {
             .padding(.vertical, 6)
             Divider()
         }
+    }
+
+    /// The layout is the one display choice worth a click rather than a menu; the Display
+    /// popover keeps the same picker for people who go looking there.
+    private var layoutSwitcher: some View {
+        Picker("Layout", selection: $model.layout) {
+            ForEach(WorkspaceModel.Layout.allCases) { layout in
+                Image(systemName: DisplayText.layoutSymbol(layout))
+                    .help(DisplayText.layout(layout))
+                    .tag(layout)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .help("List, Tree or Board (⌘1, ⌘2, ⌘3)")
     }
 
     /// Single-key shortcuts live on real (invisible) buttons rather than menu items, so they
@@ -323,9 +341,9 @@ struct DisplayOptionsView: View {
     var body: some View {
         Form {
             Picker("Layout", selection: $model.layout) {
-                Label("List", systemImage: "list.bullet").tag(WorkspaceModel.Layout.list)
-                Label("Board", systemImage: "rectangle.split.3x1").tag(WorkspaceModel.Layout.board)
-                Label("Tree", systemImage: "list.bullet.indent").tag(WorkspaceModel.Layout.tree)
+                ForEach(WorkspaceModel.Layout.allCases) { layout in
+                    Label(DisplayText.layout(layout), systemImage: DisplayText.layoutSymbol(layout)).tag(layout)
+                }
             }
             .pickerStyle(.segmented)
             Picker("Grouping", selection: $model.grouping) {

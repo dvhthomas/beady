@@ -4,6 +4,20 @@ import BeadsCore
 // everything that decides what is shown is tested here, not in SwiftUI.
 
 public enum DisplayText {
+    /// The full text of a cell for a hover preview, or nil when there's nothing to show.
+    /// Long text is cut at `limit` characters — at a word boundary where one is close — and
+    /// ends in an ellipsis so it's clear there is more.
+    public static func preview(_ text: String, limit: Int = 512) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count > limit else { return trimmed }
+        var cut = String(trimmed.prefix(limit))
+        if let space = cut.lastIndex(of: " "), cut.distance(from: space, to: cut.endIndex) < 24 {
+            cut = String(cut[cut.startIndex..<space])
+        }
+        return cut + "…"
+    }
+
     public static func status(_ raw: String) -> String {
         raw.split(whereSeparator: { $0 == "_" || $0 == "-" })
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
@@ -49,6 +63,23 @@ public enum DisplayText {
         case .recentlyCreated: "Last created"
         case .recentlyClosed: "Last closed"
         case .issueID: "ID"
+        }
+    }
+
+    public static func layout(_ layout: WorkspaceModel.Layout) -> String {
+        switch layout {
+        case .list: "List"
+        case .board: "Board"
+        case .tree: "Tree"
+        }
+    }
+
+    /// The SF Symbol for a layout, used by the header switcher and the Display picker.
+    public static func layoutSymbol(_ layout: WorkspaceModel.Layout) -> String {
+        switch layout {
+        case .list: "list.bullet"
+        case .board: "rectangle.split.3x1"
+        case .tree: "list.bullet.indent"
         }
     }
 

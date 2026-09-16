@@ -112,6 +112,11 @@ struct AppCommands: Commands {
         }
         CommandGroup(replacing: .help) {
             item(.showShortcuts, needsWorkspace: true)
+            // A menu item can only display one key, and it shows the ⌘ one; this is where the
+            // bare "?" gets taught.
+            Text("Press ? anywhere in the window for the shortcut list")
+            Divider()
+            Link("Beady on GitHub", destination: URL(string: "https://github.com/dvhthomas/beady")!)
         }
     }
 

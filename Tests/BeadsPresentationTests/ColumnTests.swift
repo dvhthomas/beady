@@ -49,3 +49,30 @@ struct ListColumnTests {
         #expect(ListColumn.priority.maximumWidth != nil, "badges shouldn't stretch")
     }
 }
+
+
+@Suite("Hover previews")
+struct PreviewTextTests {
+    @Test("short text is shown as it is")
+    func short() {
+        #expect(DisplayText.preview("Freeform furniture positioning") == "Freeform furniture positioning")
+        #expect(DisplayText.preview("  padded  ") == "padded")
+        #expect(DisplayText.preview("") == nil, "nothing to preview")
+    }
+
+    @Test("long text is cut at 512 characters, with an ellipsis to say there is more")
+    func long() {
+        let text = String(repeating: "a", count: 600)
+        let preview = try! #require(DisplayText.preview(text))
+        #expect(preview.count == 513)
+        #expect(preview.hasSuffix("…"))
+        #expect(!DisplayText.preview(String(repeating: "b", count: 512))!.hasSuffix("…"), "exactly at the limit is whole")
+    }
+
+    @Test("the cut lands on a word boundary when there is one nearby")
+    func wordBoundary() {
+        let text = String(repeating: "word ", count: 200)
+        let preview = try! #require(DisplayText.preview(text))
+        #expect(preview.hasSuffix("word…"))
+    }
+}

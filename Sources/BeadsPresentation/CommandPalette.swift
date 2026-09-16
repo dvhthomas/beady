@@ -82,7 +82,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .refresh: "Refresh from bd"
         case .newBead: "New Bead"
         case .editSelected: "Edit Selected Bead"
-        case .focusSearch: "Search This View"
+        case .focusSearch: "Find in This View"
         case .addFilter: "Add Filter"
         case .clearFilters: "Clear Filters"
         case .displayOptions: "Display Options"
@@ -93,6 +93,29 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
         case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
+        }
+    }
+
+    /// Other words that should find this command. A palette is only as good as the words it
+    /// answers to: "fin" has to reach Find, "kanban" has to reach the board.
+    public var keywords: [String] {
+        switch self {
+        case .openWorkspace: ["open", "workspace", "project", "database", "folder"]
+        case .closeWorkspace: ["close", "quit workspace"]
+        case .refresh: ["reload", "sync", "update", "fetch"]
+        case .newBead: ["create", "add", "issue", "task"]
+        case .editSelected: ["change", "rename", "modify", "title", "description"]
+        case .focusSearch: ["find", "search", "text", "look for"]
+        case .addFilter: ["filter", "narrow", "where", "status", "priority", "label", "assignee"]
+        case .clearFilters: ["reset", "remove filters", "show everything"]
+        case .displayOptions: ["columns", "sort", "order", "group", "layout", "show"]
+        case .toggleDetails: ["inspector", "side panel", "info"]
+        case .showShortcuts: ["help", "keys", "keyboard", "shortcuts"]
+        case .showView: ["go", "switch", "view"]
+        case .setLayout(let layout): layout == .board ? ["kanban", "columns", "swimlanes"] : ["view as", layout.rawValue]
+        case .setGrouping: ["group", "section", "break down"]
+        case .setOrdering: ["sort", "order", "arrange"]
+        case .goToIssue: ["bead", "issue", "go to"]
         }
     }
 
@@ -189,8 +212,10 @@ public enum CommandCatalog {
 
         let commands = all(for: model)
             .compactMap { command -> (AppCommand, Int)? in
-                guard let score = score(command.title, words) else { return nil }
-                return (command, score)
+                if let score = score(command.title, words) { return (command, score) }
+                // An alias still finds the command, but never outranks a match on its name.
+                guard let score = score(command.keywords.joined(separator: " "), words) else { return nil }
+                return (command, max(1, score - 3))
             }
             .sorted { ($1.1, $1.0.title.count) < ($0.1, $0.0.title.count) }
             .map(\.0)

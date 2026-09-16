@@ -24,6 +24,7 @@ struct IssueListView: View {
                     .font(.callout.monospaced())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .help(DisplayText.preview(issue.id.rawValue) ?? "")
             }
             column(.status) { issue in
                 let category = model.snapshot?.category(of: issue) ?? .active
@@ -40,7 +41,7 @@ struct IssueListView: View {
                 HStack(spacing: 6) {
                     Text(issue.title)
                         .lineLimit(1)
-                        .help(issue.title)
+                        .help(DisplayText.preview(issue.title) ?? "")
                     if model.snapshot?.isBlocked(issue) == true { BlockedMark() }
                     if changedElsewhere.contains(issue.id) {
                         Image(systemName: "person.wave.2")
@@ -54,13 +55,14 @@ struct IssueListView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .help(issue.labels.joined(separator: ", "))
+                    .help(DisplayText.preview(issue.labels.joined(separator: ", ")) ?? "")
             }
             column(.assignee) { issue in
                 Text(issue.assignee ?? "")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .help(DisplayText.preview(issue.assignee ?? "") ?? "")
             }
             column(.progress) { issue in
                 if let completion = model.progress(of: issue.id) {
@@ -233,6 +235,7 @@ private struct TreeIssueRow: View {
                 .foregroundStyle(.secondary)
             Text(issue.title)
                 .lineLimit(1)
+                .help(DisplayText.preview(issue.title) ?? "")
             if snapshot?.isBlocked(issue) == true { BlockedMark() }
             Spacer(minLength: 8)
             if let completion = snapshot?.progress(of: issue.id) {
@@ -337,6 +340,7 @@ private struct IssueCard: View {
                 .font(.callout.weight(.medium))
                 .lineLimit(3)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .help(DisplayText.preview(issue.title) ?? "")
             HStack(spacing: 6) {
                 if snapshot?.isBlocked(issue) == true { BlockedMark() }
                 if let assignee = issue.assignee {
