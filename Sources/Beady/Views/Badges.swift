@@ -45,10 +45,8 @@ enum IssueTypeStyle {
 
 struct PriorityBadge: View {
     let priority: Int
-    /// On a highlighted row the system paints its own background, so the badge borrows the
-    /// system's selected-text colour, which is legible whatever accent colour the user picked.
-    var isSelected = false
     @Environment(\.theme) private var theme
+    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
         Text(DisplayText.priority(priority))
@@ -61,7 +59,7 @@ struct PriorityBadge: View {
             .help("Priority \(priority) (0 is highest)")
     }
 
-    private var color: Color { isSelected ? Color(nsColor: .alternateSelectedControlTextColor) : theme.priority(priority) }
+    private var color: Color { prominence == .increased ? .primary : theme.priority(priority) }
 }
 
 struct StatusBadge: View {
@@ -102,16 +100,17 @@ struct BlockedMark: View {
 struct CompletionMeter: View {
     let completion: Completion
     @Environment(\.theme) private var theme
+    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
         HStack(spacing: 6) {
             ProgressView(value: completion.fraction)
                 .progressViewStyle(.linear)
-                .tint(theme.color(.done))
+                .tint(prominence == .increased ? Color.primary : theme.color(.done))
                 .frame(width: 56)
             Text("\(completion.closed)/\(completion.total)")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(theme.secondaryText)
+                .rowForeground(theme.secondaryText, secondary: true)
         }
         .help("\(completion.closed) of \(completion.total) descendants closed")
     }
@@ -140,8 +139,8 @@ enum MarkStyle {
 /// The pin and star a bead is wearing, if any.
 struct MarkGlyphs: View {
     let issue: Issue
-    var isSelected = false
     @Environment(\.theme) private var theme
+    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
         ForEach(IssueMark.allCases.filter(issue.has), id: \.self) { mark in
@@ -153,7 +152,34 @@ struct MarkGlyphs: View {
     }
 
     private func color(for mark: IssueMark) -> Color {
-        if isSelected { return Color(nsColor: .alternateSelectedControlTextColor) }
+        guard prominence != .increased else { return .primary }
         return mark == .pinned ? theme.pinned : theme.starred
+    }
+}
+
+
+/// macOS paints a highlighted row in the colour the user chose, and everything on top of it
+/// should be the single colour the system picked to sit there — white on most accents, dark on
+/// pale ones. `backgroundProminence` is how SwiftUI says "this row is highlighted"; asking the
+/// model which row is selected doesn't work, because table cells aren't re-evaluated for it.
+private struct RowForeground: ViewModifier {
+    @Environment(\.backgroundProminence) private var prominence
+    let color: Color
+    let secondary: Bool
+
+    func body(content: Content) -> some View {
+        content.foregroundStyle(style)
+    }
+
+    private var style: AnyShapeStyle {
+        guard prominence == .increased else { return AnyShapeStyle(color) }
+        return secondary ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+    }
+}
+
+extension View {
+    /// Draws in `color` normally, and in the system's selected-content colour on a highlighted row.
+    func rowForeground(_ color: Color, secondary: Bool = false) -> some View {
+        modifier(RowForeground(color: color, secondary: secondary))
     }
 }
