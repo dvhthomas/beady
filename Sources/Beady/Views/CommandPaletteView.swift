@@ -8,40 +8,45 @@ import SwiftUI
 struct CommandPaletteView: View {
     @Environment(\.theme) private var theme
     let model: WorkspaceModel
+    /// Query and highlight live in the shared UI state, not in view storage: see WorkspaceUI.
+    let ui: WorkspaceUI
     let run: (AppCommand) -> Void
     let onClose: () -> Void
-    /// `State`/`FocusState` as plain DynamicProperties: Command Line Tools lack the @State macro.
-    private var query = State(initialValue: "")
-    private var highlighted = State(initialValue: 0)
+    /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var isFocused = FocusState<Bool>()
-    /// The key monitor, kept alive while the palette is open.
     private var monitor = State<Any?>(initialValue: nil)
 
-    init(model: WorkspaceModel, run: @escaping (AppCommand) -> Void, onClose: @escaping () -> Void) {
+    init(model: WorkspaceModel, ui: WorkspaceUI, run: @escaping (AppCommand) -> Void, onClose: @escaping () -> Void) {
         self.model = model
+        self.ui = ui
         self.run = run
         self.onClose = onClose
     }
 
     var body: some View {
-        let results = CommandCatalog.results(for: query.wrappedValue, model: model)
+        let results = CommandCatalog.results(for: ui.paletteQuery, model: model)
         VStack(spacing: 0) {
-            TextField("Run a command or jump to a bead", text: query.projectedValue)
+            TextField("Run a command or jump to a bead", text: query)
                 .textFieldStyle(.plain)
                 .font(.title3)
                 .padding(14)
                 .focused(isFocused.projectedValue)
-                .onChange(of: query.wrappedValue) { highlighted.wrappedValue = 0 }
             Divider()
             if results.isEmpty {
-                Text("Nothing matches “\(query.wrappedValue)”")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 6) {
+                    Text("Nothing matches “\(ui.paletteQuery)”")
+                        .foregroundStyle(theme.secondaryText)
+                    Text("Backspace to widen the search, or Escape to close.")
+                        .font(.caption)
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 list(results)
             }
         }
         .frame(width: 580, height: 420)
+        .background(theme.background)
         .onAppear {
             isFocused.wrappedValue = true
             startWatchingKeys()
@@ -49,35 +54,77 @@ struct CommandPaletteView: View {
         .onDisappear(perform: stopWatchingKeys)
     }
 
-    /// Arrow keys, Return and Escape come through a local event monitor rather than
-    /// `onKeyPress`: the text field's editor takes arrows first to move the caret, so a key
-    /// handler on the field never sees them.
+    /// Typing resets the highlight, so Return always runs the best match rather than whatever
+    /// happened to be highlighted for the previous query.
+    private var query: Binding<String> {
+        Binding(
+            get: { ui.paletteQuery },
+            set: {
+                ui.paletteQuery = $0
+                ui.paletteHighlight = 0
+            }
+        )
+    }
+
+    private func list(_ results: [AppCommand]) -> some View {
+        ScrollViewReader { scroller in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(results.enumerated()), id: \.element.id) { index, command in
+                        row(command, isHighlighted: index == ui.paletteHighlight)
+                            .id(index)
+                            .contentShape(Rectangle())
+                            .onTapGesture { run(command) }
+                    }
+                }
+                .padding(6)
+            }
+            .onChange(of: ui.paletteHighlight) { scroller.scrollTo(ui.paletteHighlight) }
+        }
+    }
+
+    private func row(_ command: AppCommand, isHighlighted: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: command.isGoToIssue ? "circle.hexagongrid" : "command")
+                .foregroundStyle(theme.secondaryText)
+                .frame(width: 18)
+            Text(command.title)
+                .lineLimit(1)
+            Spacer(minLength: 12)
+            if let shortcut = command.shortcut {
+                Text(shortcut)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(theme.secondaryText)
+            }
+            Text(command.group)
+                .font(.caption)
+                .foregroundStyle(theme.secondaryText)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(isHighlighted ? theme.selection : .clear, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    /// Arrow keys, Return and Escape come through a local event monitor: the text field's editor
+    /// takes arrows first, so a key handler on the field never sees them.
     private func startWatchingKeys() {
         guard monitor.wrappedValue == nil else { return }
-        let query = query.projectedValue
-        let highlighted = highlighted.projectedValue
+        let ui = ui
         let model = model
         let run = run
         let onClose = onClose
-        // The monitor is delivered on the main thread; NSEvent isn't Sendable, so the handler
-        // keeps it local rather than capturing it anywhere.
         monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
-            let results = CommandCatalog.results(for: query.wrappedValue, model: model)
-            func move(_ delta: Int) {
-                guard !results.isEmpty else { return }
-                highlighted.wrappedValue = (highlighted.wrappedValue + delta + results.count) % results.count
-            }
+            let results = CommandCatalog.results(for: ui.paletteQuery, model: model)
             switch event.keyCode {
-            case 126: // up
-                move(-1)
-                return nil
-            case 125: // down
-                move(1)
+            case 126, 125: // up, down
+                // With nothing to move through, let the field have the key rather than eating it.
+                guard !results.isEmpty else { return event }
+                let delta = event.keyCode == 126 ? -1 : 1
+                ui.paletteHighlight = (ui.paletteHighlight + delta + results.count) % results.count
                 return nil
             case 36, 76: // return, enter
-                if results.indices.contains(highlighted.wrappedValue) {
-                    run(results[highlighted.wrappedValue])
-                }
+                guard results.indices.contains(ui.paletteHighlight) else { return event }
+                run(results[ui.paletteHighlight])
                 return nil
             case 53: // escape
                 onClose()
@@ -92,46 +139,6 @@ struct CommandPaletteView: View {
         if let monitor = monitor.wrappedValue { NSEvent.removeMonitor(monitor) }
         monitor.wrappedValue = nil
     }
-
-    private func list(_ results: [AppCommand]) -> some View {
-        ScrollViewReader { scroller in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(results.enumerated()), id: \.element.id) { index, command in
-                        row(command, isHighlighted: index == highlighted.wrappedValue)
-                            .id(index)
-                            .contentShape(Rectangle())
-                            .onTapGesture { run(command) }
-                    }
-                }
-                .padding(6)
-            }
-            .onChange(of: highlighted.wrappedValue) { scroller.scrollTo(highlighted.wrappedValue) }
-        }
-    }
-
-    private func row(_ command: AppCommand, isHighlighted: Bool) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: command.isGoToIssue ? "circle.hexagongrid" : "command")
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-            Text(command.title)
-                .lineLimit(1)
-            Spacer(minLength: 12)
-            if let shortcut = command.shortcut {
-                Text(shortcut)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-            }
-            Text(command.group)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(isHighlighted ? theme.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
-    }
-
 }
 
 /// The `?` sheet: every command, where it lives, and the key that runs it.

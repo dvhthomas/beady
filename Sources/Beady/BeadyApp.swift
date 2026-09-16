@@ -99,9 +99,12 @@ struct AppCommands: Commands {
             item(.clearFilters, needsWorkspace: true)
         }
         CommandMenu("Go") {
-            Button("Command Palette…") { session.ui.showsPalette = true }
+            Button("Command Palette…") { session.ui.openPalette() }
                 .keyboardShortcut("p")
                 .disabled(session.model == nil)
+            Divider()
+            item(.goBack, needsWorkspace: true)
+            item(.goForward, needsWorkspace: true)
             Divider()
             ForEach(Scope.allCases) { scope in
                 Button(DisplayText.scope(scope)) { session.run(.showView(.lifecycle(scope))) }

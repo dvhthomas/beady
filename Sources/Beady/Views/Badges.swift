@@ -87,29 +87,133 @@ struct TypeLabel: View {
     }
 }
 
-/// A bead that is waiting, said quietly. bd's "blocked" means an upstream bead has to land
-/// first, so this is information, not an alarm — red stays for writes that actually failed.
+/// A bead that is waiting, said quietly and made useful: the mark is a button, and it opens a
+/// popover naming what it's waiting on, with each blocker a link straight to it.
+///
+/// bd's "blocked" means an upstream bead has to land first, so this is information, not an alarm —
+/// red stays for writes that actually failed.
 struct WaitingMark: View {
     let reason: BlockedReason
+    let snapshot: IssueSnapshot?
+    let open: (IssueID) -> Void
     @Environment(\.theme) private var theme
     @Environment(\.backgroundProminence) private var prominence
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var showsDetail = State(initialValue: false)
+
+    init(reason: BlockedReason, snapshot: IssueSnapshot?, open: @escaping (IssueID) -> Void) {
+        self.reason = reason
+        self.snapshot = snapshot
+        self.open = open
+    }
 
     var body: some View {
-        Image(systemName: "pause.circle")
-            .foregroundStyle(prominence == .increased ? .primary : theme.color(.frozen))
-            .help(tooltip)
+        Button {
+            showsDetail.wrappedValue = true
+        } label: {
+            Image(systemName: "pause.circle")
+                .foregroundStyle(prominence == .increased ? .primary : theme.color(.frozen))
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+        .popover(isPresented: showsDetail.projectedValue, arrowEdge: .bottom) {
+            WaitingDetail(reason: reason, snapshot: snapshot) { id in
+                showsDetail.wrappedValue = false
+                open(id)
+            }
+        }
     }
 
     private var tooltip: String {
         switch reason.kind {
         case .waitingOnBeads:
             let names = reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: "\n")
-            return "Waiting on:\n\(names)"
+            return "Waiting on:\n\(names)\n\nClick for details."
         case .waitingOnAnotherProject:
             return "Waiting on another project: \(reason.externalCapabilities.joined(separator: ", "))"
         case .declared:
             return "Someone set this bead's status to blocked. bd records no reason for that."
         }
+    }
+}
+
+/// What the waiting mark opens: the blockers, enough detail to judge them, and a link each.
+struct WaitingDetail: View {
+    let reason: BlockedReason
+    let snapshot: IssueSnapshot?
+    let open: (IssueID) -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(reason.summary, systemImage: "pause.circle")
+                .font(.headline)
+                .foregroundStyle(theme.color(.frozen))
+
+            switch reason.kind {
+            case .waitingOnBeads:
+                ForEach(reason.blockers) { blocker in
+                    blockerRow(blocker)
+                }
+            case .waitingOnAnotherProject:
+                Text("Another project has to ship \(reason.externalCapabilities.joined(separator: ", ")) before this can move.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .declared:
+                Text("Its status was set to blocked. bd keeps no reason for that, and nothing upstream is recorded.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if reason.isDeclared, reason.kind != .declared {
+                Text("Its status is also set to blocked.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
+        .background(theme.background)
+    }
+
+    private func blockerRow(_ blocker: Issue) -> some View {
+        let category = snapshot?.category(of: blocker) ?? .active
+        return Button {
+            open(blocker.id)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Image(systemName: category.symbolName)
+                        .foregroundStyle(theme.color(category))
+                    Text(blocker.id.rawValue)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(theme.secondaryText)
+                    Text(DisplayText.status(blocker.status))
+                        .font(.caption)
+                        .foregroundStyle(theme.secondaryText)
+                    if let assignee = blocker.assignee, !assignee.isEmpty {
+                        Text("· \(assignee)")
+                            .font(.caption)
+                            .foregroundStyle(theme.secondaryText)
+                    }
+                }
+                HStack(spacing: 4) {
+                    Text(blocker.title)
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(theme.accent)
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .foregroundStyle(theme.accent)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help("Open \(blocker.id)")
     }
 }
 

@@ -42,8 +42,10 @@ touched that bead four seconds ago, and the app says so rather than pretending i
 
 ## Everything from the keyboard
 
-`⌘P` runs any command or jumps to a bead by id or title. It answers to the words you'd actually
-type: `fin` finds Find, `kanban` finds the board, `drac` finds the theme.
+`⌘P` runs any command or jumps to a bead by id or title — and it really is any command: views,
+filters, layouts, columns, themes, text size, pins, stars, focus, back and forward, settings. It
+answers to the words you'd actually type: `fin` finds Find, `kanban` finds the board, `drac` finds
+the theme.
 
 ![Command palette](docs/images/palette.png)
 

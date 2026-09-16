@@ -29,8 +29,13 @@ public final class WorkspaceModel {
     public private(set) var isLoading = false
 
     /// The view picked in the sidebar.
-    public var source: ViewSource = .lifecycle(.open)
-    public var selection: IssueID?
+    public var source: ViewSource = .lifecycle(.open) {
+        didSet { recordPlace(source: oldValue, selection: selection) }
+    }
+
+    public var selection: IssueID? {
+        didSet { recordPlace(source: source, selection: oldValue) }
+    }
     /// Tree branches the user has folded; everything else is expanded.
     public private(set) var collapsed: Set<IssueID> = []
 
@@ -67,6 +72,10 @@ public final class WorkspaceModel {
     @ObservationIgnored private var desiredMarks: [MarkKey: Bool] = [:]
     @ObservationIgnored private var writtenMarks: [MarkKey: Bool] = [:]
     @ObservationIgnored private var markWriters: Set<MarkKey> = []
+    private var back: [Place] = []
+    private var forward: [Place] = []
+    /// True while `goBack`/`goForward` are moving, so the move isn't recorded as a new step.
+    @ObservationIgnored private var isTravelling = false
     @ObservationIgnored private let activityWindow: TimeInterval
     /// Where `unfocus()` goes back to.
     @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
@@ -347,6 +356,55 @@ public final class WorkspaceModel {
             entries.append(SidebarEntry(source: starred, title: IssueMark.starred.title, count: count))
         }
         return entries
+    }
+
+    // MARK: Where you've been
+
+    /// A view and the bead that was selected in it — one step of history.
+    public struct Place: Equatable, Sendable {
+        public let source: ViewSource
+        public let selection: IssueID?
+    }
+
+    /// Far more than anyone steps back through, and small enough to ignore.
+    public static let maxHistory = 100
+
+    public var canGoBack: Bool { !back.isEmpty }
+    public var canGoForward: Bool { !forward.isEmpty }
+    /// For tests: how many steps are remembered in total.
+    public var historyDepth: Int { back.count + forward.count }
+
+    /// Back to the bead and view you came from — following a blocker link and returning is the
+    /// case this exists for.
+    public func goBack() {
+        guard let destination = back.popLast() else { return }
+        forward.append(Place(source: source, selection: selection))
+        travel(to: destination)
+    }
+
+    public func goForward() {
+        guard let destination = forward.popLast() else { return }
+        back.append(Place(source: source, selection: selection))
+        travel(to: destination)
+    }
+
+    private func travel(to place: Place) {
+        isTravelling = true
+        source = place.source
+        selection = place.selection
+        isTravelling = false
+    }
+
+    /// Remembers where you just were, unless you were already there or we're the ones moving.
+    private func recordPlace(source: ViewSource, selection: IssueID?) {
+        guard !isTravelling else { return }
+        let previous = Place(source: source, selection: selection)
+        guard previous != Place(source: self.source, selection: self.selection) else { return }
+        guard back.last != previous else { return }
+        back.append(previous)
+        if back.count > Self.maxHistory { back.removeFirst(back.count - Self.maxHistory) }
+        // Going somewhere new abandons whatever was ahead, as a browser does.
+        forward.removeAll()
     }
 
     // MARK: Pins and stars
@@ -656,8 +714,28 @@ public final class WorkspaceModel {
     /// groupings where that's a change the app can make: lifecycle, status, priority and parent.
     /// Returns whether a change was proposed.
     @discardableResult
+    /// Whether dropping this bead on that column would change anything — answered without
+    /// staging a change, so a drag can be accepted or refused while the cursor is still moving.
+    /// Dropping a card back where it started must snap straight home, not wait on validation.
+    public func canDrop(_ id: IssueID, onGroup key: String) -> Bool {
+        guard canEdit, !isWriting, let snapshot, let issue = snapshot.issue(id) else { return false }
+        switch boardGrouping {
+        case .category:
+            guard let category = StatusCategory(rawValue: key) else { return false }
+            return snapshot.category(of: issue) != category
+        case .status:
+            return !key.isEmpty && key != issue.status
+        case .priority:
+            return Int(key).map { $0 != issue.priority } ?? false
+        case .parent:
+            return (key.isEmpty ? nil : IssueID(key)) != issue.parentID
+        case .none, .type, .assignee:
+            return false
+        }
+    }
+
     public func proposeDrop(_ id: IssueID, onGroup key: String) -> Bool {
-        guard canEdit, let snapshot, let issue = snapshot.issue(id) else { return false }
+        guard canDrop(id, onGroup: key), let snapshot, let issue = snapshot.issue(id) else { return false }
         let previous = pendingChange?.id
         switch boardGrouping {
         case .category:

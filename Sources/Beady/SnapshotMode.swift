@@ -105,10 +105,29 @@ enum SnapshotMode {
             }
             model.cancelPendingChange()
         }
-        capture("9-command-palette", CommandPaletteView(model: model, run: { _ in }, onClose: {}))
+        capture("9-command-palette", CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}))
+        // Proof that typing filters: the state the view actually reads.
+        session.ui.paletteQuery = "them"
+        capture("9b-command-palette-filtered", CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}))
+        session.ui.paletteQuery = ""
         session.themes.preview(Theme.dark(named: "Dracula"))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
         session.themes.cancelPreview()
+
+        // The detail pane after following a blocker link: the back bar has something to do.
+        if let waiting = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }),
+           let blocker = snapshot.openBlockers(of: waiting).first {
+            model.source = .lifecycle(.all)
+            model.selection = waiting.id
+            model.selection = blocker.id
+            capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
+        }
+
+        // The popover behind the waiting mark.
+        if let waiting = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }),
+           let reason = BlockedReason.of(waiting.id, in: snapshot) {
+            capture("14-waiting-detail", WaitingDetail(reason: reason, snapshot: snapshot, open: { _ in }))
+        }
 
         // The graph sheet, on whatever is most tangled up.
         if let blocked = snapshot.issues.first(where: { snapshot.isBlocked($0) && !snapshot.openBlockers(of: $0).isEmpty }) {

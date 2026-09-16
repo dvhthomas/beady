@@ -125,6 +125,15 @@ final class AppSession {
                 Task { await model.toggleMark(mark, on: id) }
             }
         case .showGraph: if model?.selection != nil { ui.showsGraph = true }
+        case .goBack: model?.goBack()
+        case .goForward: model?.goForward()
+        case .focusSelected: if let id = model?.selection { model?.focus(on: id) }
+        case .unfocus: model?.unfocus()
+        case .expandAll: model?.expandAll()
+        case .collapseAll: model?.collapseAll()
+        case .toggleColumn(let column): ui.columns.setVisible(column, !ui.columns.isVisible(column))
+        case .resetColumns: ui.columns.reset()
+        case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTheme(let name):
             // Choosing a theme also says which appearance you meant.

@@ -64,7 +64,11 @@ struct CommandPaletteTests {
         #expect(CommandCatalog.results(for: "fin", model: model).first == .focusSearch)
         #expect(CommandCatalog.results(for: "find", model: model).first == .focusSearch)
         #expect(CommandCatalog.results(for: "reload", model: model).first == .refresh)
-        #expect(CommandCatalog.results(for: "column", model: model).first == .displayOptions)
+        // "column" now reaches the columns themselves, which is more direct than the menu holding them.
+        if case .toggleColumn = CommandCatalog.results(for: "column", model: model).first {} else {
+            Testing.Issue.record("column should offer a column first")
+        }
+        #expect(CommandCatalog.results(for: "display", model: model).first == .displayOptions)
 // "sort" should reach the ordering commands themselves before the menu that holds them.
         if case .setOrdering = CommandCatalog.results(for: "sort", model: model).first {} else {
             Testing.Issue.record("sort should offer an ordering first")

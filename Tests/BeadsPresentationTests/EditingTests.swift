@@ -412,3 +412,50 @@ struct DragPayloadTests {
         #expect(IssueDragPayload.decode([IssueDragPayload.encode("")]) == nil)
     }
 }
+
+@MainActor
+@Suite("Dropping a card")
+struct DropTests {
+    func makeModel() async -> WorkspaceModel {
+        let store = MemoryStore([
+            makeIssue("a", status: "open", priority: 2),
+            makeIssue("b", status: "in_progress", priority: 1),
+        ])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
+        await model.load()
+        model.source = .lifecycle(.all)
+        model.layout = .board
+        return model
+    }
+
+    @Test("a drop back into the same column is refused without touching anything")
+    func sameColumn() async {
+        let model = await makeModel()
+        model.grouping = .category
+        #expect(!model.canDrop("a", onGroup: StatusCategory.active.rawValue))
+        #expect(model.pendingChange == nil, "and nothing is staged by asking")
+
+        model.grouping = .status
+        #expect(!model.canDrop("a", onGroup: "open"))
+        model.grouping = .priority
+        #expect(!model.canDrop("a", onGroup: "2"))
+    }
+
+    @Test("a drop that would change something is allowed")
+    func realMove() async {
+        let model = await makeModel()
+        model.grouping = .category
+        #expect(model.canDrop("a", onGroup: StatusCategory.wip.rawValue))
+        model.grouping = .status
+        #expect(model.canDrop("a", onGroup: "in_progress"))
+        model.grouping = .priority
+        #expect(model.canDrop("a", onGroup: "0"))
+    }
+
+    @Test("a read-only workspace accepts no drops")
+    func readOnly() async {
+        let model = WorkspaceModel(title: "demo", store: StubStore([makeIssue("a")]), allowsWriting: false, now: { t0 })
+        await model.load()
+        #expect(!model.canDrop("a", onGroup: "closed"))
+    }
+}
