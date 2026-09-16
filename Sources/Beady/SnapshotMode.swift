@@ -70,6 +70,11 @@ enum SnapshotMode {
         model.layout = .board
         captureWorkspace("3-all-board-by-lifecycle")
 
+        // A search that leaves the board shorter than the pane: it must stay at the top.
+        model.searchText = "distance"
+        captureWorkspace("3b-board-narrowed-by-search")
+        model.searchText = ""
+
         model.source = .lifecycle(.open)
         model.toggleFilterValue("1", in: .priority)
         model.toggleFilterValue("2", in: .priority)
@@ -106,12 +111,36 @@ enum SnapshotMode {
             model.cancelPendingChange()
         }
         capture("9-command-palette", CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}))
+        // Typing has to re-filter the live view, not just a freshly built one: these two are
+        // rendered from the same hosted view, with the query changed in between.
+        session.ui.paletteQuery = ""
+        renderLive(
+            CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}),
+            to: directory,
+            first: "live-1-typed-nothing",
+            second: "live-2-typed-them"
+        ) { session.ui.paletteQuery = "them" }
+
+        // And moving the highlight has to move it: same view, cursor pushed down twice.
+        session.ui.paletteQuery = "column"
+        session.ui.paletteHighlight = 0
+        renderLive(
+            CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}),
+            to: directory,
+            first: "live-3-highlight-first",
+            second: "live-4-highlight-third"
+        ) { session.ui.paletteHighlight = 2 }
+        session.ui.paletteQuery = ""
+        session.ui.paletteHighlight = 0
         // Proof that typing filters: the state the view actually reads.
         session.ui.paletteQuery = "them"
         capture("9b-command-palette-filtered", CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}))
         session.ui.paletteQuery = ""
         session.themes.preview(Theme.dark(named: "Dracula"))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
+        // Previewing a light theme from a dark setting: the case where the controls went grey.
+        session.themes.preview(Theme.light(named: "Solarized Light"))
+        capture("11b-themes-light-preview", ThemePickerView(themes: session.themes, onClose: {}))
         session.themes.cancelPreview()
 
         // The detail pane after following a blocker link: the back bar has something to do.
@@ -144,6 +173,41 @@ enum SnapshotMode {
         }
         capture("10-shortcuts", ShortcutsView(model: model, onClose: {}))
         exit(0)
+    }
+
+    /// Renders one hosted view twice, mutating state in between, to see whether the live view
+    /// actually reacts — which a fresh render of a new view can't tell you.
+    static func renderLive<Content: View>(
+        _ view: Content,
+        to directory: URL,
+        first: String,
+        second: String,
+        change: @escaping () -> Void
+    ) {
+        let size = CGSize(width: 900, height: 600)
+        let hosting = NSHostingView(rootView: view)
+        let window = NSWindow(
+            contentRect: CGRect(origin: CGPoint(x: -30_000, y: -30_000), size: size),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        pump(seconds: 0.8)
+        capture(hosting, to: directory.appendingPathComponent("\(first).png"))
+        change()
+        pump(seconds: 0.8)
+        hosting.layoutSubtreeIfNeeded()
+        capture(hosting, to: directory.appendingPathComponent("\(second).png"))
+        window.close()
+    }
+
+    private static func capture(_ hosting: NSHostingView<some View>, to url: URL) {
+        hosting.layoutSubtreeIfNeeded()
+        guard let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return }
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
     }
 
     private static func render<Content: View>(_ view: Content, to url: URL) {

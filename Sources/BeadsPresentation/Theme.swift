@@ -298,19 +298,29 @@ public struct ThemeSelection: Equatable, Sendable {
         previewed = nil
     }
 
-    /// Keeps whatever is being previewed: the theme becomes the choice for its own appearance,
-    /// and that appearance becomes the setting, since picking a light theme means you want light.
+    /// Keeps whatever is being previewed as the choice for its own side — the dark theme or the
+    /// light one — and leaves the Appearance setting alone.
+    ///
+    /// So with Appearance on System, picking a light theme says "this is the theme for when macOS
+    /// is light" rather than forcing the app light. Appearance is the user's answer to a different
+    /// question, and picking a theme shouldn't silently overrule it.
     public mutating func commitPreview() {
         guard let previewed else { return }
         switch previewed.appearance {
-        case .dark:
-            darkName = previewed.name
-            appearance = .dark
-        case .light:
-            lightName = previewed.name
-            appearance = .light
+        case .dark: darkName = previewed.name
+        case .light: lightName = previewed.name
         }
         self.previewed = nil
+    }
+
+    /// When a given theme actually gets used, so the picker can say so rather than leaving it to
+    /// be guessed at.
+    public func usage(of theme: Theme, systemIsDark: Bool) -> ThemeUsage {
+        var settled = self
+        settled.cancelPreview()
+        if settled.resolved(systemIsDark: systemIsDark).name == theme.name { return .inUse }
+        if appearance == .system { return .whenSystemIs(theme.appearance) }
+        return .unusedWhile(appearance)
     }
 
     public func index(of theme: Theme) -> Int? {
@@ -326,5 +336,23 @@ public struct ThemeSelection: Equatable, Sendable {
     /// hard to trust when every step repaints the whole app.
     public static func step(_ index: Int, by delta: Int) -> Int {
         min(max(index + delta, 0), catalog.count - 1)
+    }
+}
+
+
+/// When a theme applies, in words.
+public enum ThemeUsage: Equatable, Sendable {
+    case inUse
+    /// Appearance is System, so this theme waits for macOS to be that way.
+    case whenSystemIs(Theme.Appearance)
+    /// Appearance is pinned to light or dark, so the other side's theme sits unused.
+    case unusedWhile(AppearancePreference)
+
+    public var title: String {
+        switch self {
+        case .inUse: "In use"
+        case .whenSystemIs(let appearance): "When macOS is \(appearance.rawValue)"
+        case .unusedWhile(let appearance): "Not used while Appearance is \(appearance.title)"
+        }
     }
 }

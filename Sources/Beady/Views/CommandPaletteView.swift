@@ -67,19 +67,28 @@ struct CommandPaletteView: View {
     }
 
     private func list(_ results: [AppCommand]) -> some View {
-        ScrollViewReader { scroller in
+        // A concrete row type rather than `Array(results.enumerated())`: with a tuple, SwiftUI
+        // reused a row for a different command and drew the old label, which looked exactly like
+        // the palette refusing to filter.
+        let rows = results.enumerated().map { PaletteRow(index: $0.offset, command: $0.element) }
+        return ScrollViewReader { scroller in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(results.enumerated()), id: \.element.id) { index, command in
-                        row(command, isHighlighted: index == ui.paletteHighlight)
-                            .id(index)
+                    ForEach(rows) { row in
+                        // No .id() here: overriding ForEach's own identity with the row index
+                        // made SwiftUI keep a realised row and leave its old command on screen,
+                        // which looked exactly like the palette refusing to filter.
+                        self.row(row.command, isHighlighted: row.index == ui.paletteHighlight)
                             .contentShape(Rectangle())
-                            .onTapGesture { run(command) }
+                            .onTapGesture { run(row.command) }
                     }
                 }
                 .padding(6)
             }
-            .onChange(of: ui.paletteHighlight) { scroller.scrollTo(ui.paletteHighlight) }
+            .onChange(of: ui.paletteHighlight) {
+                guard rows.indices.contains(ui.paletteHighlight) else { return }
+                scroller.scrollTo(rows[ui.paletteHighlight].id)
+            }
         }
     }
 
@@ -141,8 +150,17 @@ struct CommandPaletteView: View {
     }
 }
 
+/// One row of the palette: its own type, so identity is the command and nothing else.
+private struct PaletteRow: Identifiable {
+    let index: Int
+    let command: AppCommand
+
+    var id: String { command.id }
+}
+
 /// The `?` sheet: every command, where it lives, and the key that runs it.
 struct ShortcutsView: View {
+    @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let onClose: () -> Void
 
@@ -183,6 +201,7 @@ struct ShortcutsView: View {
             }
         }
         .frame(width: 460, height: 460)
+        .background(theme.background)
     }
 }
 

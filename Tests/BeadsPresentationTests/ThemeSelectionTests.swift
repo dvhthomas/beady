@@ -31,14 +31,33 @@ struct ThemeSelectionTests {
         selection.preview(Theme.dark(named: "Dracula"))
         selection.commitPreview()
         #expect(selection.darkName == "Dracula")
-        #expect(selection.appearance == .dark, "choosing a dark theme says which appearance you meant")
+        #expect(selection.appearance == .dark, "Appearance is the user's, and picking a theme doesn't change it")
         #expect(selection.resolved(systemIsDark: false).name == "Dracula", "and it sticks with no preview left")
 
+        // Choosing a light theme while the app is set to Dark sets the light slot and leaves the
+        // Appearance setting alone: it's the theme macOS light will use.
         selection.preview(Theme.light(named: "GitHub Light"))
         selection.commitPreview()
         #expect(selection.lightName == "GitHub Light")
-        #expect(selection.appearance == .light)
-        #expect(selection.darkName == "Dracula", "the other side is remembered")
+        #expect(selection.appearance == .dark)
+        #expect(selection.resolved(systemIsDark: true).name == "Dracula")
+    }
+
+    @Test("the picker can say when each theme is used")
+    func usage() {
+        var selection = ThemeSelection(appearance: .system, darkName: "Nord", lightName: "One Light")
+        #expect(selection.usage(of: Theme.dark(named: "Nord")!, systemIsDark: true) == .inUse)
+        #expect(selection.usage(of: Theme.light(named: "One Light")!, systemIsDark: true) == .whenSystemIs(.light))
+        #expect(selection.usage(of: Theme.dark(named: "Dracula")!, systemIsDark: true) == .whenSystemIs(.dark),
+                "a theme you haven't chosen still belongs to its side")
+
+        selection.appearance = .dark
+        #expect(selection.usage(of: Theme.dark(named: "Nord")!, systemIsDark: false) == .inUse)
+        #expect(selection.usage(of: Theme.light(named: "One Light")!, systemIsDark: false) == .unusedWhile(.dark))
+
+        #expect(ThemeUsage.inUse.title == "In use")
+        #expect(ThemeUsage.whenSystemIs(.light).title == "When macOS is light")
+        #expect(ThemeUsage.unusedWhile(.dark).title == "Not used while Appearance is Dark")
     }
 
     @Test("the system's Increase Contrast setting wins over any of it")
