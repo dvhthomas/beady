@@ -15,3 +15,5 @@ xcuserdata/
 # The beads backlog stays local: the Dolt database was already ignored, and the
 # JSONL export (written by bd's auto-export) shouldn't travel with the code either.
 .beads/issues.jsonl
+# The interaction log records every field change, old and new values included.
+.beads/interactions.jsonl
