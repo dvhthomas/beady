@@ -65,8 +65,6 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case resetColumns
     case openSettings
     case chooseTheme
-    case setTheme(String)
-    case setAppearance(AppearancePreference)
     case setTextSize(TextSize)
 
     public var id: String {
@@ -99,8 +97,6 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .resetColumns: "reset-columns"
         case .openSettings: "open-settings"
         case .chooseTheme: "choose-theme"
-        case .setTheme(let name): "theme-\(name)"
-        case .setAppearance(let appearance): "appearance-\(appearance.rawValue)"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
         }
     }
@@ -123,7 +119,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
         case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
-        case .toggleMark(let mark): "\(mark.title) Selected Bead"
+        case .toggleMark(let mark): "Toggle \(mark == .pinned ? "Pin" : "Star")"
         case .showGraph: "Show Dependency Graph"
         case .goBack: "Back"
         case .goForward: "Forward"
@@ -134,9 +130,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "Column: \(column.title)"
         case .resetColumns: "Reset Columns"
         case .openSettings: "Settings…"
-        case .chooseTheme: "Change Theme…"
-        case .setTheme(let name): "Theme: \(name)"
-        case .setAppearance(let appearance): "Appearance: \(appearance.title)"
+        case .chooseTheme: "Theme…"
         case .setTextSize(let size): "Text Size: \(size.title)"
         }
     }
@@ -172,11 +166,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goBack: ["back", "previous", "return", "undo navigation"]
         case .goForward: ["forward", "next", "again"]
         case .toggleMark(let mark): mark == .pinned
-            ? ["pin", "unpin", "top", "stick"]
-            : ["star", "unstar", "favourite", "favorite", "bookmark"]
-        case .chooseTheme: ["theme", "colour", "color", "appearance", "dark", "light", "contrast"]
-        case .setTheme: ["theme", "colour", "color", "scheme"]
-        case .setAppearance: ["theme", "dark mode", "light mode", "appearance"]
+            ? ["pin", "unpin", "pinned", "top", "stick", "selected bead"]
+            : ["star", "unstar", "starred", "flag", "unflag", "favourite", "favorite", "bookmark", "selected bead"]
+        case .chooseTheme: ["theme", "themes", "colour", "color", "appearance", "dark mode",
+                            "light mode", "contrast", "dracula", "nord", "solarized"]
         case .setTextSize: ["text", "font", "bigger", "larger", "smaller", "size", "accessibility", "eyesight"]
         }
     }
@@ -194,7 +187,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .showShortcuts: "Help"
         case .showView, .goBack, .goForward: "Views"
         case .goToIssue: "Beads"
-        case .chooseTheme, .setTheme, .setAppearance, .setTextSize: "Appearance"
+        case .chooseTheme, .setTextSize: "Appearance"
         }
     }
 
@@ -220,9 +213,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goBack: [KeyBinding("[", .command)]
         case .goForward: [KeyBinding("]", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
-        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTheme, .setAppearance,
-             .setTextSize, .focusSelected, .unfocus, .expandAll, .collapseAll, .toggleColumn,
-             .resetColumns: []
+        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected,
+             .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns: []
         }
     }
 
@@ -294,8 +286,6 @@ public enum CommandCatalog {
         commands += IssueGrouping.allCases.map { .setGrouping($0) }
         commands += IssueSort.allCases.map { .setOrdering($0) }
         commands += [.displayOptions, .toggleDetails, .chooseTheme]
-        commands += AppearancePreference.allCases.map { .setAppearance($0) }
-        commands += Theme.all.map { .setTheme($0.name) }
         commands += TextSize.allCases.map { .setTextSize($0) }
         commands.append(.showShortcuts)
         return commands

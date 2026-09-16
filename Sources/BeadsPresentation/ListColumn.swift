@@ -25,7 +25,7 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .priority: "P"
+        case .priority: "Priority"
         case .id: "ID"
         case .status: "Status"
         case .type: "Type"
@@ -51,7 +51,7 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
 
     public var idealWidth: Double {
         switch self {
-        case .priority: 34
+        case .priority: 72
         case .id: 112
         case .status, .type: 40
         // Deliberately modest: the title takes whatever is left over, and an ideal wide enough
@@ -67,7 +67,8 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
 
     public var minimumWidth: Double {
         switch self {
-        case .priority, .status, .type: 32
+        case .priority: 44
+        case .status, .type: 32
         case .title: 160
         default: 48
         }
@@ -85,7 +86,8 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
     public var maximumWidth: Double? {
         switch self {
         case .title: nil
-        case .priority, .status, .type: 60
+        case .priority: 110
+        case .status, .type: 60
         case .id: 240
         case .labels, .assignee: 320
         case .progress: 160

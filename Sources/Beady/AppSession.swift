@@ -135,16 +135,6 @@ final class AppSession {
         case .resetColumns: ui.columns.reset()
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
-        case .setTheme(let name):
-            // Choosing a theme also says which appearance you meant.
-            if let theme = Theme.dark(named: name) {
-                themes.darkThemeName = theme.name
-                themes.appearance = .dark
-            } else if let theme = Theme.light(named: name) {
-                themes.lightThemeName = theme.name
-                themes.appearance = .light
-            }
-        case .setAppearance(let appearance): themes.appearance = appearance
         case .setTextSize(let size): themes.textSize = size
         }
     }
