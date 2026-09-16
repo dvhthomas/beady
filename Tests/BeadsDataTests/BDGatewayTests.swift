@@ -126,6 +126,50 @@ struct ArchitectureTests {
     }
 }
 
+@Suite("bd history")
+struct BDHistoryTests {
+    @Test("commits carrying a snapshot each become versions, newest-first order preserved")
+    func decodeHistory() throws {
+        let json = """
+        [
+          {
+            "CommitHash": "abc",
+            "Committer": "root",
+            "CommitDate": "2026-09-15T21:29:09.591-07:00",
+            "Issue": {"id": "demo-1", "title": "Crash on cancel", "status": "in_progress", "priority": 0,
+                      "issue_type": "bug", "assignee": "agent-tiles",
+                      "created_at": "2026-09-16T04:26:56Z", "updated_at": "2026-09-16T04:29:09Z"}
+          },
+          {
+            "CommitHash": "def",
+            "Committer": "root",
+            "CommitDate": "2026-09-15T21:26:56.000-07:00",
+            "Issue": {"id": "demo-1", "title": "Crash on cancel", "status": "open", "priority": 2,
+                      "issue_type": "bug",
+                      "created_at": "2026-09-16T04:26:56Z", "updated_at": "2026-09-16T04:26:56Z"}
+          },
+          {"CommitHash": "ghi", "Committer": "root", "CommitDate": "not a date", "Issue": {}}
+        ]
+        """
+        let versions = try BDJSON.decodeHistory(Data(json.utf8))
+        #expect(versions.count == 2, "the unreadable commit is skipped, not fatal")
+        #expect(versions.first?.issue.status == "in_progress")
+        #expect(versions.first?.issue.priority == 0)
+        #expect(versions.last?.issue.status == "open")
+        // The commit date is what orders history; several commits can share an updated_at.
+        #expect(versions.first!.date > versions.last!.date)
+
+        let events = History.events(from: versions, activity: .empty)
+        #expect(events.map(\.field) == ["status", "priority", "assignee", "created"])
+    }
+
+    @Test("the history command is read-only and asks bd for JSON")
+    func historyCommand() {
+        #expect(BDCommand.history("demo-1", limit: 50).isReadOnly)
+        #expect(BDCommand.history("demo-1", limit: 50).arguments == ["--readonly", "history", "demo-1", "--limit", "50", "--json"])
+    }
+}
+
 @Suite("bd gateway: activity and change events")
 struct BDGatewayActivityTests {
     /// A `.beads` folder with an interactions log, as bd writes one.

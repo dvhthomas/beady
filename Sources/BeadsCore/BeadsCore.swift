@@ -17,4 +17,7 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
     /// What has changed in the database since a moment, so the app can tell when another session
     /// is working on the same bead.
     func recentActivity(since: Date) async throws -> ActivityLog
+    /// Every recorded version of one bead, oldest or newest first — `History` turns these into
+    /// readable changes.
+    func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion]
 }

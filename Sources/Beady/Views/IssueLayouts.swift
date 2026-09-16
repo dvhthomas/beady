@@ -1,3 +1,4 @@
+import AppKit
 import BeadsCore
 import BeadsPresentation
 import SwiftUI
@@ -14,54 +15,48 @@ struct IssueListView: View {
     var body: some View {
         let groups = model.groups
         let grouped = model.grouping != .none
-        // Worked out once per render; `recentChange` scans the activity log each time it's asked.
-        let changedElsewhere = model.beadsChangedElsewhere
         Table(of: BeadsCore.Issue.self, selection: $model.selection, columnCustomization: columnCustomization) {
             column(.priority) { issue in
-                PriorityBadge(priority: issue.priority)
+                PriorityBadge(priority: issue.priority, isSelected: isSelected(issue))
             }
             column(.id) { issue in
                 Text(issue.id.rawValue)
                     .font(.callout.monospaced())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondaryColor(issue))
                     .lineLimit(1)
                     .help(DisplayText.preview(issue.id.rawValue) ?? "")
             }
             column(.status) { issue in
                 let category = model.snapshot?.category(of: issue) ?? .active
                 Image(systemName: category.symbolName)
-                    .foregroundStyle(theme.color(category))
+                    .foregroundStyle(isSelected(issue) ? selectedText : theme.color(category))
                     .help(DisplayText.status(issue.status))
             }
             column(.type) { issue in
                 Image(systemName: IssueTypeStyle.symbol(for: issue.type))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondaryColor(issue))
                     .help(issue.type)
             }
             column(.title) { issue in
                 HStack(spacing: 6) {
                     Text(issue.title)
                         .lineLimit(1)
+                        .foregroundStyle(isSelected(issue) ? selectedText : theme.text)
                         .help(DisplayText.preview(issue.title) ?? "")
                     if model.snapshot?.isBlocked(issue) == true { BlockedMark() }
-                    if changedElsewhere.contains(issue.id) {
-                        Image(systemName: "person.wave.2")
-                            .foregroundStyle(theme.pinned)
-                            .help("Another session changed this recently")
-                    }
                 }
             }
             column(.labels) { issue in
                 Text(issue.labels.joined(separator: " · "))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondaryColor(issue))
                     .lineLimit(1)
                     .help(DisplayText.preview(issue.labels.joined(separator: ", ")) ?? "")
             }
             column(.assignee) { issue in
                 Text(issue.assignee ?? "")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondaryColor(issue))
                     .lineLimit(1)
                     .help(DisplayText.preview(issue.assignee ?? "") ?? "")
             }
@@ -73,7 +68,7 @@ struct IssueListView: View {
                             .controlSize(.mini)
                         Text("\(completion.closed)/\(completion.total)")
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(secondaryColor(issue))
                     }
                 }
             }
@@ -81,7 +76,7 @@ struct IssueListView: View {
                 let date = model.ordering == .recentlyClosed ? (issue.closedAt ?? issue.updatedAt) : issue.updatedAt
                 Text(date, format: .relative(presentation: .named, unitsStyle: .abbreviated))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondaryColor(issue))
                     .lineLimit(1)
                     .help(date.formatted(date: .abbreviated, time: .shortened))
             }
@@ -112,6 +107,16 @@ struct IssueListView: View {
                 }
             }
         }
+    }
+
+    private func isSelected(_ issue: BeadsCore.Issue) -> Bool { model.selection == issue.id }
+
+    /// The system's selected-row text colour: it tracks whatever accent the user has chosen, so
+    /// content on a highlighted row stays readable even though the highlight isn't ours to pick.
+    private var selectedText: Color { Color(nsColor: .alternateSelectedControlTextColor) }
+
+    private func secondaryColor(_ issue: BeadsCore.Issue) -> Color {
+        isSelected(issue) ? selectedText.opacity(0.8) : theme.secondaryText
     }
 
     @ViewBuilder

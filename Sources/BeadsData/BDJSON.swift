@@ -5,6 +5,22 @@ import Foundation
 /// optional fields get defaults, and a record that can't be read at all is skipped and
 /// counted, so one odd row never hides the whole database.
 public enum BDJSON {
+    /// `bd history <id> --json`: one entry per Dolt commit, each with a snapshot of the issue.
+    /// The commit date is used rather than the issue's `updated_at`, which several commits share.
+    public static func decodeHistory(_ data: Data) throws -> [IssueVersion] {
+        guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw DecodingFailure(detail: "bd history didn't return a list of commits")
+        }
+        return rows.compactMap { row in
+            guard let date = parseDate(row["CommitDate"] as? String),
+                  let issueObject = row["Issue"],
+                  let issueData = try? JSONSerialization.data(withJSONObject: [issueObject]),
+                  let issue = try? decodeIssueList(issueData).issues.first
+            else { return nil }
+            return IssueVersion(date: date, issue: issue)
+        }
+    }
+
     public struct DecodingFailure: Error, Equatable {
         public let detail: String
     }

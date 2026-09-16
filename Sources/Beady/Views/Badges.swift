@@ -1,3 +1,4 @@
+import AppKit
 import BeadsCore
 import BeadsPresentation
 import SwiftUI
@@ -44,6 +45,9 @@ enum IssueTypeStyle {
 
 struct PriorityBadge: View {
     let priority: Int
+    /// On a highlighted row the system paints its own background, so the badge borrows the
+    /// system's selected-text colour, which is legible whatever accent colour the user picked.
+    var isSelected = false
     @Environment(\.theme) private var theme
 
     var body: some View {
@@ -57,7 +61,7 @@ struct PriorityBadge: View {
             .help("Priority \(priority) (0 is highest)")
     }
 
-    private var color: Color { theme.priority(priority) }
+    private var color: Color { isSelected ? Color(nsColor: .alternateSelectedControlTextColor) : theme.priority(priority) }
 }
 
 struct StatusBadge: View {

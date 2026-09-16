@@ -65,6 +65,10 @@ public struct BDStore: BeadsStore {
         try await gateway.recentActivity(since: since)
     }
 
+    public func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] {
+        try BDJSON.decodeHistory(try await gateway.run(.history(id, limit: limit)))
+    }
+
     /// The bd commands a change runs, in order.
     static func commands(for change: IssueChange) -> [BDCommand] {
         switch change {

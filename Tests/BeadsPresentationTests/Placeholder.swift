@@ -56,6 +56,7 @@ final class StubStore: BeadsStore, @unchecked Sendable {
 
     func changeToken() async -> String { lock.withLock { _token } }
     func recentActivity(since: Date) async throws -> ActivityLog { .empty }
+    func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] { [] }
     func currentIssue(_ id: IssueID) async throws -> Issue? { nil }
     func issuesCreated(titled title: String, since: Date) async throws -> [Issue] { [] }
     func apply(_ change: IssueChange) async throws -> IssueID { throw ReadOnlyStoreError() }

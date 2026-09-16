@@ -104,6 +104,14 @@ enum SnapshotMode {
         }
         capture("9-command-palette", CommandPaletteView(model: model, run: { _ in }, onClose: {}))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
+
+        // History reads from bd, so give it a moment before the shutter.
+        if let busiest = snapshot.issues.max(by: { $0.updatedAt < $1.updatedAt }) {
+            let section = HistorySection(model: model, issue: busiest, startExpanded: true)
+            Task { await model.loadHistory(for: busiest.id) }
+            pump(timeout: 10) { if case .loaded = model.history[busiest.id] { true } else { false } }
+            capture("12-history", section.frame(width: 420).padding())
+        }
         capture("10-shortcuts", ShortcutsView(model: model, onClose: {}))
         exit(0)
     }

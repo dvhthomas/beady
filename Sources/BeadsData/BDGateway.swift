@@ -49,6 +49,7 @@ public enum BDCommand: Equatable, Sendable {
     case show(IssueID)
     case ready
     case blocked
+    case history(IssueID, limit: Int)
     case updateFields(IssueID, title: String?, description: String?, notes: String?, priority: Int?)
     case setStatus(IssueID, String)
     case setParent(IssueID, IssueID?)
@@ -58,7 +59,7 @@ public enum BDCommand: Equatable, Sendable {
 
     public var isReadOnly: Bool {
         switch self {
-        case .list, .listTitled, .statuses, .show, .ready, .blocked: true
+        case .list, .listTitled, .statuses, .show, .ready, .blocked, .history: true
         case .updateFields, .setStatus, .setParent, .close, .reopen, .create: false
         }
     }
@@ -78,6 +79,8 @@ public enum BDCommand: Equatable, Sendable {
             return Self.readOnly(["ready", "--json", "--limit", "0"])
         case .blocked:
             return Self.readOnly(["blocked", "--json"])
+        case .history(let id, let limit):
+            return Self.readOnly(["history", id.rawValue, "--limit", String(limit), "--json"])
         case .updateFields(let id, let title, let description, let notes, let priority):
             var flags: [String] = []
             if let title { flags.append("--title=\(title)") }

@@ -48,9 +48,6 @@ private struct IssueDetailContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if let recent = model.recentChange(to: issue.id) {
-                    liveWork(recent)
-                }
                 header
                 if model.canEdit {
                     editActions
@@ -62,23 +59,11 @@ private struct IssueDetailContent: View {
                 relations
                 textSection("Description", issue.description)
                 textSection("Notes", issue.notes)
+                HistorySection(model: model, issue: issue)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    /// bd has no lock to take, so the app says who else is working here and keeps going.
-    private func liveWork(_ entry: ActivityEntry) -> some View {
-        Label(
-            "\(entry.actor) changed \(entry.field ?? "this bead") \(entry.date.formatted(.relative(presentation: .named))). Your edits will land on top.",
-            systemImage: "person.wave.2"
-        )
-        .font(.callout)
-        .foregroundStyle(theme.pinned)
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.pinned.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var header: some View {
@@ -349,5 +334,98 @@ private struct EditIssueForm: View {
                 .frame(minHeight: 120)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3)))
         }
+    }
+}
+
+
+/// Collapsed by default: every change bd has recorded for this bead, newest first. Reading it
+/// runs `bd history`, so it only happens when the expander is opened.
+struct HistorySection: View {
+    @Environment(\.theme) private var theme
+    let model: WorkspaceModel
+    let issue: Issue
+    private var isExpanded: State<Bool>
+
+    /// `startExpanded` is for the offscreen snapshots, which have no one to click the expander.
+    init(model: WorkspaceModel, issue: Issue, startExpanded: Bool = false) {
+        self.model = model
+        self.issue = issue
+        isExpanded = State(initialValue: startExpanded)
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: isExpanded.projectedValue) {
+            content
+                .padding(.top, 6)
+        } label: {
+            Text("History")
+                .font(.headline)
+        }
+        .onAppear { load() }
+        .onChange(of: isExpanded.wrappedValue) { load() }
+        .onChange(of: issue.id) { isExpanded.wrappedValue = false }
+        .onChange(of: issue.updatedAt) { if isExpanded.wrappedValue { load() } }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch model.history[issue.id] {
+        case .loading, .none:
+            ProgressView().controlSize(.small)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(theme.blocked)
+        case .loaded(let events) where events.isEmpty:
+            Text("bd has no recorded history for this bead.")
+                .font(.caption)
+                .foregroundStyle(theme.secondaryText)
+        case .loaded(let events):
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(events) { event in
+                    HistoryRow(event: event)
+                }
+            }
+        }
+    }
+
+    private func load() {
+        guard isExpanded.wrappedValue else { return }
+        Task { await model.loadHistory(for: issue.id) }
+    }
+}
+
+private struct HistoryRow: View {
+    @Environment(\.theme) private var theme
+    let event: HistoryEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(event.field)
+                    .font(.caption.weight(.semibold))
+                Text(event.date.formatted(.relative(presentation: .named)))
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+                if let actor = event.actor {
+                    Text("· \(actor)")
+                        .font(.caption)
+                        .foregroundStyle(theme.secondaryText)
+                }
+            }
+            Text(change)
+                .font(.caption)
+                .foregroundStyle(theme.secondaryText)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .help(event.date.formatted(date: .abbreviated, time: .standard))
+    }
+
+    private var change: String {
+        if event.field == "created" { return event.to }
+        if event.from.isEmpty { return event.to.isEmpty ? "cleared" : "set to \(event.to)" }
+        return event.to.isEmpty ? "cleared (was \(event.from))" : "\(event.from) → \(event.to)"
     }
 }

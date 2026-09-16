@@ -34,6 +34,24 @@ struct ThemeTests {
         }
     }
 
+    @Test("nothing goes illegible on a highlighted row")
+    func selection() {
+        for theme in Theme.all {
+            let text = theme.colors.text.contrast(with: theme.colors.selection)
+            #expect(text >= 4.5, "\(theme.name): text on a selected row is \(String(format: "%.2f", text)):1")
+            let secondary = theme.colors.secondaryText.contrast(with: theme.colors.selection)
+            #expect(secondary >= 4.5, "\(theme.name): secondary text on a selected row is \(String(format: "%.2f", secondary)):1")
+            for category in StatusCategory.allCases {
+                let ratio = theme.colors.category(category).contrast(with: theme.colors.selection)
+                #expect(ratio >= 3, "\(theme.name): \(category.rawValue) on a selected row is \(String(format: "%.2f", ratio)):1")
+            }
+            for priority in 0...4 {
+                let ratio = theme.colors.priority(priority).contrast(with: theme.colors.selection)
+                #expect(ratio >= 3, "\(theme.name): P\(priority) on a selected row is \(String(format: "%.2f", ratio)):1")
+            }
+        }
+    }
+
     @Test("the high-contrast themes clear the stricter AAA bar, for eyes that need it")
     func highContrast() {
         for theme in Theme.all where theme.isHighContrast {

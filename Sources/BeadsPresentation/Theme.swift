@@ -46,6 +46,8 @@ public struct ThemeColors: Equatable, Sendable {
     public let text: RGB
     public let secondaryText: RGB
     public let accent: RGB
+    /// The highlighted row. Chosen so text, status colours and priority badges all stay legible
+    /// on it — there are tests for that, because a selection that swallows a badge is a bug.
     public let selection: RGB
     public let active: RGB
     public let wip: RGB
@@ -118,7 +120,7 @@ public extension Theme {
         Theme(name: "Dracula", appearance: .dark, isHighContrast: false, colors: ThemeColors(
             background: RGB(hex: 0x282A36), surface: RGB(hex: 0x343746), border: RGB(hex: 0x4A4C5E),
             text: RGB(hex: 0xF8F8F2), secondaryText: RGB(hex: 0xA8AEC4),
-            accent: RGB(hex: 0xBD93F9), selection: RGB(hex: 0x6272A4),
+            accent: RGB(hex: 0xBD93F9), selection: RGB(hex: 0x433D59),
             active: RGB(hex: 0x8BE9FD), wip: RGB(hex: 0xFFB86C), frozen: RGB(hex: 0xA6C2D8),
             done: RGB(hex: 0x50FA7B), blocked: RGB(hex: 0xFF6E77), pinned: RGB(hex: 0xFFB86C),
             starred: RGB(hex: 0xF1FA8C)
@@ -126,7 +128,7 @@ public extension Theme {
         Theme(name: "One Dark", appearance: .dark, isHighContrast: false, colors: ThemeColors(
             background: RGB(hex: 0x282C34), surface: RGB(hex: 0x32363F), border: RGB(hex: 0x4B5263),
             text: RGB(hex: 0xEBEFF5), secondaryText: RGB(hex: 0xA9B2C3),
-            accent: RGB(hex: 0x74AEF6), selection: RGB(hex: 0x3E4451),
+            accent: RGB(hex: 0x74AEF6), selection: RGB(hex: 0x364357),
             active: RGB(hex: 0x74AEF6), wip: RGB(hex: 0xE5C07B), frozen: RGB(hex: 0x8FC6D8),
             done: RGB(hex: 0x98C379), blocked: RGB(hex: 0xEF7078), pinned: RGB(hex: 0xE5C07B),
             starred: RGB(hex: 0xE6C07B)
@@ -134,7 +136,7 @@ public extension Theme {
         Theme(name: "Nord", appearance: .dark, isHighContrast: false, colors: ThemeColors(
             background: RGB(hex: 0x2E3440), surface: RGB(hex: 0x3B4252), border: RGB(hex: 0x4C566A),
             text: RGB(hex: 0xECEFF4), secondaryText: RGB(hex: 0xBFC7D5),
-            accent: RGB(hex: 0x88C0D0), selection: RGB(hex: 0x434C5E),
+            accent: RGB(hex: 0x88C0D0), selection: RGB(hex: 0x3E4D5A),
             active: RGB(hex: 0x88C0D0), wip: RGB(hex: 0xEBCB8B), frozen: RGB(hex: 0x9FB6CD),
             done: RGB(hex: 0xA3BE8C), blocked: RGB(hex: 0xE3808A), pinned: RGB(hex: 0xEBCB8B),
             starred: RGB(hex: 0xEBCB8B)
@@ -142,7 +144,7 @@ public extension Theme {
         Theme(name: "High Contrast Dark", appearance: .dark, isHighContrast: true, colors: ThemeColors(
             background: RGB(hex: 0x000000), surface: RGB(hex: 0x121212), border: RGB(hex: 0x8A8A8A),
             text: RGB(hex: 0xFFFFFF), secondaryText: RGB(hex: 0xD6D6D6),
-            accent: RGB(hex: 0x6FB8FF), selection: RGB(hex: 0x2B4B6F),
+            accent: RGB(hex: 0x6FB8FF), selection: RGB(hex: 0x21374C),
             active: RGB(hex: 0x6FB8FF), wip: RGB(hex: 0xFFC65C), frozen: RGB(hex: 0x9FD9E8),
             done: RGB(hex: 0x5BE07A), blocked: RGB(hex: 0xFF8A8A), pinned: RGB(hex: 0xFFC65C),
             starred: RGB(hex: 0xFFE066)
@@ -151,7 +153,7 @@ public extension Theme {
         Theme(name: "Solarized Light", appearance: .light, isHighContrast: false, colors: ThemeColors(
             background: RGB(hex: 0xFDF6E3), surface: RGB(hex: 0xF3ECD8), border: RGB(hex: 0xD9D2BC),
             text: RGB(hex: 0x073642), secondaryText: RGB(hex: 0x56676B),
-            accent: RGB(hex: 0x1F6FA8), selection: RGB(hex: 0xD8D2BE),
+            accent: RGB(hex: 0x1F6FA8), selection: RGB(hex: 0xDEE3DB),
             active: RGB(hex: 0x1F6FA8), wip: RGB(hex: 0x9A6700), frozen: RGB(hex: 0x4E6E75),
             done: RGB(hex: 0x4F7A15), blocked: RGB(hex: 0xC3282A), pinned: RGB(hex: 0x9A6700),
             starred: RGB(hex: 0x8A6D00)
@@ -159,7 +161,7 @@ public extension Theme {
         Theme(name: "GitHub Light", appearance: .light, isHighContrast: false, colors: ThemeColors(
             background: RGB(hex: 0xFFFFFF), surface: RGB(hex: 0xF6F8FA), border: RGB(hex: 0xD0D7DE),
             text: RGB(hex: 0x1F2328), secondaryText: RGB(hex: 0x5A6470),
-            accent: RGB(hex: 0x0969DA), selection: RGB(hex: 0xDDF4FF),
+            accent: RGB(hex: 0x0969DA), selection: RGB(hex: 0xD3E4F8),
             active: RGB(hex: 0x0969DA), wip: RGB(hex: 0x9A6700), frozen: RGB(hex: 0x57606A),
             done: RGB(hex: 0x1A7F37), blocked: RGB(hex: 0xCF222E), pinned: RGB(hex: 0x9A6700),
             starred: RGB(hex: 0x8A6D00)
@@ -167,7 +169,7 @@ public extension Theme {
         Theme(name: "One Light", appearance: .light, isHighContrast: false, colors: ThemeColors(
             background: RGB(hex: 0xFAFAFA), surface: RGB(hex: 0xF0F0F1), border: RGB(hex: 0xD3D3D6),
             text: RGB(hex: 0x383A42), secondaryText: RGB(hex: 0x5C6070),
-            accent: RGB(hex: 0x3C74C8), selection: RGB(hex: 0xDDE3EA),
+            accent: RGB(hex: 0x3C74C8), selection: RGB(hex: 0xD0DDEF),
             active: RGB(hex: 0x3C74C8), wip: RGB(hex: 0x9A6700), frozen: RGB(hex: 0x4E6472),
             done: RGB(hex: 0x407A1F), blocked: RGB(hex: 0xCA1243), pinned: RGB(hex: 0x9A6700),
             starred: RGB(hex: 0x8A6D00)
@@ -175,7 +177,7 @@ public extension Theme {
         Theme(name: "High Contrast Light", appearance: .light, isHighContrast: true, colors: ThemeColors(
             background: RGB(hex: 0xFFFFFF), surface: RGB(hex: 0xF2F2F2), border: RGB(hex: 0x4A4A4A),
             text: RGB(hex: 0x000000), secondaryText: RGB(hex: 0x333333),
-            accent: RGB(hex: 0x0B4FA8), selection: RGB(hex: 0xBBD6F2),
+            accent: RGB(hex: 0x0B4FA8), selection: RGB(hex: 0xB6CAE5),
             active: RGB(hex: 0x0B4FA8), wip: RGB(hex: 0x7A4B00), frozen: RGB(hex: 0x33525E),
             done: RGB(hex: 0x1B5E20), blocked: RGB(hex: 0xA80000), pinned: RGB(hex: 0x7A4B00),
             starred: RGB(hex: 0x6B5200)

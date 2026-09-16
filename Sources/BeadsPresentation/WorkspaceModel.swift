@@ -403,6 +403,31 @@ public final class WorkspaceModel {
         )
     }
 
+    /// What the History expander is showing for the selected bead.
+    public enum HistoryState: Equatable, Sendable {
+        case loading
+        case loaded([HistoryEvent])
+        case failed(String)
+    }
+
+    /// Loaded only when asked for: reading a bead's history runs another bd command.
+    public private(set) var history: [IssueID: HistoryState] = [:]
+
+    public func loadHistory(for id: IssueID, limit: Int = 50) async {
+        if case .loading = history[id] { return }
+        history[id] = .loading
+        do {
+            let versions = try await store.versions(of: id, limit: limit)
+            // The cached activity only covers the last few minutes; history reaches back further,
+            // so ask for a window that actually spans what's being shown.
+            let oldest = versions.map(\.date).min() ?? now()
+            let log = (try? await store.recentActivity(since: oldest.addingTimeInterval(-60))) ?? activityLog
+            history[id] = .loaded(History.events(from: versions, activity: log))
+        } catch {
+            history[id] = .failed(error.localizedDescription)
+        }
+    }
+
     /// Beads another session has touched lately, for marking rows in a list.
     public var beadsChangedElsewhere: Set<IssueID> {
         let since = now().addingTimeInterval(-activityWindow)

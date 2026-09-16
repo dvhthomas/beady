@@ -46,6 +46,7 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
     func changeToken() async -> String { lock.withLock { "\(_applied.count)" } }
 
     func recentActivity(since: Date) async throws -> ActivityLog { .empty }
+    func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] { [] }
 
     func currentIssue(_ id: IssueID) async throws -> BeadsCore.Issue? { lock.withLock { issues[id] } }
 
