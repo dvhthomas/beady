@@ -337,6 +337,7 @@ struct FilterChipView: View {
 }
 
 struct DisplayOptionsView: View {
+    @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
     let columns: ColumnLayout
 
@@ -377,6 +378,8 @@ struct DisplayOptionsView: View {
                 .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(theme.background)
         .frame(width: 340)
     }
 }

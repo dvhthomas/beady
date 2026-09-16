@@ -301,7 +301,9 @@ struct IssueBoardView: View {
     }
 
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
+        // Horizontal only: each column scrolls its own cards, and a vertical axis here just let
+        // the whole board float away from the top when a filter left it shorter than the pane.
+        ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
                 ForEach(model.boardGroups) { group in
                     BoardColumnView(group: group, model: model)
@@ -311,6 +313,7 @@ struct IssueBoardView: View {
             .padding(12)
             .frame(maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: startWatchingKeys)
         .onDisappear(perform: stopWatchingKeys)
     }
@@ -380,7 +383,7 @@ private struct BoardColumnView: View {
         }
         .padding(8)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .background(theme.surface, in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(theme.accent, lineWidth: isDropTarget.wrappedValue ? 2 : 0)

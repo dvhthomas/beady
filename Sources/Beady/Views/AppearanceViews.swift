@@ -26,8 +26,8 @@ struct ThemePickerView: View {
             ScrollViewReader { scroller in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        section("Dark", ThemeSelection.catalog.filter { $0.appearance == .dark })
-                        section("Light", ThemeSelection.catalog.filter { $0.appearance == .light })
+                        section(.dark, ThemeSelection.catalog.filter { $0.appearance == .dark })
+                        section(.light, ThemeSelection.catalog.filter { $0.appearance == .light })
                         if themes.systemWantsHighContrast {
                             Label(
                                 "macOS has Increase Contrast turned on, so Beady is using its high-contrast theme whatever you pick here.",
@@ -55,9 +55,10 @@ struct ThemePickerView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Theme").font(.headline)
-                Text("↑↓ to try them on")
+                Text(explanation)
                     .font(.caption)
                     .foregroundStyle(current.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             Picker("Appearance", selection: appearance) {
@@ -68,17 +69,29 @@ struct ThemePickerView: View {
             .fixedSize()
             Button("Cancel", action: cancel)
                 .keyboardShortcut(.cancelAction)
-            Button("Apply", action: apply)
-                .keyboardShortcut(.defaultAction)
+            VStack(alignment: .trailing, spacing: 2) {
+                Button("Apply", action: apply)
+                    .keyboardShortcut(.defaultAction)
+                if let hint = applyHint {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundStyle(current.secondaryText)
+                }
+            }
         }
         .padding(14)
     }
 
-    private func section(_ title: String, _ options: [Theme]) -> some View {
+    /// Each side says when it's used, because "System" plus a light theme is otherwise a riddle.
+    private func section(_ appearance: Theme.Appearance, _ options: [Theme]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(current.secondaryText)
+            HStack(spacing: 6) {
+                Text(appearance == .dark ? "Dark" : "Light")
+                    .font(.subheadline.weight(.semibold))
+                Text("· \(sectionUsage(appearance))")
+                    .font(.caption)
+            }
+            .foregroundStyle(current.secondaryText)
             ForEach(options) { theme in
                 let index = ThemeSelection.catalog.firstIndex { $0.name == theme.name } ?? 0
                 Button {
@@ -102,6 +115,31 @@ struct ThemePickerView: View {
                 highlighted.wrappedValue = themes.selection.startingIndex(systemIsDark: colorScheme == .dark)
             }
         )
+    }
+
+    /// What the Appearance setting means for the two lists below it.
+    private var explanation: String {
+        switch themes.appearance {
+        case .system: "↑↓ to try them on. Appearance follows macOS, so your dark and light choices are both used — each when macOS switches to it."
+        case .dark: "↑↓ to try them on. Appearance is pinned to Dark, so the dark choice is what you'll see."
+        case .light: "↑↓ to try them on. Appearance is pinned to Light, so the light choice is what you'll see."
+        }
+    }
+
+    private func sectionUsage(_ appearance: Theme.Appearance) -> String {
+        switch themes.appearance {
+        case .system: appearance == .dark ? "when macOS is dark" : "when macOS is light"
+        case .dark: appearance == .dark ? "in use" : "unused while Appearance is Dark"
+        case .light: appearance == .light ? "in use" : "unused while Appearance is Light"
+        }
+    }
+
+    /// Says what Apply will actually do when the highlighted theme isn't the one in use.
+    private var applyHint: String? {
+        guard ThemeSelection.catalog.indices.contains(highlighted.wrappedValue) else { return nil }
+        let theme = ThemeSelection.catalog[highlighted.wrappedValue]
+        let usage = themes.selection.usage(of: theme, systemIsDark: colorScheme == .dark)
+        return usage == .inUse ? nil : usage.title
     }
 
     private func start() {
@@ -214,6 +252,8 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(theme.background)
         .frame(width: 420)
     }
 
@@ -259,8 +299,11 @@ private struct Themed: ViewModifier {
         }
     }
 
+    /// Follows the preview as well as the setting: trying a light theme while the app is set to
+    /// Dark used to leave AppKit drawing its dark controls — grey-on-cream text in the picker's
+    /// own header — because the window's appearance said one thing and the background another.
     private var preferredScheme: ColorScheme? {
-        switch themes.appearance {
+        switch themes.selection.effectiveAppearance {
         case .system: nil
         case .light: .light
         case .dark: .dark

@@ -162,6 +162,7 @@ struct NewBeadForm: View {
                 }
             }
             .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
             HStack {
                 Text("Nothing is created until you review and confirm.")
                     .font(.caption)

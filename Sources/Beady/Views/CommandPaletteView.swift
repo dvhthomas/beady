@@ -143,6 +143,7 @@ struct CommandPaletteView: View {
 
 /// The `?` sheet: every command, where it lives, and the key that runs it.
 struct ShortcutsView: View {
+    @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let onClose: () -> Void
 
@@ -183,6 +184,7 @@ struct ShortcutsView: View {
             }
         }
         .frame(width: 460, height: 460)
+        .background(theme.background)
     }
 }
 

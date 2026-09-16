@@ -70,6 +70,11 @@ enum SnapshotMode {
         model.layout = .board
         captureWorkspace("3-all-board-by-lifecycle")
 
+        // A search that leaves the board shorter than the pane: it must stay at the top.
+        model.searchText = "distance"
+        captureWorkspace("3b-board-narrowed-by-search")
+        model.searchText = ""
+
         model.source = .lifecycle(.open)
         model.toggleFilterValue("1", in: .priority)
         model.toggleFilterValue("2", in: .priority)
@@ -112,6 +117,9 @@ enum SnapshotMode {
         session.ui.paletteQuery = ""
         session.themes.preview(Theme.dark(named: "Dracula"))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
+        // Previewing a light theme from a dark setting: the case where the controls went grey.
+        session.themes.preview(Theme.light(named: "Solarized Light"))
+        capture("11b-themes-light-preview", ThemePickerView(themes: session.themes, onClose: {}))
         session.themes.cancelPreview()
 
         // The detail pane after following a blocker link: the back bar has something to do.
