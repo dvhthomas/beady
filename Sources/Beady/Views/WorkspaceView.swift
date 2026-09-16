@@ -129,6 +129,7 @@ struct WorkspaceView: View {
                     ui.showsNewBead = false
                     ui.showsPalette = false
                     ui.showsShortcuts = false
+                    if ui.showsThemes { themes?.cancelPreview() }
                     ui.showsThemes = false
                     ui.showsGraph = false
                 }

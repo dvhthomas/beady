@@ -239,3 +239,92 @@ public enum TextSize: String, CaseIterable, Identifiable, Sendable {
         }
     }
 }
+
+
+/// Which theme the app is using, and which one it is trying on.
+///
+/// Previewing is deliberately separate from choosing: arrowing down the list repaints the app so
+/// you can see a theme doing its job, and only Apply makes that the setting. Leaving the picker
+/// without applying puts back what you had.
+public struct ThemeSelection: Equatable, Sendable {
+    /// Every theme in the order the picker shows them: dark first, then light.
+    public static let catalog: [Theme] = Theme.all.filter { $0.appearance == .dark }
+        + Theme.all.filter { $0.appearance == .light }
+
+    public var appearance: AppearancePreference
+    public var darkName: String
+    public var lightName: String
+    public private(set) var previewed: Theme?
+
+    public init(
+        appearance: AppearancePreference = .system,
+        darkName: String = Theme.defaultDark.name,
+        lightName: String = Theme.defaultLight.name
+    ) {
+        self.appearance = appearance
+        self.darkName = darkName
+        self.lightName = lightName
+    }
+
+    /// The theme to draw with. A preview wins; the system's Increase Contrast setting wins over
+    /// everything, because it was asked for by someone who needs it.
+    public func resolved(systemIsDark: Bool, highContrast: Bool = false) -> Theme {
+        let wantsDark = switch effectiveAppearance {
+        case .system: systemIsDark
+        case .light: false
+        case .dark: true
+        }
+        if highContrast {
+            return Theme.all.first { $0.isHighContrast && $0.appearance == (wantsDark ? .dark : .light) }!
+        }
+        if let previewed { return previewed }
+        return wantsDark
+            ? (Theme.dark(named: darkName) ?? .defaultDark)
+            : (Theme.light(named: lightName) ?? .defaultLight)
+    }
+
+    /// What light/dark the window chrome should follow, so a previewed light theme doesn't sit in
+    /// a dark window.
+    public var effectiveAppearance: AppearancePreference {
+        guard let previewed else { return appearance }
+        return previewed.appearance == .dark ? .dark : .light
+    }
+
+    public mutating func preview(_ theme: Theme?) {
+        previewed = theme
+    }
+
+    public mutating func cancelPreview() {
+        previewed = nil
+    }
+
+    /// Keeps whatever is being previewed: the theme becomes the choice for its own appearance,
+    /// and that appearance becomes the setting, since picking a light theme means you want light.
+    public mutating func commitPreview() {
+        guard let previewed else { return }
+        switch previewed.appearance {
+        case .dark:
+            darkName = previewed.name
+            appearance = .dark
+        case .light:
+            lightName = previewed.name
+            appearance = .light
+        }
+        self.previewed = nil
+    }
+
+    public func index(of theme: Theme) -> Int? {
+        Self.catalog.firstIndex { $0.name == theme.name }
+    }
+
+    /// The theme the picker should start on: whatever is in use.
+    public func startingIndex(systemIsDark: Bool) -> Int {
+        index(of: resolved(systemIsDark: systemIsDark)) ?? 0
+    }
+
+    /// Arrowing stops at the ends rather than wrapping: a list you can fall off the bottom of is
+    /// hard to trust when every step repaints the whole app.
+    public static func step(_ index: Int, by delta: Int) -> Int {
+        min(max(index + delta, 0), catalog.count - 1)
+    }
+}

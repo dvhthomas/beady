@@ -1,74 +1,153 @@
+import AppKit
 import BeadsCore
 import BeadsPresentation
 import SwiftUI
 
-/// ⌘T: pick a theme, with a swatch of what it does to a row so the choice is visible before
-/// it's made.
+/// ⌘T: arrow through the themes and watch the app repaint as you go. Apply keeps the one you
+/// stopped on; Escape or Cancel puts back what you had.
 struct ThemePickerView: View {
     @Environment(\.theme) private var current
+    @Environment(\.colorScheme) private var colorScheme
     let themes: ThemeStore
     let onClose: () -> Void
+    /// `State` as plain DynamicProperties: Command Line Tools lack the @State macro plugin.
+    private var highlighted = State(initialValue: 0)
+    private var monitor = State<Any?>(initialValue: nil)
+
+    init(themes: ThemeStore, onClose: @escaping () -> Void) {
+        self.themes = themes
+        self.onClose = onClose
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Theme").font(.headline)
-                Spacer()
-                Picker("Appearance", selection: appearance) {
-                    ForEach(AppearancePreference.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                Button("Done", action: onClose)
-                    .keyboardShortcut(.defaultAction)
-            }
-            .padding(14)
+            header
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    section("Dark", Theme.all.filter { $0.appearance == .dark }, selected: themes.darkThemeName)
-                    section("Light", Theme.all.filter { $0.appearance == .light }, selected: themes.lightThemeName)
-                    if themes.systemWantsHighContrast {
-                        Label(
-                            "macOS has Increase Contrast turned on, so Beady is using its high-contrast theme.",
-                            systemImage: "eye"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(current.secondaryText)
+            ScrollViewReader { scroller in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        section("Dark", ThemeSelection.catalog.filter { $0.appearance == .dark })
+                        section("Light", ThemeSelection.catalog.filter { $0.appearance == .light })
+                        if themes.systemWantsHighContrast {
+                            Label(
+                                "macOS has Increase Contrast turned on, so Beady is using its high-contrast theme whatever you pick here.",
+                                systemImage: "eye"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(current.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .padding(16)
                 }
-                .padding(16)
+                .onChange(of: highlighted.wrappedValue) {
+                    scroller.scrollTo(highlighted.wrappedValue, anchor: .center)
+                }
             }
         }
-        .frame(width: 520, height: 520)
+        .frame(width: 520, height: 540)
         .background(current.background)
+        .onAppear(perform: start)
+        .onDisappear(perform: stopWatchingKeys)
     }
 
-    private func section(_ title: String, _ options: [Theme], selected: String) -> some View {
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Theme").font(.headline)
+                Text("↑↓ to try them on")
+                    .font(.caption)
+                    .foregroundStyle(current.secondaryText)
+            }
+            Spacer()
+            Picker("Appearance", selection: appearance) {
+                ForEach(AppearancePreference.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            Button("Cancel", action: cancel)
+                .keyboardShortcut(.cancelAction)
+            Button("Apply", action: apply)
+                .keyboardShortcut(.defaultAction)
+        }
+        .padding(14)
+    }
+
+    private func section(_ title: String, _ options: [Theme]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(current.secondaryText)
             ForEach(options) { theme in
+                let index = ThemeSelection.catalog.firstIndex { $0.name == theme.name } ?? 0
                 Button {
-                    if theme.appearance == .dark {
-                        themes.darkThemeName = theme.name
-                        themes.appearance = .dark
-                    } else {
-                        themes.lightThemeName = theme.name
-                        themes.appearance = .light
-                    }
+                    highlight(index)
                 } label: {
-                    ThemeSwatch(theme: theme, isSelected: theme.name == selected)
+                    ThemeSwatch(theme: theme, isSelected: index == highlighted.wrappedValue)
                 }
                 .buttonStyle(.plain)
+                .id(index)
             }
         }
     }
 
     private var appearance: Binding<AppearancePreference> {
-        Binding(get: { themes.appearance }, set: { themes.appearance = $0 })
+        Binding(
+            get: { themes.appearance },
+            set: { preference in
+                // Switching light/dark here is a choice too, so it drops any preview.
+                themes.cancelPreview()
+                themes.appearance = preference
+                highlighted.wrappedValue = themes.selection.startingIndex(systemIsDark: colorScheme == .dark)
+            }
+        )
+    }
+
+    private func start() {
+        highlighted.wrappedValue = themes.selection.startingIndex(systemIsDark: colorScheme == .dark)
+        startWatchingKeys()
+    }
+
+    private func highlight(_ index: Int) {
+        highlighted.wrappedValue = index
+        themes.preview(ThemeSelection.catalog[index])
+    }
+
+    private func apply() {
+        themes.commitPreview()
+        stopWatchingKeys()
+        onClose()
+    }
+
+    private func cancel() {
+        themes.cancelPreview()
+        stopWatchingKeys()
+        onClose()
+    }
+
+    /// Arrow keys through a sheet that has no focused list: the same local monitor the command
+    /// palette uses, for the same reason.
+    private func startWatchingKeys() {
+        guard monitor.wrappedValue == nil else { return }
+        let highlighted = highlighted.projectedValue
+        let themes = themes
+        monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
+            switch event.keyCode {
+            case 126, 125: // up, down
+                let next = ThemeSelection.step(highlighted.wrappedValue, by: event.keyCode == 126 ? -1 : 1)
+                highlighted.wrappedValue = next
+                themes.preview(ThemeSelection.catalog[next])
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func stopWatchingKeys() {
+        if let monitor = monitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+        monitor.wrappedValue = nil
     }
 }
 
