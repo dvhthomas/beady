@@ -3,19 +3,19 @@ import PackageDescription
 
 // Dependency rule (clean architecture): BeadsCore depends on nothing.
 // BeadsData and BeadsPresentation depend only on BeadsCore.
-// BeadsViewerApp is the composition root and the only target that sees everything.
+// BeadyApp is the composition root and the only target that sees everything.
 let package = Package(
-    name: "BeadsViewer",
+    name: "Beady",
     platforms: [.macOS(.v15)],
     products: [
-        .executable(name: "BeadsViewer", targets: ["BeadsViewer"]),
+        .executable(name: "Beady", targets: ["Beady"]),
     ],
     targets: [
         .target(name: "BeadsCore"),
         .target(name: "BeadsData", dependencies: ["BeadsCore"]),
         .target(name: "BeadsPresentation", dependencies: ["BeadsCore"]),
         .executableTarget(
-            name: "BeadsViewer",
+            name: "Beady",
             dependencies: ["BeadsCore", "BeadsData", "BeadsPresentation"]
         ),
         .testTarget(name: "BeadsCoreTests", dependencies: ["BeadsCore"]),

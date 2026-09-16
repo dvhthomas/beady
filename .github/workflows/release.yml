@@ -32,13 +32,13 @@ jobs:
           body: |
             Built from ${{ github.sha }}.
 
-            **Installing.** Unzip and drag Beads Viewer to /Applications. The app is
+            **Installing.** Unzip and drag Beady to /Applications. The app is
             ad-hoc signed but not notarised (no Apple Developer ID), so macOS quarantines
             it on first launch. Either:
 
             * open it, then go to System Settings → Privacy & Security and choose
               **Open Anyway**; or
-            * run `xattr -dr com.apple.quarantine /Applications/BeadsViewer.app`.
+            * run `xattr -dr com.apple.quarantine /Applications/Beady.app`.
 
             Prefer to avoid that entirely? Clone the repo and run `scripts/bundle.sh`;
             an app you build yourself is never quarantined.

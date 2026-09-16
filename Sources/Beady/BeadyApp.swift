@@ -4,7 +4,7 @@ import BeadsPresentation
 import SwiftUI
 
 @main
-struct BeadsViewerApp: App {
+struct BeadyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     // The App struct is created once, so a plain property holds the session. (No @State:
     // Command Line Tools ship without the SwiftUI macro plugin that @State now needs.)
@@ -17,7 +17,7 @@ struct BeadsViewerApp: App {
     }
 
     var body: some Scene {
-        Window("Beads Viewer", id: "main") {
+        Window("Beady", id: "main") {
             RootView(session: session)
         }
         .defaultSize(width: 1320, height: 820)

@@ -6,7 +6,7 @@ mapshop, and the scratch write round trip. Verified with offscreen snapshots.
 
 ## Intent
 
-The owner opens Beads Viewer to see how work is going and, occasionally, to make a careful change.
+The owner opens Beady to see how work is going and, occasionally, to make a careful change.
 Today that's harder than it should be:
 
 - **The sidebar is cluttered.** It mixes navigation (lifecycle, epics) with a long wall of filter
@@ -34,7 +34,7 @@ then every read and write of beads/Dolt funnelled through one layer, then the UI
 
 ## What we take from Linear
 
-| Linear | Beads Viewer |
+| Linear | Beady |
 | --- | --- |
 | Sidebar is navigation only: views, projects, teams | Sidebar is navigation only: **Views** (Open, Ready, In Flight, Blocked, Deferred, Closed, All) and **Epics** (open epics with progress) |
 | Default tabs *All / Active / Backlog* are built-in filtered views | Lifecycle views are built-in views over bd's status categories and dependency state |

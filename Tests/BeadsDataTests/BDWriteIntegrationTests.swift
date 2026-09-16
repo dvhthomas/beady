@@ -4,15 +4,15 @@ import Foundation
 import Testing
 
 private let writableWorkspace: String? = {
-    guard let path = ProcessInfo.processInfo.environment["BEADS_VIEWER_IT_WRITABLE_WORKSPACE"] else { return nil }
+    guard let path = ProcessInfo.processInfo.environment["BEADY_IT_WRITABLE_WORKSPACE"] else { return nil }
     // Refuse any database that hasn't been explicitly marked as a throwaway.
-    let marker = URL(fileURLWithPath: path).appendingPathComponent(".beads-viewer-scratch")
+    let marker = URL(fileURLWithPath: path).appendingPathComponent(".beady-scratch")
     return FileManager.default.fileExists(atPath: marker.path) ? path : nil
 }()
 
 /// Opt-in and destructive to its target, so it only runs against a workspace containing a
-/// `.beads-viewer-scratch` marker file:
-///     BEADS_VIEWER_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh
+/// `.beady-scratch` marker file:
+///     BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh
 @Suite("bd write integration", .enabled(if: writableWorkspace != nil), .serialized)
 struct BDWriteIntegrationTests {
     @Test("create, edit, move between epics and change status through the real bd, verified each time")

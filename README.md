@@ -1,4 +1,4 @@
-# Beads Viewer
+# Beady
 
 A native macOS app for looking at, and carefully changing, a
 [beads](https://github.com/steveyegge/beads) (`bd`) database: what's open, what's in flight, what's
@@ -14,19 +14,19 @@ Requirements: macOS 15 or later, and `bd` on your PATH.
 Swift 6 toolchain, from Xcode or the Command Line Tools:
 
 ```bash
-git clone https://github.com/dvhthomas/beads-viewer.git
-cd beads-viewer
-scripts/bundle.sh && open build/BeadsViewer.app
+git clone https://github.com/dvhthomas/beady.git
+cd beady
+scripts/bundle.sh && open build/Beady.app
 ```
 
 **Or download a release.** Grab the zip from
-[Releases](https://github.com/dvhthomas/beads-viewer/releases), unzip it, and move
-Beads Viewer to /Applications. The app is ad-hoc signed but not notarised — there's no Apple
+[Releases](https://github.com/dvhthomas/beady/releases), unzip it, and move
+Beady to /Applications. The app is ad-hoc signed but not notarised — there's no Apple
 Developer ID behind it — so macOS quarantines it the first time. Either open it and then choose
 **Open Anyway** in System Settings → Privacy & Security, or clear the flag yourself:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/BeadsViewer.app
+xattr -dr com.apple.quarantine /Applications/Beady.app
 ```
 
 `scripts/release.sh` builds that zip locally; tagging `v*` builds and publishes it from CI.
@@ -130,7 +130,7 @@ Outcomes are listed under **Changes** in the toolbar.
 ## Architecture
 
 ```
-BeadsViewer (app target)      SwiftUI views + AppSession composition root
+Beady (app target)      SwiftUI views + AppSession composition root
    │            │
    ▼            ▼
 BeadsPresentation   BeadsData     WorkspaceModel (per-view state) │ BDGateway + BDStore
@@ -151,7 +151,7 @@ BeadsPresentation   BeadsData     WorkspaceModel (per-view state) │ BDGateway 
   cancellation that escalate SIGTERM to SIGKILL (bd traps SIGTERM), and per-record JSON decoding.
 - **BeadsPresentation** holds all view state and decisions in a UI-framework-free `@Observable`
   model, so it's unit-tested without SwiftUI.
-- **BeadsViewer** is thin SwiftUI plus the composition root.
+- **Beady** is thin SwiftUI plus the composition root.
 
 ### Why the bd CLI rather than reading Dolt directly
 
@@ -185,16 +185,16 @@ An opt-in integration test uses the real `bd` against an existing workspace, rea
 that reading doesn't register as a change:
 
 ```bash
-BEADS_VIEWER_IT_WORKSPACE=/path/to/project scripts/test.sh
+BEADY_IT_WORKSPACE=/path/to/project scripts/test.sh
 ```
 
 A second opt-in test writes through the real bd: it creates epics and a bead, edits it, moves it
 between epics, confirms a loop is refused, closes and reopens it, and checks the result. It only
-runs against a workspace containing a `.beads-viewer-scratch` marker file, so it can't touch a real
+runs against a workspace containing a `.beady-scratch` marker file, so it can't touch a real
 project:
 
 ```bash
-BEADS_VIEWER_IT_WRITABLE_WORKSPACE=/path/to/scratch-project scripts/test.sh
+BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch-project scripts/test.sh
 ```
 
 `scripts/test.sh` also passes the Swift Testing macro plugin path when only the Command Line Tools
@@ -214,12 +214,12 @@ Editing labels, assignees and blocking dependencies; comments and history (`bd c
 bd when you point them at one:
 
 ```bash
-BEADS_VIEWER_IT_WORKSPACE=/path/to/project scripts/test.sh            # read-only
-BEADS_VIEWER_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh   # writes; needs a
-                                                                      # .beads-viewer-scratch marker
+BEADY_IT_WORKSPACE=/path/to/project scripts/test.sh            # read-only
+BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh   # writes; needs a
+                                                                      # .beady-scratch marker
 ```
 
-`BEADS_VIEWER_SNAPSHOT_DIR=/tmp/shots scripts/bundle.sh && … --workspace <project>` renders the
+`BEADY_SNAPSHOT_DIR=/tmp/shots scripts/bundle.sh && … --workspace <project>` renders the
 main views to PNGs offscreen, which is how UI changes get checked without a window.
 
 `swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.

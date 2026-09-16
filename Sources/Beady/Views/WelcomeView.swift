@@ -9,7 +9,7 @@ struct WelcomeView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(.tint)
             VStack(spacing: 6) {
-                Text("Beads Viewer")
+                Text("Beady")
                     .font(.largeTitle.weight(.semibold))
                 Text("A read-only window onto a beads (bd) database.")
                     .foregroundStyle(.secondary)

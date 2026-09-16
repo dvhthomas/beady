@@ -3,9 +3,9 @@ import BeadsData
 import Foundation
 import Testing
 
-private let integrationWorkspace = ProcessInfo.processInfo.environment["BEADS_VIEWER_IT_WORKSPACE"]
+private let integrationWorkspace = ProcessInfo.processInfo.environment["BEADY_IT_WORKSPACE"]
 
-/// Opt-in: BEADS_VIEWER_IT_WORKSPACE=/path/to/project scripts/test.sh
+/// Opt-in: BEADY_IT_WORKSPACE=/path/to/project scripts/test.sh
 /// Uses the real bd binary against an existing workspace, read-only.
 @Suite("bd integration", .enabled(if: integrationWorkspace != nil))
 struct BDIntegrationTests {

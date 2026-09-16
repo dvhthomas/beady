@@ -36,7 +36,7 @@ public struct ChangeRecord: Identifiable, Sendable {
 /// What a dragged bead carries. The private prefix means text dragged in from another app (an id
 /// copied from a terminal, say) is never mistaken for a bead being moved.
 public enum IssueDragPayload {
-    private static let prefix = "beads-viewer-issue:"
+    private static let prefix = "beady-issue:"
 
     public static func encode(_ id: IssueID) -> String {
         prefix + id.rawValue

@@ -5,7 +5,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORKSPACE="${1:-}"
-APP="$ROOT/build/BeadsViewer.app"
+APP="$ROOT/build/Beady.app"
 LOG="$ROOT/build/dev-watch-build.log"
 mkdir -p "$ROOT/build"
 
@@ -16,9 +16,9 @@ fingerprint() {
 launch() {
   local args=()
   [[ -n "$WORKSPACE" ]] && args=(--args --workspace "$WORKSPACE")
-  if pgrep -x BeadsViewer >/dev/null; then
-    pkill -x BeadsViewer
-    while pgrep -x BeadsViewer >/dev/null; do sleep 0.2; done
+  if pgrep -x Beady >/dev/null; then
+    pkill -x Beady
+    while pgrep -x Beady >/dev/null; do sleep 0.2; done
     open -g "$APP" ${args[@]+"${args[@]}"}
   else
     open "$APP" ${args[@]+"${args[@]}"}

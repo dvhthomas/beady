@@ -5,14 +5,14 @@ import SwiftUI
 
 /// Dev aid for verifying the UI without a window on screen:
 ///
-///     BEADS_VIEWER_SNAPSHOT_DIR=/tmp/shots BeadsViewer --workspace /path/to/project
+///     BEADY_SNAPSHOT_DIR=/tmp/shots Beady --workspace /path/to/project
 ///
 /// loads the workspace, renders several views into offscreen windows, writes one PNG each, and
 /// exits. It never applies a change and leaves saved preferences untouched.
 @MainActor
 enum SnapshotMode {
     static var outputDirectory: URL? {
-        ProcessInfo.processInfo.environment["BEADS_VIEWER_SNAPSHOT_DIR"].map { URL(fileURLWithPath: $0) }
+        ProcessInfo.processInfo.environment["BEADY_SNAPSHOT_DIR"].map { URL(fileURLWithPath: $0) }
     }
 
     static func run(to directory: URL) -> Never {

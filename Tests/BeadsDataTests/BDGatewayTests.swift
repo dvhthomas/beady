@@ -122,7 +122,7 @@ struct ArchitectureTests {
 
     @Test("only the composition root knows the data layer exists")
     func compositionRoot() throws {
-        #expect(try files(containing: "import BeadsData") == ["BeadsViewer/AppSession.swift"])
+        #expect(try files(containing: "import BeadsData") == ["Beady/AppSession.swift"])
     }
 }
 

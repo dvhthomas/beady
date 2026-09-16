@@ -252,7 +252,7 @@ public final class BDChangeWatcher: @unchecked Sendable {
         init(onChange: @escaping @Sendable () -> Void) { self.onChange = onChange }
     }
 
-    private let queue = DispatchQueue(label: "app.bitsbyd.beads-viewer.change-watch")
+    private let queue = DispatchQueue(label: "me.bitsby.beady.change-watch")
     private let settle: TimeInterval
     private let sink: Unmanaged<Sink>
     private var stream: FSEventStreamRef?

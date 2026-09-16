@@ -45,7 +45,7 @@ func readPID(_ file: URL) -> Int32? {
 
 func makeTempDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("beads-viewer-tests-\(UUID().uuidString)")
+        .appendingPathComponent("beady-tests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
