@@ -21,7 +21,7 @@ extension Scope {
         case .open: "circle"
         case .ready: "play.circle"
         case .inFlight: "circle.lefthalf.filled"
-        case .blocked: "exclamationmark.octagon"
+        case .blocked: "pause.circle"
         case .deferred: "snowflake"
         case .closed: "checkmark.circle"
         }
@@ -87,13 +87,29 @@ struct TypeLabel: View {
     }
 }
 
-struct BlockedMark: View {
+/// A bead that is waiting, said quietly. bd's "blocked" means an upstream bead has to land
+/// first, so this is information, not an alarm — red stays for writes that actually failed.
+struct WaitingMark: View {
+    let reason: BlockedReason
     @Environment(\.theme) private var theme
+    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
-        Image(systemName: "exclamationmark.octagon.fill")
-            .foregroundStyle(theme.blocked)
-            .help("Blocked")
+        Image(systemName: "pause.circle")
+            .foregroundStyle(prominence == .increased ? .primary : theme.color(.frozen))
+            .help(tooltip)
+    }
+
+    private var tooltip: String {
+        switch reason.kind {
+        case .waitingOnBeads:
+            let names = reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: "\n")
+            return "Waiting on:\n\(names)"
+        case .waitingOnAnotherProject:
+            return "Waiting on another project: \(reason.externalCapabilities.joined(separator: ", "))"
+        case .declared:
+            return "Someone set this bead's status to blocked. bd records no reason for that."
+        }
     }
 }
 

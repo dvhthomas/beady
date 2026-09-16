@@ -8,7 +8,7 @@ struct ListColumnTests {
     func catalog() {
         // The ids are saved with the user's column widths and visibility; renaming one silently
         // resets their layout.
-        #expect(ListColumn.allCases.map(\.id) == ["priority", "id", "status", "type", "title", "labels", "assignee", "progress", "date"])
+        #expect(ListColumn.allCases.map(\.id) == ["priority", "id", "status", "type", "title", "labels", "assignee", "progress", "blockedBy", "date"])
         #expect(ListColumn.allCases.allSatisfy { !$0.title.isEmpty })
     }
 
@@ -21,6 +21,7 @@ struct ListColumnTests {
     func defaults() {
         #expect(ListColumn.allCases.filter(\.isVisibleByDefault) == [.priority, .id, .status, .type, .title, .assignee, .date])
         #expect(!ListColumn.progress.isVisibleByDefault, "progress is for when you're looking at containers")
+        #expect(!ListColumn.blockedBy.isVisibleByDefault, "and blockers are for when something is stuck")
         #expect(!ListColumn.labels.isVisibleByDefault, "labels are noisy; on request only")
     }
 

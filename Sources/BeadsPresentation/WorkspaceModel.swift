@@ -450,6 +450,13 @@ public final class WorkspaceModel {
         toggleFilterValue(mark.label, in: .labels)
     }
 
+    /// Why a bead is waiting, or nil when it isn't. bd calls all of it "blocked"; this separates
+    /// waiting on a bead, waiting on another project, and someone having set the status.
+    public func blockedReason(for id: IssueID) -> BlockedReason? {
+        guard let snapshot else { return nil }
+        return BlockedReason.of(id, in: snapshot)
+    }
+
     /// What has to finish before this bead can start; empty when nothing is in the way.
     public func unblockPath(for id: IssueID) -> UnblockPath? {
         guard let snapshot else { return nil }

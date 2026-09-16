@@ -63,6 +63,9 @@ enum SnapshotMode {
         model.source = .lifecycle(.inFlight)
         captureWorkspace("2-in-flight-grouped-by-status")
 
+        model.source = .lifecycle(.blocked)
+        captureWorkspace("2b-blocked-view")
+
         model.source = .lifecycle(.all)
         model.layout = .board
         captureWorkspace("3-all-board-by-lifecycle")

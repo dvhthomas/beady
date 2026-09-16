@@ -15,6 +15,8 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
     case assignee
     /// done/total for a bead with children; empty for a leaf.
     case progress
+    /// Who is holding this bead up, when anyone is.
+    case blockedBy
     /// Updated, or closed when the view is ordered by what was closed last.
     case date
 
@@ -31,6 +33,7 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
         case .labels: "Labels"
         case .assignee: "Assignee"
         case .progress: "Progress"
+        case .blockedBy: "Blocked by"
         case .date: "Updated"
         }
     }
@@ -43,7 +46,8 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
     /// The title carries the row; hiding it would leave nothing to read.
     public var isAlwaysVisible: Bool { self == .title }
 
-    public var isVisibleByDefault: Bool { self != .labels && self != .progress }
+    /// Labels, progress and blockers are for when you go looking; the default row stays short.
+    public var isVisibleByDefault: Bool { ![.labels, .progress, .blockedBy].contains(self) }
 
     public var idealWidth: Double {
         switch self {
@@ -56,6 +60,7 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
         case .labels: 140
         case .assignee: 100
         case .progress: 90
+        case .blockedBy: 130
         case .date: 80
         }
     }
@@ -84,6 +89,7 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
         case .id: 240
         case .labels, .assignee: 320
         case .progress: 160
+        case .blockedBy: 280
         case .date: 140
         }
     }

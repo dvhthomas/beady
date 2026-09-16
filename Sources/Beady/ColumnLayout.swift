@@ -30,6 +30,15 @@ final class ColumnLayout {
         column.isVisible(customized: choice(for: column))
     }
 
+    /// Views where a column earns its place even though it's off by default: blockers matter in
+    /// the Blocked and Ready views, and nowhere much else.
+    func isVisible(_ column: ListColumn, in source: ViewSource) -> Bool {
+        if column == .blockedBy, choice(for: column) == nil {
+            return source == .lifecycle(.blocked) || source == .lifecycle(.ready)
+        }
+        return isVisible(column)
+    }
+
     /// What the table has stored: nil when the user has never shown or hidden this column.
     private func choice(for column: ListColumn) -> Bool? {
         switch customization[visibility: column.id] {
