@@ -11,3 +11,7 @@ xcuserdata/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# The beads backlog stays local: the Dolt database was already ignored, and the
+# JSONL export (written by bd's auto-export) shouldn't travel with the code either.
+.beads/issues.jsonl

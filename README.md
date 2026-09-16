@@ -234,7 +234,8 @@ screenshots above were made that way, from a small demo database.
 
 `swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.
 
-This app's own work is tracked in beads, in this repo — `bd list` to see it.
+This app's own work is tracked in beads — `bd list` in a clone of your own. The backlog
+itself stays on the machine it's worked on; only bd's configuration is committed.
 
 ## Licence
 
