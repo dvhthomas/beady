@@ -44,7 +44,9 @@ struct IssueListView: View {
                         .lineLimit(1)
                         .rowForeground(theme.text)
                         .help(DisplayText.preview(issue.title) ?? "")
-                    if let reason = model.blockedReason(for: issue.id) { WaitingMark(reason: reason) }
+                    if let reason = model.blockedReason(for: issue.id) {
+                        WaitingMark(reason: reason, snapshot: model.snapshot) { model.selection = $0 }
+                    }
                 }
             }
             column(.labels) { issue in
@@ -229,15 +231,16 @@ private struct OutlineRowView: View {
                 }
             }
             .frame(width: 14)
-            TreeIssueRow(node: row.node, snapshot: model.snapshot)
+            TreeIssueRow(node: row.node, snapshot: model.snapshot) { model.selection = $0 }
         }
         .padding(.leading, CGFloat(row.depth) * 18)
         .background(isDropTarget.wrappedValue ? theme.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 4))
         .draggableIssue(row.id, when: model.canEdit)
         // Dropping another issue on this row proposes moving it under this one.
         .dropDestination(for: String.self) { items, _ in
-            guard model.canEdit, let dragged = IssueDragPayload.decode(items), dragged != row.id else { return false }
-            model.proposeParent(dragged, to: row.id)
+            guard model.canEdit, let dragged = IssueDragPayload.decode(items), dragged != row.id,
+                  model.snapshot?.issue(dragged)?.parentID != row.id else { return false }
+            Task { @MainActor in model.proposeParent(dragged, to: row.id) }
             return true
         } isTargeted: { targeted in
             isDropTarget.wrappedValue = targeted && model.canEdit
@@ -249,6 +252,7 @@ private struct TreeIssueRow: View {
     @Environment(\.theme) private var theme
     let node: IssueTreeNode
     let snapshot: IssueSnapshot?
+    let openBlocker: (IssueID) -> Void
 
     var body: some View {
         let issue = node.issue
@@ -265,7 +269,7 @@ private struct TreeIssueRow: View {
                 .lineLimit(1)
                 .help(DisplayText.preview(issue.title) ?? "")
             if let snapshot, let reason = BlockedReason.of(issue.id, in: snapshot) {
-                WaitingMark(reason: reason)
+                WaitingMark(reason: reason, snapshot: snapshot, open: openBlocker)
             }
             Spacer(minLength: 8)
             if let completion = snapshot?.progress(of: issue.id) {
@@ -327,7 +331,7 @@ private struct BoardColumnView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(group.issues) { issue in
-                        IssueCard(issue: issue, snapshot: model.snapshot, isSelected: model.selection == issue.id)
+                        IssueCard(issue: issue, snapshot: model.snapshot, isSelected: model.selection == issue.id) { model.selection = $0 }
                             .onTapGesture { model.selection = issue.id }
                             .draggableIssue(issue.id, when: model.canEdit)
                     }
@@ -344,8 +348,13 @@ private struct BoardColumnView: View {
         )
         // Only proposes; the confirmation sheet has the final say.
         .dropDestination(for: String.self) { items, _ in
-            guard let dragged = IssueDragPayload.decode(items) else { return false }
-            return model.proposeDrop(dragged, onGroup: group.key)
+            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: group.key) else {
+                // Nothing to do: refuse at once so the card animates home without a pause.
+                return false
+            }
+            // Staging the change is work; let the drag finish its animation first.
+            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: group.key) }
+            return true
         } isTargeted: { targeted in
             isDropTarget.wrappedValue = targeted && model.canEdit
         }
@@ -357,6 +366,7 @@ private struct IssueCard: View {
     let issue: Issue
     let snapshot: IssueSnapshot?
     let isSelected: Bool
+    let openBlocker: (IssueID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -381,7 +391,7 @@ private struct IssueCard: View {
                 .help(DisplayText.preview(issue.title) ?? "")
             HStack(spacing: 6) {
                 if let snapshot, let reason = BlockedReason.of(issue.id, in: snapshot) {
-                    WaitingMark(reason: reason)
+                    WaitingMark(reason: reason, snapshot: snapshot, open: openBlocker)
                 }
                 if let assignee = issue.assignee {
                     Label(assignee, systemImage: "person")

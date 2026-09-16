@@ -149,7 +149,7 @@ struct WorkspaceView: View {
         } else if ui.showsNewBead {
             NewBeadForm(model: model) { ui.showsNewBead = false }
         } else if ui.showsPalette {
-            CommandPaletteView(model: model, run: run) { ui.showsPalette = false }
+            CommandPaletteView(model: model, ui: ui, run: run) { ui.showsPalette = false }
         } else if ui.showsShortcuts {
             ShortcutsView(model: model) { ui.showsShortcuts = false }
         } else if ui.showsGraph {

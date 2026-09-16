@@ -20,7 +20,21 @@ final class WorkspaceUI {
     /// Bumped to ask the search field to take focus; the view watches it.
     private(set) var searchFocusRequests = 0
 
+    /// The palette's own state. It lives here rather than in the view because a
+    /// `State(initialValue:)` stored property — this project's workaround for the @State macro
+    /// missing under Command Line Tools — didn't reliably receive what was typed, leaving the
+    /// list unfiltered while the field showed the text.
+    var paletteQuery = ""
+    var paletteHighlight = 0
+
     @ObservationIgnored let columns = ColumnLayout()
+
+    /// Opens the palette empty, wherever it was left last time.
+    func openPalette() {
+        paletteQuery = ""
+        paletteHighlight = 0
+        showsPalette = true
+    }
 
     func focusSearch() {
         searchFocusRequests += 1

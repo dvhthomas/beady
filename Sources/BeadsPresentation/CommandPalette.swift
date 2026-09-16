@@ -55,6 +55,15 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case goToIssue(IssueID, title: String)
     case toggleMark(IssueMark)
     case showGraph
+    case goBack
+    case goForward
+    case focusSelected
+    case unfocus
+    case expandAll
+    case collapseAll
+    case toggleColumn(ListColumn)
+    case resetColumns
+    case openSettings
     case chooseTheme
     case setTheme(String)
     case setAppearance(AppearancePreference)
@@ -80,6 +89,15 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goToIssue(let id, _): "go-\(id.rawValue)"
         case .toggleMark(let mark): "mark-\(mark.rawValue)"
         case .showGraph: "show-graph"
+        case .goBack: "go-back"
+        case .goForward: "go-forward"
+        case .focusSelected: "focus-selected"
+        case .unfocus: "unfocus"
+        case .expandAll: "expand-all"
+        case .collapseAll: "collapse-all"
+        case .toggleColumn(let column): "column-\(column.id)"
+        case .resetColumns: "reset-columns"
+        case .openSettings: "open-settings"
         case .chooseTheme: "choose-theme"
         case .setTheme(let name): "theme-\(name)"
         case .setAppearance(let appearance): "appearance-\(appearance.rawValue)"
@@ -107,6 +125,15 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
         case .toggleMark(let mark): "\(mark.title) Selected Bead"
         case .showGraph: "Show Dependency Graph"
+        case .goBack: "Back"
+        case .goForward: "Forward"
+        case .focusSelected: "Focus on Selected Bead"
+        case .unfocus: "Leave Focused View"
+        case .expandAll: "Expand All"
+        case .collapseAll: "Collapse All"
+        case .toggleColumn(let column): "Column: \(column.title)"
+        case .resetColumns: "Reset Columns"
+        case .openSettings: "Settings…"
         case .chooseTheme: "Change Theme…"
         case .setTheme(let name): "Theme: \(name)"
         case .setAppearance(let appearance): "Appearance: \(appearance.title)"
@@ -135,6 +162,15 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setOrdering: ["sort", "order", "arrange"]
         case .goToIssue: ["bead", "issue", "go to"]
         case .showGraph: ["graph", "dependencies", "blockers", "unblock", "chain", "why blocked"]
+        case .focusSelected: ["focus", "subtree", "children", "zoom in", "scope"]
+        case .unfocus: ["unfocus", "leave", "out", "back to view"]
+        case .expandAll: ["expand", "open all", "unfold"]
+        case .collapseAll: ["collapse", "fold", "close all"]
+        case .toggleColumn: ["column", "show", "hide", "table"]
+        case .resetColumns: ["columns", "reset", "default widths"]
+        case .openSettings: ["settings", "preferences", "options", "text size"]
+        case .goBack: ["back", "previous", "return", "undo navigation"]
+        case .goForward: ["forward", "next", "again"]
         case .toggleMark(let mark): mark == .pinned
             ? ["pin", "unpin", "top", "stick"]
             : ["star", "unstar", "favourite", "favorite", "bookmark"]
@@ -151,9 +187,12 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .openWorkspace, .closeWorkspace, .refresh: "Workspace"
         case .newBead, .editSelected, .toggleMark, .showGraph: "Beads"
         case .focusSearch, .addFilter, .clearFilters: "Find"
-        case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering: "Display"
+        case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
+             .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
+        case .focusSelected, .unfocus: "Views"
+        case .openSettings: "Appearance"
         case .showShortcuts: "Help"
-        case .showView: "Views"
+        case .showView, .goBack, .goForward: "Views"
         case .goToIssue: "Beads"
         case .chooseTheme, .setTheme, .setAppearance, .setTextSize: "Appearance"
         }
@@ -177,8 +216,13 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setLayout(let layout): [KeyBinding(Character("\(layoutNumber(layout))"), .command)]
         case .toggleMark(let mark): [KeyBinding(mark == .pinned ? "p" : "s", [.command, .shift])]
         case .showGraph: [KeyBinding("g", .command)]
+        case .openSettings: [KeyBinding(",", .command)]
+        case .goBack: [KeyBinding("[", .command)]
+        case .goForward: [KeyBinding("]", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
-        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTheme, .setAppearance, .setTextSize: []
+        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTheme, .setAppearance,
+             .setTextSize, .focusSelected, .unfocus, .expandAll, .collapseAll, .toggleColumn,
+             .resetColumns: []
         }
     }
 
@@ -229,6 +273,18 @@ public enum CommandCatalog {
             commands += IssueMark.allCases.map { .toggleMark($0) }
         }
         if model.selection != nil { commands.append(.showGraph) }
+        if model.canGoBack { commands.append(.goBack) }
+        if model.canGoForward { commands.append(.goForward) }
+        if let id = model.selection, model.snapshot?.children(of: id).isEmpty == false {
+            commands.append(.focusSelected)
+        }
+        if case .focused = model.source { commands.append(.unfocus) }
+        if model.layout == .tree { commands += [.expandAll, .collapseAll] }
+        if model.layout == .list {
+            commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }
+            commands.append(.resetColumns)
+        }
+        commands.append(.openSettings)
         if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(.closeWorkspace)
         commands += Scope.allCases.map { .showView(.lifecycle($0)) }

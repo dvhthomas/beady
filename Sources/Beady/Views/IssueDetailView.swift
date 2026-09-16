@@ -12,6 +12,46 @@ struct IssueDetailView: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if model.canGoBack || model.canGoForward {
+                historyBar
+            }
+            content
+        }
+        .onChange(of: model.selection) { isEditing.wrappedValue = false }
+        .onChange(of: model.editRequests) { isEditing.wrappedValue = model.canEdit && model.selectedIssue != nil }
+        .onChange(of: model.activity.first?.id) {
+            if model.activity.first?.succeeded == true { isEditing.wrappedValue = false }
+        }
+    }
+
+    /// Following a blocker link replaces what's in this pane, so there has to be a way back to
+    /// the bead you came from.
+    private var historyBar: some View {
+        HStack(spacing: 6) {
+            Button { model.goBack() } label: {
+                Label("Back", systemImage: "chevron.left")
+            }
+            .disabled(!model.canGoBack)
+            .help("Back to the last bead you were looking at (⌘[)")
+
+            Button { model.goForward() } label: {
+                Label("Forward", systemImage: "chevron.right")
+            }
+            .disabled(!model.canGoForward)
+            .help("Forward (⌘])")
+
+            Spacer(minLength: 0)
+        }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.accessoryBar)
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Group {
             if let issue = model.selectedIssue, let snapshot = model.snapshot {
                 if isEditing.wrappedValue, model.canEdit {
@@ -29,11 +69,6 @@ struct IssueDetailView: View {
                     description: Text("Select an issue to see its details.")
                 )
             }
-        }
-        .onChange(of: model.selection) { isEditing.wrappedValue = false }
-        .onChange(of: model.editRequests) { isEditing.wrappedValue = model.canEdit && model.selectedIssue != nil }
-        .onChange(of: model.activity.first?.id) {
-            if model.activity.first?.succeeded == true { isEditing.wrappedValue = false }
         }
     }
 }
@@ -56,13 +91,6 @@ private struct IssueDetailContent: View {
                     progress(completion)
                 }
                 metadata
-                if let reason = model.blockedReason(for: issue.id) {
-                    if let path = model.unblockPath(for: issue.id) {
-                        UnblockPathView(model: model, path: path, reason: reason)
-                    } else {
-                        declaredBlocked(reason)
-                    }
-                }
                 relations
                 textSection("Description", issue.description)
                 textSection("Notes", issue.notes)
@@ -70,26 +98,6 @@ private struct IssueDetailContent: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    /// Status set to blocked with nothing upstream: bd keeps no reason for that, so the app
-    /// says who set it and when, and stops there rather than inventing an explanation.
-    @ViewBuilder
-    private func declaredBlocked(_ reason: BlockedReason) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(reason.summary, systemImage: "pause.circle")
-                .font(.headline)
-                .foregroundStyle(theme.color(.frozen))
-            if let entry = model.recentChange(to: issue.id), entry.field == "status" {
-                Text("Set by \(entry.actor) \(entry.date.formatted(.relative(presentation: .named))).")
-                    .font(.caption)
-                    .foregroundStyle(theme.secondaryText)
-            }
-            Text("Nothing upstream is recorded. Open History for the full record, or add the bead that's in the way with bd dep.")
-                .font(.caption)
-                .foregroundStyle(theme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -398,13 +406,29 @@ struct HistorySection: View {
     }
 
     var body: some View {
-        DisclosureGroup(isExpanded: isExpanded.projectedValue) {
-            content
-                .padding(.top, 6)
-        } label: {
-            Text("History")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                isExpanded.wrappedValue.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                    Text("History")
+                        .font(.headline)
+                    Spacer(minLength: 0)
+                }
+                // The whole row is the target, not the chevron.
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(isExpanded.wrappedValue ? "Hide this bead's history" : "Every change bd has recorded for this bead")
+
+            if isExpanded.wrappedValue {
+                content
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear { load() }
         .onChange(of: isExpanded.wrappedValue) { load() }
         .onChange(of: issue.id) { isExpanded.wrappedValue = false }
