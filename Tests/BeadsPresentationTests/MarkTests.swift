@@ -122,3 +122,53 @@ struct OptimisticMarkTests {
         #expect(model.isMarked(.pinned, "a"))
     }
 }
+
+@MainActor
+@Suite("Marking again while the last write is still going")
+struct RepeatedMarkTests {
+    func makeModel() async -> (WorkspaceModel, MemoryStore) {
+        let store = MemoryStore([makeIssue("a", title: "Tile cache")])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
+        await model.load()
+        return (model, store)
+    }
+
+    @Test("a second click during a write is honoured, not dropped")
+    func secondClickCounts() async {
+        let (model, store) = await makeModel()
+        store.holdsApply = true
+        let first = Task { await model.toggleMark(.starred, on: "a") }
+        #expect(await waitUntil(seconds: 2) { store.applyStarted })
+        #expect(model.isMarked(.starred, "a"))
+
+        // Clicked again while bd is still writing the first one.
+        let second = Task { await model.toggleMark(.starred, on: "a") }
+        #expect(await waitUntil(seconds: 2) { !model.isMarked(.starred, "a") }, "the second click shows immediately too")
+
+        store.holdsApply = false
+        store.release()
+        await first.value
+        await second.value
+        #expect(!model.isMarked(.starred, "a"), "and the database ends up unstarred")
+        #expect(store.applied == [.setMark("a", .starred, on: true), .setMark("a", .starred, on: false)])
+    }
+
+    @Test("clicking back and forth settles without writing every wobble")
+    func coalesces() async {
+        let (model, store) = await makeModel()
+        store.holdsApply = true
+        let first = Task { await model.toggleMark(.starred, on: "a") }
+        #expect(await waitUntil(seconds: 2) { store.applyStarted })
+
+        // Two more clicks while that write is in the air: off, then on again.
+        await model.toggleMark(.starred, on: "a")
+        await model.toggleMark(.starred, on: "a")
+        #expect(model.isMarked(.starred, "a"))
+
+        store.holdsApply = false
+        store.release()
+        await first.value
+        #expect(await waitUntil(seconds: 2) { model.isMarked(.starred, "a") })
+        #expect(store.applied == [.setMark("a", .starred, on: true)], "the wobble needs no second write")
+    }
+}

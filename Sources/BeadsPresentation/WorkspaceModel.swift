@@ -57,7 +57,16 @@ public final class WorkspaceModel {
     @ObservationIgnored private var lastAttempt: (token: String, at: Date)?
     /// When we wrote each bead, so our own changes aren't read as another session's.
     @ObservationIgnored private var ownWrites: [IssueID: [Date]] = [:]
-    @ObservationIgnored private var inFlightMarks: [IssueID: [IssueMark: Bool]] = [:]
+    /// One bead's one mark: what the user last clicked, what bd has confirmed, and whether a
+    /// writer is currently draining the difference.
+    struct MarkKey: Hashable, Sendable {
+        let id: IssueID
+        let mark: IssueMark
+    }
+
+    @ObservationIgnored private var desiredMarks: [MarkKey: Bool] = [:]
+    @ObservationIgnored private var writtenMarks: [MarkKey: Bool] = [:]
+    @ObservationIgnored private var markWriters: Set<MarkKey> = []
     @ObservationIgnored private let activityWindow: TimeInterval
     /// Where `unfocus()` goes back to.
     @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
@@ -113,7 +122,7 @@ public final class WorkspaceModel {
         }
         do {
             snapshot = try await store.loadSnapshot()
-            reapplyInFlightMarks()
+            reapplyDesiredMarks()
             loadState = .loaded
             lastLoaded = now()
             refreshError = nil
@@ -346,41 +355,76 @@ public final class WorkspaceModel {
     ///
     /// The label is applied to the loaded snapshot straight away and written afterwards: a bd
     /// write costs the best part of a second (process start, then Dolt), and waiting for it made
-    /// a pin feel broken. The write still goes through `ChangeRunner` — validated, applied, read
-    /// back — and a failure puts the mark back where it was and says why. Marks are reversible
-    /// metadata, so showing one early can't lose anyone's work; edits keep the confirmation sheet.
+    /// a pin feel broken. Clicking again while a write is in the air is never dropped — the
+    /// latest click is what the app shows and what bd ends up with — and a wobble that lands back
+    /// where it started needs no second write. A failure puts the mark back and says why.
+    ///
+    /// Marks are reversible metadata, so showing one early can't lose anyone's work; edits keep
+    /// the confirmation sheet.
     public func toggleMark(_ mark: IssueMark, on id: IssueID) async {
-        guard canEdit, let snapshot, let issue = snapshot.issue(id) else { return }
-        guard inFlightMarks[id]?[mark] == nil else { return }
-        let target = !issue.has(mark)
-        let change = IssueChange.setMark(id, mark, on: target)
-        let pending = PendingChange(
+        guard canEdit, let loaded = snapshot, let issue = loaded.issue(id) else { return }
+        let key = MarkKey(id: id, mark: mark)
+        let alreadyWriting = markWriters.contains(key)
+        // With no write in flight, the loaded snapshot is the truth about what bd holds.
+        if !alreadyWriting { writtenMarks[key] = issue.has(mark) }
+
+        let wanted = !(desiredMarks[key] ?? issue.has(mark))
+        desiredMarks[key] = wanted
+        setMarkLocally(mark, on: wanted, for: id)
+
+        // A writer is already draining this bead's mark; it will pick the new intent up.
+        guard !alreadyWriting else { return }
+        markWriters.insert(key)
+        defer {
+            markWriters.remove(key)
+            desiredMarks[key] = nil
+        }
+
+        while let target = desiredMarks[key], target != writtenMarks[key] {
+            guard let base = baseIssue(id, mark: mark, at: writtenMarks[key] ?? false) else { break }
+            let change = IssueChange.setMark(id, mark, on: target)
+            let pending = markChange(change, base: base)
+            guard pending.canConfirm else { break }
+            noteOwnWrite(id)
+            do {
+                _ = try await ChangeRunner(writer: store).run(change, seenIn: base.snapshot, base: base.issue)
+                writtenMarks[key] = target
+                record(pending, issueID: id, error: nil)
+                // One bead changed, so read back that bead rather than the whole database.
+                if let fresh = try? await store.currentIssue(id), let current = snapshot {
+                    snapshot = current.replacing(fresh)
+                    reapplyDesiredMarks()
+                }
+            } catch {
+                let confirmed = writtenMarks[key] ?? false
+                desiredMarks[key] = confirmed
+                setMarkLocally(mark, on: confirmed, for: id)
+                record(pending, issueID: id, error: error)
+                break
+            }
+        }
+    }
+
+    /// The bead and snapshot as bd last confirmed them, which is what a change has to be
+    /// validated and checked against — the live snapshot may be showing a mark bd hasn't got yet.
+    private func baseIssue(_ id: IssueID, mark: IssueMark, at written: Bool) -> (issue: Issue, snapshot: IssueSnapshot)? {
+        guard let snapshot, var issue = snapshot.issue(id) else { return nil }
+        var labels = issue.labels.filter { $0 != mark.label }
+        if written { labels.append(mark.label) }
+        issue.labels = labels
+        return (issue, snapshot.replacing(issue))
+    }
+
+    private func markChange(_ change: IssueChange, base: (issue: Issue, snapshot: IssueSnapshot)) -> PendingChange {
+        PendingChange(
             change: change,
-            base: issue,
+            base: base.issue,
             summary: ChangeDescriber.summary(change),
-            subject: ChangeDescriber.subject(change, in: snapshot),
-            details: ChangeDescriber.details(change, in: snapshot),
-            problems: ChangeValidator.problems(for: change, in: snapshot),
+            subject: ChangeDescriber.subject(change, in: base.snapshot),
+            details: ChangeDescriber.details(change, in: base.snapshot),
+            problems: ChangeValidator.problems(for: change, in: base.snapshot),
             asksForReason: false
         )
-        guard pending.canConfirm else { return }
-
-        inFlightMarks[id, default: [:]][mark] = target
-        setMarkLocally(mark, on: target, for: id)
-        noteOwnWrite(id)
-        defer { inFlightMarks[id]?[mark] = nil }
-
-        do {
-            _ = try await ChangeRunner(writer: store).run(change, seenIn: snapshot, base: issue)
-            record(pending, issueID: id, error: nil)
-            // One bead changed, so read back that bead rather than the whole database.
-            if let fresh = try? await store.currentIssue(id), let current = self.snapshot {
-                self.snapshot = current.replacing(fresh)
-            }
-        } catch {
-            setMarkLocally(mark, on: !target, for: id)
-            record(pending, issueID: id, error: error)
-        }
     }
 
     /// Shows a mark as though bd had already recorded it.
@@ -392,11 +436,11 @@ public final class WorkspaceModel {
         self.snapshot = snapshot.replacing(issue)
     }
 
-    /// Marks written but not yet confirmed, so a refresh landing mid-write doesn't flicker them
-    /// back off.
-    private func reapplyInFlightMarks() {
-        for (id, marks) in inFlightMarks {
-            for (mark, on) in marks { setMarkLocally(mark, on: on, for: id) }
+    /// Marks clicked but not yet confirmed, re-applied after a reload so a refresh landing
+    /// mid-write doesn't flicker them.
+    private func reapplyDesiredMarks() {
+        for (key, on) in desiredMarks {
+            setMarkLocally(key.mark, on: on, for: key.id)
         }
     }
 

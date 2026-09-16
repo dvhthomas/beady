@@ -57,4 +57,35 @@ struct BDWriteIntegrationTests {
         #expect(issue.status == "in_progress")
         #expect(final.issue(epicB)?.parentID == nil, "the refused cycle left no trace")
     }
+
+    @Test("pinning and starring go through bd and come back on the bead")
+    func marksThroughRealBD() async throws {
+        let path = try #require(writableWorkspace)
+        let store = BDStore(gateway: try BDGateway.open(URL(fileURLWithPath: path)))
+        let runner = ChangeRunner(writer: store)
+        let stamp = UUID().uuidString.prefix(6)
+
+        var snapshot = try await store.loadSnapshot()
+        let id = try await runner.run(.create(NewIssue(title: "IT mark \(stamp)")), seenIn: snapshot)
+
+        for mark in IssueMark.allCases {
+            snapshot = try await store.loadSnapshot()
+            _ = try await runner.run(.setMark(id, mark, on: true), seenIn: snapshot)
+            let marked = try #require(try await store.currentIssue(id))
+            #expect(marked.has(mark), "bd should have the \(mark.label) label")
+
+            snapshot = try await store.loadSnapshot()
+            _ = try await runner.run(.setMark(id, mark, on: false), seenIn: snapshot)
+            let cleared = try #require(try await store.currentIssue(id))
+            #expect(!cleared.has(mark))
+
+            // Straight back on again: the case the owner found slow, proved to work.
+            snapshot = try await store.loadSnapshot()
+            _ = try await runner.run(.setMark(id, mark, on: true), seenIn: snapshot)
+            #expect(try #require(try await store.currentIssue(id)).has(mark))
+        }
+
+        snapshot = try await store.loadSnapshot()
+        _ = try await runner.run(.setStatus(id, from: "open", to: "closed", reason: "integration test tidy-up"), seenIn: snapshot)
+    }
 }
