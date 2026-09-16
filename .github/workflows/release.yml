@@ -1,0 +1,46 @@
+# Builds the app on a tagged commit and attaches the zip to a GitHub Release.
+# The app is ad-hoc signed only: there's no Developer ID, so downloads are
+# quarantined until the user allows them (see the release notes below).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the build number is the commit count
+
+      - name: Test
+        run: scripts/test.sh
+
+      - name: Build release app
+        run: VERSION="${GITHUB_REF_NAME#v}" scripts/release.sh
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.zip
+          body: |
+            Built from ${{ github.sha }}.
+
+            **Installing.** Unzip and drag Beads Viewer to /Applications. The app is
+            ad-hoc signed but not notarised (no Apple Developer ID), so macOS quarantines
+            it on first launch. Either:
+
+            * open it, then go to System Settings → Privacy & Security and choose
+              **Open Anyway**; or
+            * run `xattr -dr com.apple.quarantine /Applications/BeadsViewer.app`.
+
+            Prefer to avoid that entirely? Clone the repo and run `scripts/bundle.sh`;
+            an app you build yourself is never quarantined.
+
+            Requires macOS 15 or later and `bd` on your PATH.
