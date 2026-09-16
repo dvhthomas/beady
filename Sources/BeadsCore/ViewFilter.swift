@@ -5,7 +5,7 @@ import Foundation
 
 // MARK: Rules
 
-public enum FilterField: String, CaseIterable, Identifiable, Sendable {
+public enum FilterField: String, CaseIterable, Identifiable, Codable, Sendable {
     case status, priority, type, assignee, labels, blocked, parent, updated, closed
 
     public var id: String { rawValue }
@@ -30,11 +30,11 @@ public enum FilterField: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public enum FilterOperator: String, CaseIterable, Sendable {
+public enum FilterOperator: String, CaseIterable, Codable, Sendable {
     case isAnyOf, isNoneOf, includesAll, includesAny, includesNone, within
 }
 
-public struct FilterRule: Identifiable, Hashable, Sendable {
+public struct FilterRule: Identifiable, Hashable, Codable, Sendable {
     /// The assignee value that means "no one".
     public static let unassigned = ""
     /// The only value of the blocked field.
@@ -95,7 +95,21 @@ public struct FilterRule: Identifiable, Hashable, Sendable {
 
 // MARK: A view's filter
 
-public struct ViewFilter: Hashable, Sendable {
+public struct ViewFilter: Hashable, Codable, Sendable {
+    private enum CodingKeys: String, CodingKey {
+        case rules, searchText
+    }
+
+    /// Decoding goes through `init(rules:searchText:)` so saved state can't reintroduce two
+    /// rules for one field.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            rules: try container.decodeIfPresent([FilterRule].self, forKey: .rules) ?? [],
+            searchText: try container.decodeIfPresent(String.self, forKey: .searchText) ?? ""
+        )
+    }
+
     /// At most one rule per field, in the order they were added.
     public private(set) var rules: [FilterRule]
     public var searchText: String
@@ -175,16 +189,19 @@ public struct ViewFilter: Hashable, Sendable {
 // MARK: Sources
 
 /// Where a view draws its issues from, before any filter.
-public enum ViewSource: Hashable, Sendable {
+public enum ViewSource: Hashable, Codable, Sendable {
     case lifecycle(Scope)
     /// Everything under one bead, at any depth and in any status, not the bead itself.
     /// Any bead can hold work, so this isn't limited to epics.
     case focused(IssueID)
+    /// Everything carrying one bd label, whatever its lifecycle. Starred is this.
+    case label(String)
 
     public func includes(_ issue: Issue, in snapshot: IssueSnapshot, now: Date) -> Bool {
         switch self {
         case .lifecycle(let scope): scope.includes(issue, in: snapshot, now: now)
         case .focused(let id): snapshot.isDescendant(issue, of: id)
+        case .label(let label): issue.labels.contains(label)
         }
     }
 
@@ -196,7 +213,7 @@ public enum ViewSource: Hashable, Sendable {
         case .lifecycle(.deferred): [.frozen]
         case .lifecycle(.closed): [.done]
         case .lifecycle(.blocked): [.active, .wip, .frozen]
-        case .lifecycle(.all), .focused: Set(StatusCategory.allCases)
+        case .lifecycle(.all), .focused, .label: Set(StatusCategory.allCases)
         }
     }
 }
@@ -309,7 +326,7 @@ public struct IssueGroup: Identifiable, Hashable, Sendable {
     }
 }
 
-public enum IssueGrouping: String, CaseIterable, Identifiable, Sendable {
+public enum IssueGrouping: String, CaseIterable, Identifiable, Codable, Sendable {
     case none, category, status, priority, type, assignee, parent
 
     public var id: String { rawValue }

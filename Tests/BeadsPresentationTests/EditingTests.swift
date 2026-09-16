@@ -78,6 +78,12 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
             case .setParent(let id, _, let to):
                 issues[id]?.parentID = to
                 return id
+            case .setMark(let id, let mark, let on):
+                var labels = issues[id]?.labels ?? []
+                labels.removeAll { $0 == mark.label }
+                if on { labels.append(mark.label) }
+                issues[id]?.labels = labels
+                return id
             case .create(let new):
                 let id = IssueID("new-\(issues.count)")
                 issues[id] = makeIssue(id, type: new.type, parent: new.parent)

@@ -22,8 +22,13 @@ final class AppSession {
 
     private static let recentsKey = "recentWorkspaces"
 
+    /// Where view state is remembered; nil for the offscreen snapshots, which must not disturb
+    /// the saved views.
+    @ObservationIgnored private let preferences: UserDefaults?
+
     /// `--workspace <path>` on the command line wins over the most recent workspace.
-    init(arguments: [String] = CommandLine.arguments) {
+    init(arguments: [String] = CommandLine.arguments, preferences: UserDefaults? = .standard) {
+        self.preferences = preferences
         recentPaths = (UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? [])
             .filter { FileManager.default.fileExists(atPath: $0) }
         if let path = Self.value(of: "--workspace", in: arguments) ?? recentPaths.first {
@@ -37,7 +42,7 @@ final class AppSession {
             let gateway = try BDGateway.open(url)
             let store = BDStore(gateway: gateway)
             workspace = gateway.workspace
-            model = WorkspaceModel(title: gateway.workspace.displayName, store: store)
+            model = WorkspaceModel(title: gateway.workspace.displayName, store: store, preferences: preferences)
             openError = nil
             watcher?.stop()
             // Passive FSEvents on bd's folder: every write rewrites issues.jsonl and appends to
@@ -115,6 +120,11 @@ final class AppSession {
         case .goToIssue(let id, _):
             model?.selection = id
             ui.showsInspector = true
+        case .toggleMark(let mark):
+            if let model, let id = model.selection {
+                Task { await model.toggleMark(mark, on: id) }
+            }
+        case .showGraph: if model?.selection != nil { ui.showsGraph = true }
         case .chooseTheme: ui.showsThemes = true
         case .setTheme(let name):
             // Choosing a theme also says which appearance you meant.

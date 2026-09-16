@@ -2,8 +2,7 @@ import Foundation
 
 /// A bead identifier such as `mapshop-ajo.2`.
 public struct IssueID: RawRepresentable, Hashable, Comparable, Sendable, CustomStringConvertible,
-    ExpressibleByStringLiteral
-{
+    ExpressibleByStringLiteral, Codable {
     public let rawValue: String
 
     public init(rawValue: String) { self.rawValue = rawValue }

@@ -111,6 +111,7 @@ struct AppCommands: Commands {
         CommandMenu("Beads") {
             item(.newBead, needsWorkspace: true)
             item(.editSelected, needsWorkspace: true)
+            item(.showGraph, needsWorkspace: true)
             Divider()
             item(.refresh, needsWorkspace: true)
         }

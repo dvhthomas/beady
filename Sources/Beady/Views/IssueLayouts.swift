@@ -39,6 +39,7 @@ struct IssueListView: View {
             }
             column(.title) { issue in
                 HStack(spacing: 6) {
+                    MarkGlyphs(issue: issue, isSelected: isSelected(issue))
                     Text(issue.title)
                         .lineLimit(1)
                         .foregroundStyle(isSelected(issue) ? selectedText : theme.text)
@@ -121,6 +122,13 @@ struct IssueListView: View {
 
     @ViewBuilder
     private func rowMenu(_ issue: BeadsCore.Issue) -> some View {
+        ForEach(IssueMark.allCases, id: \.self) { mark in
+            Button(MarkStyle.action(mark, isOn: issue.has(mark))) {
+                Task { await model.toggleMark(mark, on: issue.id) }
+            }
+            .disabled(!model.canEdit)
+        }
+        Divider()
         Button("Focus on This Bead") { model.focus(on: issue.id) }
             .disabled(model.snapshot?.children(of: issue.id).isEmpty != false)
         Button("Show Details") { model.selection = issue.id }
@@ -241,6 +249,7 @@ private struct TreeIssueRow: View {
             Text(issue.id.rawValue)
                 .font(.callout.monospaced())
                 .foregroundStyle(.secondary)
+            MarkGlyphs(issue: issue, isSelected: false)
             Text(issue.title)
                 .lineLimit(1)
                 .help(DisplayText.preview(issue.title) ?? "")
@@ -346,6 +355,12 @@ private struct IssueCard: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
             }
+            HStack(spacing: 4) {
+                MarkGlyphs(issue: issue, isSelected: false)
+                Text("")
+                    .frame(width: 0, height: 0)
+            }
+            .fixedSize()
             Text(issue.title)
                 .font(.callout.weight(.medium))
                 .lineLimit(3)

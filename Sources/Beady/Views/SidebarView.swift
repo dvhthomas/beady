@@ -28,6 +28,7 @@ struct SidebarView: View {
         switch source {
         case .lifecycle(let scope): scope.symbolName
         case .focused: "square.stack.3d.up"
+        case .label(let label): label == IssueMark.starred.label ? "star.fill" : "tag"
         }
     }
 }

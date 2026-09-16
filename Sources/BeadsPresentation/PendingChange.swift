@@ -73,6 +73,8 @@ enum ChangeDescriber {
             return "Remove \(id) from \(from.map(\.rawValue) ?? "its parent")"
         case .create(let new):
             return "Create \(new.type) “\(new.title)”"
+        case .setMark(let id, let mark, let on):
+            return on ? "\(mark.title) \(id)" : "Un\(mark.title.lowercased()) \(id)"
         }
     }
 
@@ -123,6 +125,8 @@ enum ChangeDescriber {
                 lines.append("Labels: inherits \(labels.joined(separator: ", ")) from the parent")
             }
             return lines
+        case .setMark(_, let mark, let on):
+            return ["Label: \(on ? "add" : "remove") “\(mark.label)”"]
         }
     }
 

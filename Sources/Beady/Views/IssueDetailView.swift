@@ -56,6 +56,9 @@ private struct IssueDetailContent: View {
                     progress(completion)
                 }
                 metadata
+                if let path = model.unblockPath(for: issue.id) {
+                    UnblockPathView(model: model, path: path)
+                }
                 relations
                 textSection("Description", issue.description)
                 textSection("Notes", issue.notes)
@@ -103,6 +106,22 @@ private struct IssueDetailContent: View {
             } label: {
                 Label("Status", systemImage: "circle.lefthalf.filled")
             }
+            ForEach(IssueMark.allCases, id: \.self) { mark in
+                Button {
+                    Task { await model.toggleMark(mark, on: issue.id) }
+                } label: {
+                    // Icon only: the action row is tight, and a filled pin or star says enough.
+                    Image(systemName: issue.has(mark)
+                        ? MarkStyle.symbol(mark)
+                        : MarkStyle.symbol(mark).replacingOccurrences(of: ".fill", with: ""))
+                        .foregroundStyle(issue.has(mark) ? (mark == .pinned ? theme.pinned : theme.starred) : theme.secondaryText)
+                }
+                .accessibilityLabel(MarkStyle.action(mark, isOn: issue.has(mark)))
+                .help(mark == .pinned
+                    ? "Pinned beads lead every list, tree and board column (bd label “pinned”)"
+                    : "Starred beads collect in the Starred view (bd label “starred”)")
+            }
+
             Menu {
                 Button("No Parent") { model.proposeParent(issue.id, to: nil) }
                     .disabled(issue.parentID == nil)

@@ -17,7 +17,7 @@ enum SnapshotMode {
 
     static func run(to directory: URL) -> Never {
         NSApplication.shared.setActivationPolicy(.prohibited)
-        let session = AppSession()
+        let session = AppSession(preferences: nil)
         guard let model = session.model else { fail(session.openError ?? "no workspace; pass --workspace") }
 
         Task { await model.load() }
@@ -104,6 +104,12 @@ enum SnapshotMode {
         }
         capture("9-command-palette", CommandPaletteView(model: model, run: { _ in }, onClose: {}))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
+
+        // The graph sheet, on whatever is most tangled up.
+        if let blocked = snapshot.issues.first(where: { snapshot.isBlocked($0) && !snapshot.openBlockers(of: $0).isEmpty }) {
+            model.selection = blocked.id
+            capture("13-graph", GraphSheet(model: model, onClose: {}))
+        }
 
         // History reads from bd, so give it a moment before the shutter.
         if let busiest = snapshot.issues.max(by: { $0.updatedAt < $1.updatedAt }) {

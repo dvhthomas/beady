@@ -53,6 +53,8 @@ public enum BDCommand: Equatable, Sendable {
     case updateFields(IssueID, title: String?, description: String?, notes: String?, priority: Int?)
     case setStatus(IssueID, String)
     case setParent(IssueID, IssueID?)
+    case addLabel(IssueID, String)
+    case removeLabel(IssueID, String)
     case close(IssueID, reason: String?)
     case reopen(IssueID, reason: String?)
     case create(NewIssue, dryRun: Bool)
@@ -60,7 +62,7 @@ public enum BDCommand: Equatable, Sendable {
     public var isReadOnly: Bool {
         switch self {
         case .list, .listTitled, .statuses, .show, .ready, .blocked, .history: true
-        case .updateFields, .setStatus, .setParent, .close, .reopen, .create: false
+        case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .close, .reopen, .create: false
         }
     }
 
@@ -92,6 +94,10 @@ public enum BDCommand: Equatable, Sendable {
             return ["update", "--status=\(status)", "--json", "--", id.rawValue]
         case .setParent(let id, let parent):
             return ["update", "--parent=\(parent?.rawValue ?? "")", "--json", "--", id.rawValue]
+        case .addLabel(let id, let label):
+            return ["update", "--add-label=\(label)", "--json", "--", id.rawValue]
+        case .removeLabel(let id, let label):
+            return ["update", "--remove-label=\(label)", "--json", "--", id.rawValue]
         case .close(let id, let reason):
             return ["close"] + Self.reasonFlag(reason) + ["--json", "--", id.rawValue]
         case .reopen(let id, let reason):

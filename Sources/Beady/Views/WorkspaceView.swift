@@ -122,7 +122,7 @@ struct WorkspaceView: View {
     /// One sheet, shown for whichever thing is open; a change being confirmed wins.
     private var sheetPresented: Binding<Bool> {
         Binding(
-            get: { model.pendingChange != nil || ui.showsNewBead || ui.showsPalette || ui.showsShortcuts || ui.showsThemes },
+            get: { model.pendingChange != nil || ui.showsNewBead || ui.showsPalette || ui.showsShortcuts || ui.showsThemes || ui.showsGraph },
             set: { presented in
                 if !presented {
                     model.cancelPendingChange()
@@ -130,6 +130,7 @@ struct WorkspaceView: View {
                     ui.showsPalette = false
                     ui.showsShortcuts = false
                     ui.showsThemes = false
+                    ui.showsGraph = false
                 }
             }
         )
@@ -145,6 +146,8 @@ struct WorkspaceView: View {
             CommandPaletteView(model: model, run: run) { ui.showsPalette = false }
         } else if ui.showsShortcuts {
             ShortcutsView(model: model) { ui.showsShortcuts = false }
+        } else if ui.showsGraph {
+            GraphSheet(model: model) { ui.showsGraph = false }
         } else if ui.showsThemes, let themes {
             ThemePickerView(themes: themes) { ui.showsThemes = false }
         }

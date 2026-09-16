@@ -1,7 +1,7 @@
 import BeadsCore
 
 /// What a view remembers while you're elsewhere: its filters and how it's displayed.
-public struct ViewState: Equatable, Sendable {
+public struct ViewState: Equatable, Codable, Sendable {
     public var filter: ViewFilter
     public var layout: WorkspaceModel.Layout
     public var grouping: IssueGrouping
@@ -26,6 +26,9 @@ public struct ViewState: Equatable, Sendable {
             return ViewState(filter: ViewFilter(), layout: .list, grouping: grouping, ordering: scope.defaultSort)
         case .focused:
             return ViewState(filter: ViewFilter(), layout: .tree, grouping: .category, ordering: .priority)
+        case .label:
+            // A label view spans every lifecycle, so lifecycle is the grouping that reads best.
+            return ViewState(filter: ViewFilter(), layout: .list, grouping: .category, ordering: .priority)
         }
     }
 }
@@ -94,4 +97,11 @@ public extension Scope {
         case .open, .ready, .blocked, .deferred: .priority
         }
     }
+}
+
+
+/// A view and its state, as one record: a dictionary keyed by an enum doesn't encode as JSON.
+struct SavedViewState: Codable, Sendable {
+    let source: ViewSource
+    let state: ViewState
 }

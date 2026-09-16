@@ -82,6 +82,8 @@ public struct BDStore: BeadsStore {
             return [.setStatus(id, to)]
         case .setParent(let id, _, let to):
             return [.setParent(id, to)]
+        case .setMark(let id, let mark, let on):
+            return [on ? .addLabel(id, mark.label) : .removeLabel(id, mark.label)]
         case .create(let new):
             return [.create(new, dryRun: true), .create(new, dryRun: false)]
         }

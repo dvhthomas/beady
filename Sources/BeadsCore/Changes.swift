@@ -41,13 +41,22 @@ public enum IssueChange: Equatable, Sendable {
     case setStatus(IssueID, from: String, to: String, reason: String?)
     case setParent(IssueID, from: IssueID?, to: IssueID?)
     case create(NewIssue)
+    /// Pin or star: a bd label, on or off.
+    case setMark(IssueID, IssueMark, on: Bool)
 
     /// The existing issue this change targets; nil for a create.
     public var issueID: IssueID? {
         switch self {
-        case .edit(let id, _), .setStatus(let id, _, _, _), .setParent(let id, _, _): id
+        case .edit(let id, _), .setStatus(let id, _, _, _), .setParent(let id, _, _), .setMark(let id, _, _): id
         case .create: nil
         }
+    }
+
+    /// Marks are reversible metadata, so they're applied straight away rather than through the
+    /// confirmation sheet that guards content and graph edits.
+    public var needsConfirmation: Bool {
+        if case .setMark = self { return false }
+        return true
     }
 
     /// Titles, types and reasons are trimmed. Descriptions and notes are kept exactly as typed
@@ -62,7 +71,7 @@ public enum IssueChange: Equatable, Sendable {
         case .setStatus(let id, let from, let to, let reason):
             let reason = reason.map(trimmed).flatMap { $0.isEmpty ? nil : $0 }
             return .setStatus(id, from: from, to: trimmed(to), reason: reason)
-        case .setParent:
+        case .setParent, .setMark:
             return self
         case .create(var new):
             new.title = trimmed(new.title)
@@ -216,6 +225,15 @@ public enum ChangeValidator {
             }
             if snapshot.isDone(parent) { warning(.closedParent, "\(to) is closed.") }
 
+        case .setMark(let id, let mark, let on):
+            guard let issue = snapshot.issue(id) else {
+                error(.unknownIssue, "\(id) isn't in this database.")
+                break
+            }
+            if issue.has(mark) == on {
+                error(.noChange, on ? "\(id) is already \(mark.title.lowercased())." : "\(id) isn't \(mark.title.lowercased()).")
+            }
+
         case .create(let new):
             checkTitle(new.title)
             checkPriority(new.priority)
@@ -287,6 +305,8 @@ public enum ChangeGuard {
             }
         case .setParent(_, _, let to):
             expect("parent", to?.rawValue ?? "none", after.parentID?.rawValue ?? "none")
+        case .setMark(_, let mark, let on):
+            expect(mark.label, on ? "present" : "absent", after.has(mark) ? "present" : "absent")
         case .create(let new):
             expect("title", new.title, trimmed(after.title))
             expect("type", new.type, after.type)
@@ -308,7 +328,9 @@ public enum ChangeGuard {
             ].compactMap { $0 }
         case .setStatus: return [.status]
         case .setParent: return [.parent]
-        case .create: return []
+        // A mark touches only its own label, and two sessions marking the same bead don't
+        // conflict in any way worth stopping for.
+        case .setMark, .create: return []
         }
     }
 
