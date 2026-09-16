@@ -85,6 +85,16 @@ final class ThemeStore {
         }
     }
 
+    /// Paints the window itself, so the title bar and the edges around our views belong to the
+    /// theme rather than to macOS's default grey.
+    func paintWindows(_ background: RGB) {
+        let color = NSColor(srgbRed: background.red, green: background.green, blue: background.blue, alpha: 1)
+        for window in NSApp?.windows ?? [] where window.isVisible {
+            window.backgroundColor = color
+            window.titlebarAppearsTransparent = true
+        }
+    }
+
     /// Light/dark applies to the window chrome too, not just our own drawing.
     private func applyToApp() {
         NSApp?.appearance = switch selection.effectiveAppearance {

@@ -3,6 +3,7 @@ import BeadsPresentation
 import SwiftUI
 
 struct WorkspaceView: View {
+    @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
     /// Panels and sheets, shared with the menu bar so both run the same commands.
     let ui: WorkspaceUI
@@ -41,9 +42,13 @@ struct WorkspaceView: View {
             }
             .inspector(isPresented: inspectorPresented) {
                 IssueDetailView(model: model)
+                    .scrollContentBackground(.hidden)
+                    .background(theme.background)
                     .inspectorColumnWidth(min: 280, ideal: 360, max: 640)
             }
         }
+        .background(theme.background)
+        .toolbarBackground(theme.surface, for: .windowToolbar)
         .navigationTitle(model.viewTitle)
         .navigationSubtitle(subtitle)
         .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search this view")
