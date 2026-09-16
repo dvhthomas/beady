@@ -118,8 +118,8 @@ enum SnapshotMode {
             CommandPaletteView(model: model, ui: session.ui, run: { _ in }, onClose: {}),
             to: directory,
             first: "live-1-typed-nothing",
-            second: "live-2-typed-them"
-        ) { session.ui.paletteQuery = "them" }
+            second: "live-2-typed-c"
+        ) { session.ui.paletteQuery = "c" }
 
         // And moving the highlight has to move it: same view, cursor pushed down twice.
         session.ui.paletteQuery = "column"
