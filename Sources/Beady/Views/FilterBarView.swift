@@ -4,6 +4,7 @@ import SwiftUI
 
 /// The view header, as in Linear: Filter menu and chips on the left, Display options on the right.
 struct FilterBar: View {
+    @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
     let ui: WorkspaceUI
     let run: (AppCommand) -> Void
@@ -52,7 +53,7 @@ struct FilterBar: View {
 
                 if let error = model.refreshError {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(theme.pinned)
                         .help("Refresh failed; showing the last good data.\n\(error)")
                 }
 
@@ -121,6 +122,7 @@ struct FilterBar: View {
 
 /// Shows which bead the view is focused on, and gets you back out of it.
 private struct FocusBreadcrumb: View {
+    @Environment(\.theme) private var theme
     let issue: Issue
     let onClear: () -> Void
 
@@ -138,7 +140,7 @@ private struct FocusBreadcrumb: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(Color.accentColor.opacity(0.18), in: Capsule())
+        .background(theme.accent.opacity(0.18), in: Capsule())
         .help("\(issue.id.rawValue): everything under this bead")
     }
 }

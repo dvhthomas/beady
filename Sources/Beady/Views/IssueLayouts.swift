@@ -9,6 +9,7 @@ import SwiftUI
 struct IssueListView: View {
     @Bindable var model: WorkspaceModel
     let columns: ColumnLayout
+    @Environment(\.theme) private var theme
 
     var body: some View {
         let groups = model.groups
@@ -29,7 +30,7 @@ struct IssueListView: View {
             column(.status) { issue in
                 let category = model.snapshot?.category(of: issue) ?? .active
                 Image(systemName: category.symbolName)
-                    .foregroundStyle(category.color)
+                    .foregroundStyle(theme.color(category))
                     .help(DisplayText.status(issue.status))
             }
             column(.type) { issue in
@@ -45,7 +46,7 @@ struct IssueListView: View {
                     if model.snapshot?.isBlocked(issue) == true { BlockedMark() }
                     if changedElsewhere.contains(issue.id) {
                         Image(systemName: "person.wave.2")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(theme.pinned)
                             .help("Another session changed this recently")
                     }
                 }
@@ -68,7 +69,7 @@ struct IssueListView: View {
                 if let completion = model.progress(of: issue.id) {
                     HStack(spacing: 6) {
                         ProgressView(value: completion.fraction)
-                            .tint(.green)
+                            .tint(theme.color(.done))
                             .controlSize(.mini)
                         Text("\(completion.closed)/\(completion.total)")
                             .font(.caption.monospacedDigit())
@@ -173,6 +174,7 @@ struct IssueOutlineView: View {
 }
 
 private struct OutlineRowView: View {
+    @Environment(\.theme) private var theme
     let row: OutlineRow
     let model: WorkspaceModel
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
@@ -206,7 +208,7 @@ private struct OutlineRowView: View {
             TreeIssueRow(node: row.node, snapshot: model.snapshot)
         }
         .padding(.leading, CGFloat(row.depth) * 18)
-        .background(isDropTarget.wrappedValue ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 4))
+        .background(isDropTarget.wrappedValue ? theme.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 4))
         .draggableIssue(row.id, when: model.canEdit)
         // Dropping another issue on this row proposes moving it under this one.
         .dropDestination(for: String.self) { items, _ in
@@ -220,6 +222,7 @@ private struct OutlineRowView: View {
 }
 
 private struct TreeIssueRow: View {
+    @Environment(\.theme) private var theme
     let node: IssueTreeNode
     let snapshot: IssueSnapshot?
 
@@ -228,7 +231,7 @@ private struct TreeIssueRow: View {
         let category = snapshot?.category(of: issue) ?? .active
         HStack(spacing: 8) {
             Image(systemName: category.symbolName)
-                .foregroundStyle(category.color)
+                .foregroundStyle(theme.color(category))
                 .help(DisplayText.status(issue.status))
             Text(issue.id.rawValue)
                 .font(.callout.monospaced())
@@ -270,6 +273,7 @@ struct IssueBoardView: View {
 }
 
 private struct BoardColumnView: View {
+    @Environment(\.theme) private var theme
     let group: IssueGroupModel
     let model: WorkspaceModel
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
@@ -309,7 +313,7 @@ private struct BoardColumnView: View {
         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.accentColor, lineWidth: isDropTarget.wrappedValue ? 2 : 0)
+                .strokeBorder(theme.accent, lineWidth: isDropTarget.wrappedValue ? 2 : 0)
         )
         // Only proposes; the confirmation sheet has the final say.
         .dropDestination(for: String.self) { items, _ in
@@ -322,6 +326,7 @@ private struct BoardColumnView: View {
 }
 
 private struct IssueCard: View {
+    @Environment(\.theme) private var theme
     let issue: Issue
     let snapshot: IssueSnapshot?
     let isSelected: Bool
@@ -369,7 +374,7 @@ private struct IssueCard: View {
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.2), lineWidth: isSelected ? 2 : 1)
+                .strokeBorder(isSelected ? theme.accent : theme.border, lineWidth: isSelected ? 2 : 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
     }

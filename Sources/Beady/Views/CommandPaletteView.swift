@@ -5,6 +5,7 @@ import SwiftUI
 /// ⌘P: type a few letters to run any command or jump to a bead. Arrow keys move, Return runs,
 /// Escape closes.
 struct CommandPaletteView: View {
+    @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let run: (AppCommand) -> Void
     let onClose: () -> Void
@@ -84,7 +85,7 @@ struct CommandPaletteView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(isHighlighted ? Color.accentColor.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .background(isHighlighted ? theme.accent.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
     }
 
     private func move(_ delta: Int, in results: [AppCommand]) -> KeyPress.Result {

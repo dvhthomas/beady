@@ -6,6 +6,8 @@ struct WorkspaceView: View {
     @Bindable var model: WorkspaceModel
     /// Panels and sheets, shared with the menu bar so both run the same commands.
     let ui: WorkspaceUI
+    /// Appearance settings, for the ⌘T sheet; nil in offscreen snapshots.
+    var themes: ThemeStore?
     /// Runs a command; the session decides what each one means.
     let run: (AppCommand) -> Void
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
@@ -14,9 +16,16 @@ struct WorkspaceView: View {
     /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var searchFocus = FocusState<Bool>()
 
-    init(model: WorkspaceModel, ui: WorkspaceUI, run: @escaping (AppCommand) -> Void = { _ in }, persistsPreferences: Bool = true) {
+    init(
+        model: WorkspaceModel,
+        ui: WorkspaceUI,
+        themes: ThemeStore? = nil,
+        run: @escaping (AppCommand) -> Void = { _ in },
+        persistsPreferences: Bool = true
+    ) {
         self.model = model
         self.ui = ui
+        self.themes = themes
         self.run = run
         self.persistsPreferences = persistsPreferences
     }
@@ -113,13 +122,14 @@ struct WorkspaceView: View {
     /// One sheet, shown for whichever thing is open; a change being confirmed wins.
     private var sheetPresented: Binding<Bool> {
         Binding(
-            get: { model.pendingChange != nil || ui.showsNewBead || ui.showsPalette || ui.showsShortcuts },
+            get: { model.pendingChange != nil || ui.showsNewBead || ui.showsPalette || ui.showsShortcuts || ui.showsThemes },
             set: { presented in
                 if !presented {
                     model.cancelPendingChange()
                     ui.showsNewBead = false
                     ui.showsPalette = false
                     ui.showsShortcuts = false
+                    ui.showsThemes = false
                 }
             }
         )
@@ -135,6 +145,8 @@ struct WorkspaceView: View {
             CommandPaletteView(model: model, run: run) { ui.showsPalette = false }
         } else if ui.showsShortcuts {
             ShortcutsView(model: model) { ui.showsShortcuts = false }
+        } else if ui.showsThemes, let themes {
+            ThemePickerView(themes: themes) { ui.showsThemes = false }
         }
     }
 

@@ -53,6 +53,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case setGrouping(IssueGrouping)
     case setOrdering(IssueSort)
     case goToIssue(IssueID, title: String)
+    case chooseTheme
+    case setTheme(String)
+    case setAppearance(AppearancePreference)
+    case setTextSize(TextSize)
 
     public var id: String {
         switch self {
@@ -72,6 +76,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping(let grouping): "group-\(grouping.rawValue)"
         case .setOrdering(let sort): "sort-\(sort.rawValue)"
         case .goToIssue(let id, _): "go-\(id.rawValue)"
+        case .chooseTheme: "choose-theme"
+        case .setTheme(let name): "theme-\(name)"
+        case .setAppearance(let appearance): "appearance-\(appearance.rawValue)"
+        case .setTextSize(let size): "text-size-\(size.rawValue)"
         }
     }
 
@@ -93,6 +101,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
         case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
+        case .chooseTheme: "Change Theme…"
+        case .setTheme(let name): "Theme: \(name)"
+        case .setAppearance(let appearance): "Appearance: \(appearance.title)"
+        case .setTextSize(let size): "Text Size: \(size.title)"
         }
     }
 
@@ -116,6 +128,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping: ["group", "section", "break down"]
         case .setOrdering: ["sort", "order", "arrange"]
         case .goToIssue: ["bead", "issue", "go to"]
+        case .chooseTheme: ["theme", "colour", "color", "appearance", "dark", "light", "contrast"]
+        case .setTheme: ["theme", "colour", "color", "scheme"]
+        case .setAppearance: ["theme", "dark mode", "light mode", "appearance"]
+        case .setTextSize: ["text", "font", "bigger", "larger", "smaller", "size", "accessibility", "eyesight"]
         }
     }
 
@@ -129,6 +145,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .showShortcuts: "Help"
         case .showView: "Views"
         case .goToIssue: "Beads"
+        case .chooseTheme, .setTheme, .setAppearance, .setTextSize: "Appearance"
         }
     }
 
@@ -148,7 +165,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleDetails: [KeyBinding("i", .command)]
         case .showShortcuts: [KeyBinding("?"), KeyBinding("/", .command)]
         case .setLayout(let layout): [KeyBinding(Character("\(layoutNumber(layout))"), .command)]
-        case .showView, .setGrouping, .setOrdering, .goToIssue: []
+        case .chooseTheme: [KeyBinding("t", .command)]
+        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTheme, .setAppearance, .setTextSize: []
         }
     }
 
@@ -200,7 +218,11 @@ public enum CommandCatalog {
         commands += WorkspaceModel.Layout.allCases.map { .setLayout($0) }
         commands += IssueGrouping.allCases.map { .setGrouping($0) }
         commands += IssueSort.allCases.map { .setOrdering($0) }
-        commands += [.displayOptions, .toggleDetails, .showShortcuts]
+        commands += [.displayOptions, .toggleDetails, .chooseTheme]
+        commands += AppearancePreference.allCases.map { .setAppearance($0) }
+        commands += Theme.all.map { .setTheme($0.name) }
+        commands += TextSize.allCases.map { .setTextSize($0) }
+        commands.append(.showShortcuts)
         return commands
     }
 

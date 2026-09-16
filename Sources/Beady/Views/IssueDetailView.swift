@@ -39,6 +39,7 @@ struct IssueDetailView: View {
 }
 
 private struct IssueDetailContent: View {
+    @Environment(\.theme) private var theme
     let issue: Issue
     let snapshot: IssueSnapshot
     let model: WorkspaceModel
@@ -74,10 +75,10 @@ private struct IssueDetailContent: View {
             systemImage: "person.wave.2"
         )
         .font(.callout)
-        .foregroundStyle(.orange)
+        .foregroundStyle(theme.pinned)
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .background(theme.pinned.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var header: some View {
@@ -97,7 +98,7 @@ private struct IssueDetailContent: View {
                 if snapshot.isBlocked(issue) {
                     Label("Blocked", systemImage: "exclamationmark.octagon.fill")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(theme.blocked)
                 }
             }
         }
@@ -137,7 +138,7 @@ private struct IssueDetailContent: View {
     private func progress(_ completion: Completion) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             ProgressView(value: completion.fraction)
-                .tint(.green)
+                .tint(theme.color(.done))
             HStack {
                 Text("\(completion.closed) of \(completion.total) descendants closed")
                     .font(.caption)
@@ -200,7 +201,7 @@ private struct IssueDetailContent: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: category.symbolName)
-                            .foregroundStyle(category.color)
+                            .foregroundStyle(theme.color(category))
                         Text(related.id.rawValue)
                             .font(.caption.monospaced())
                             .foregroundStyle(.secondary)
@@ -253,6 +254,7 @@ private struct IssueDetailContent: View {
 
 /// Inline editor for the text fields and priority. Proposes only the fields that changed.
 private struct EditIssueForm: View {
+    @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let onDone: () -> Void
     /// `State` as plain DynamicProperties: Command Line Tools lack the @State macro plugin.
@@ -303,7 +305,7 @@ private struct EditIssueForm: View {
                     Spacer()
                     Label("Editing", systemImage: "pencil")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(theme.pinned)
                 }
                 if changedInBdMeanwhile {
                     Label(
@@ -311,7 +313,7 @@ private struct EditIssueForm: View {
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(theme.pinned)
                     .fixedSize(horizontal: false, vertical: true)
                 }
                 TextField("Title", text: title.projectedValue)

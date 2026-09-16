@@ -33,8 +33,15 @@ enum SnapshotMode {
 
         func capture<Content: View>(_ name: String, _ view: Content) {
             let url = directory.appendingPathComponent("\(name).png")
-            // The hosting view is transparent; paint the window colour or text vanishes on black.
-            render(view.background(Color(nsColor: .windowBackgroundColor)), to: url)
+            let theme = session.themes.theme(for: session.themes.appearance == .light ? .light : .dark)
+            render(
+                view
+                    .environment(\.theme, theme)
+                    .tint(theme.accent)
+                    .foregroundStyle(theme.text)
+                    .background(theme.background),
+                to: url
+            )
             print("wrote \(url.path) (\(model.visibleIssues.count) issues in \(model.viewTitle))")
         }
         func captureWorkspace(_ name: String) {
@@ -45,8 +52,13 @@ enum SnapshotMode {
         let labelCounts = Dictionary(snapshot.issues.flatMap(\.labels).map { ($0, 1) }, uniquingKeysWith: +)
         let topLabels = labelCounts.sorted { ($1.value, $0.key) < ($0.value, $1.key) }.prefix(2).map(\.key)
 
+        // The README wants one of each: same view, both appearances.
+        session.themes.appearance = .dark
         model.source = .lifecycle(.open)
         captureWorkspace("1-open-list")
+        session.themes.appearance = .light
+        captureWorkspace("1b-open-list-light")
+        session.themes.appearance = .dark
 
         model.source = .lifecycle(.inFlight)
         captureWorkspace("2-in-flight-grouped-by-status")
@@ -91,6 +103,7 @@ enum SnapshotMode {
             model.cancelPendingChange()
         }
         capture("9-command-palette", CommandPaletteView(model: model, run: { _ in }, onClose: {}))
+        capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
         capture("10-shortcuts", ShortcutsView(model: model, onClose: {}))
         exit(0)
     }

@@ -22,6 +22,11 @@ struct BeadyApp: App {
         }
         .defaultSize(width: 1320, height: 820)
         .commands { AppCommands(session: session) }
+
+        Settings {
+            SettingsView(themes: session.themes)
+                .themed(session.themes)
+        }
     }
 }
 
@@ -39,9 +44,16 @@ struct RootView: View {
     let session: AppSession
 
     var body: some View {
+        content
+            .themed(session.themes)
+            .onAppear { session.themes.watchAccessibility() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         Group {
             if let model = session.model {
-                WorkspaceView(model: model, ui: session.ui, run: session.run)
+                WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run)
                     .id(ObjectIdentifier(model))
             } else {
                 WelcomeView(session: session)
@@ -109,6 +121,8 @@ struct AppCommands: Commands {
             Divider()
             item(.toggleDetails, needsWorkspace: true)
             item(.displayOptions, needsWorkspace: true)
+            Divider()
+            item(.chooseTheme, needsWorkspace: true)
         }
         CommandGroup(replacing: .help) {
             item(.showShortcuts, needsWorkspace: true)

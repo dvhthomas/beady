@@ -14,6 +14,8 @@ final class AppSession {
     private(set) var recentPaths: [String]
     /// Panels, sheets and column layout, shared with the menu bar.
     let ui = WorkspaceUI()
+    /// Appearance, themes and text size.
+    let themes = ThemeStore()
 
     /// Reports bd's writes as they land, so the view refreshes without polling.
     @ObservationIgnored private var watcher: BDChangeWatcher?
@@ -113,6 +115,18 @@ final class AppSession {
         case .goToIssue(let id, _):
             model?.selection = id
             ui.showsInspector = true
+        case .chooseTheme: ui.showsThemes = true
+        case .setTheme(let name):
+            // Choosing a theme also says which appearance you meant.
+            if let theme = Theme.dark(named: name) {
+                themes.darkThemeName = theme.name
+                themes.appearance = .dark
+            } else if let theme = Theme.light(named: name) {
+                themes.lightThemeName = theme.name
+                themes.appearance = .light
+            }
+        case .setAppearance(let appearance): themes.appearance = appearance
+        case .setTextSize(let size): themes.textSize = size
         }
     }
 

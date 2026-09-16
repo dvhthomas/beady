@@ -4,6 +4,7 @@ import SwiftUI
 
 /// Shown before any write: what changes, problems, the exact bd commands, and the outcome.
 struct ChangeConfirmationView: View {
+    @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
     let pending: PendingChange
     let onCancel: () -> Void
@@ -35,7 +36,7 @@ struct ChangeConfirmationView: View {
                     ForEach(Array(pending.problems.enumerated()), id: \.offset) { _, problem in
                         let isError = problem.severity == .error
                         Label(problem.message, systemImage: isError ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(isError ? Color.red : Color.orange)
+                            .foregroundStyle(isError ? theme.blocked : theme.pinned)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -62,13 +63,13 @@ struct ChangeConfirmationView: View {
 
             if let notice = pending.notice {
                 Label(notice, systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(theme.pinned)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if let failure = pending.failure {
                 Label(failure, systemImage: "xmark.octagon.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(theme.blocked)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -107,6 +108,7 @@ struct ChangeConfirmationView: View {
 }
 
 struct NewBeadForm: View {
+    @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let onCancel: () -> Void
     /// `State` as plain DynamicProperties: Command Line Tools lack the @State macro plugin.
