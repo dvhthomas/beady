@@ -103,7 +103,9 @@ enum SnapshotMode {
             model.cancelPendingChange()
         }
         capture("9-command-palette", CommandPaletteView(model: model, run: { _ in }, onClose: {}))
+        session.themes.preview(Theme.dark(named: "Dracula"))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
+        session.themes.cancelPreview()
 
         // The graph sheet, on whatever is most tangled up.
         if let blocked = snapshot.issues.first(where: { snapshot.isBlocked($0) && !snapshot.openBlockers(of: $0).isEmpty }) {

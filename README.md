@@ -56,6 +56,10 @@ System, light or dark, with the best-known editor themes on both sides — Dracu
 Solarized Light, GitHub Light, One Light — plus a high-contrast pair that macOS's own
 **Increase Contrast** setting switches to on its own. Text scales from Small to Extra Large.
 
+⌘T opens the picker: arrow up and down and the whole app repaints as you go, so you judge a theme
+by the app rather than by six coloured dots. **Apply** keeps the one you stopped on; Cancel or
+Escape puts back what you had.
+
 Every colour in the app is a design token, and the contrast of every theme is checked by tests:
 body text clears WCAG AA (4.5:1) on both the background and a row, status and priority colours
 clear 3:1, and the high-contrast themes clear AAA (7:1).
