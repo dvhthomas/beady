@@ -53,6 +53,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case setGrouping(IssueGrouping)
     case setOrdering(IssueSort)
     case goToIssue(IssueID, title: String)
+    case toggleMark(IssueMark)
+    case showGraph
     case chooseTheme
     case setTheme(String)
     case setAppearance(AppearancePreference)
@@ -76,6 +78,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping(let grouping): "group-\(grouping.rawValue)"
         case .setOrdering(let sort): "sort-\(sort.rawValue)"
         case .goToIssue(let id, _): "go-\(id.rawValue)"
+        case .toggleMark(let mark): "mark-\(mark.rawValue)"
+        case .showGraph: "show-graph"
         case .chooseTheme: "choose-theme"
         case .setTheme(let name): "theme-\(name)"
         case .setAppearance(let appearance): "appearance-\(appearance.rawValue)"
@@ -101,6 +105,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
         case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
+        case .toggleMark(let mark): "\(mark.title) Selected Bead"
+        case .showGraph: "Show Dependency Graph"
         case .chooseTheme: "Change Theme…"
         case .setTheme(let name): "Theme: \(name)"
         case .setAppearance(let appearance): "Appearance: \(appearance.title)"
@@ -128,6 +134,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setGrouping: ["group", "section", "break down"]
         case .setOrdering: ["sort", "order", "arrange"]
         case .goToIssue: ["bead", "issue", "go to"]
+        case .showGraph: ["graph", "dependencies", "blockers", "unblock", "chain", "why blocked"]
+        case .toggleMark(let mark): mark == .pinned
+            ? ["pin", "unpin", "top", "stick"]
+            : ["star", "unstar", "favourite", "favorite", "bookmark"]
         case .chooseTheme: ["theme", "colour", "color", "appearance", "dark", "light", "contrast"]
         case .setTheme: ["theme", "colour", "color", "scheme"]
         case .setAppearance: ["theme", "dark mode", "light mode", "appearance"]
@@ -139,7 +149,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     public var group: String {
         switch self {
         case .openWorkspace, .closeWorkspace, .refresh: "Workspace"
-        case .newBead, .editSelected: "Beads"
+        case .newBead, .editSelected, .toggleMark, .showGraph: "Beads"
         case .focusSearch, .addFilter, .clearFilters: "Find"
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering: "Display"
         case .showShortcuts: "Help"
@@ -165,6 +175,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleDetails: [KeyBinding("i", .command)]
         case .showShortcuts: [KeyBinding("?"), KeyBinding("/", .command)]
         case .setLayout(let layout): [KeyBinding(Character("\(layoutNumber(layout))"), .command)]
+        case .toggleMark(let mark): [KeyBinding(mark == .pinned ? "p" : "s", [.command, .shift])]
+        case .showGraph: [KeyBinding("g", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTheme, .setAppearance, .setTextSize: []
         }
@@ -180,6 +192,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch source {
         case .lifecycle(let scope): scope.rawValue
         case .focused(let id): id.rawValue
+        case .label(let label): label
         }
     }
 
@@ -188,6 +201,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch source {
         case .lifecycle(let scope): DisplayText.scope(scope)
         case .focused(let id): id.rawValue
+        case .label(let label): IssueMark(rawValue: label)?.title ?? label
         }
     }
 
@@ -210,10 +224,15 @@ public enum CommandCatalog {
     public static func all(for model: WorkspaceModel) -> [AppCommand] {
         var commands: [AppCommand] = [.openWorkspace, .refresh]
         if model.canEdit { commands.append(.newBead) }
-        if model.canEdit, model.selection != nil { commands.append(.editSelected) }
+        if model.canEdit, model.selection != nil {
+            commands.append(.editSelected)
+            commands += IssueMark.allCases.map { .toggleMark($0) }
+        }
+        if model.selection != nil { commands.append(.showGraph) }
         if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(.closeWorkspace)
         commands += Scope.allCases.map { .showView(.lifecycle($0)) }
+        if model.hasStarredBeads { commands.append(.showView(.label(IssueMark.starred.label))) }
         commands += [.focusSearch, .addFilter]
         commands += WorkspaceModel.Layout.allCases.map { .setLayout($0) }
         commands += IssueGrouping.allCases.map { .setGrouping($0) }

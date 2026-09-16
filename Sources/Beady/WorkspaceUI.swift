@@ -11,6 +11,7 @@ final class WorkspaceUI {
     var showsPalette = false
     var showsShortcuts = false
     var showsThemes = false
+    var showsGraph = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
     /// True while the search field has the keyboard. Single-key shortcuts stand down then, so

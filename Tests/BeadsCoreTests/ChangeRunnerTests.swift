@@ -94,6 +94,12 @@ final class FakeWriter: IssueWriting, @unchecked Sendable {
         case .setParent(let id, _, let to):
             issues[id]?.parentID = to
             return id
+        case .setMark(let id, let mark, let on):
+            var labels = issues[id]?.labels ?? []
+            labels.removeAll { $0 == mark.label }
+            if on { labels.append(mark.label) }
+            issues[id]?.labels = labels
+            return id
         case .create(let new):
             issues[createdID] = makeIssue(
                 createdID, title: new.title, description: new.description,

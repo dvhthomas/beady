@@ -23,6 +23,11 @@ touched that bead four seconds ago, and the app says so rather than pretending i
   `Priority · is any of · P1, P2 · ✕` — and combine with AND.
 - **Three ways to look.** A resizable table, a tree that keeps ancestors visible, and a board you
   can drag between.
+- **Keep what matters in front of you.** Pin a bead (⇧⌘P) and it leads every list, tree and board
+  column; star one (⇧⌘S) and it collects in the Starred view. Both are bd labels, so `bd list
+  --label pinned` sees exactly what Beady sees.
+- **Ask what's in the way.** A blocked bead shows the chain that has to finish first, grouped into
+  "start now" and "then"; ⌘G opens the same thing as a one-hop graph.
 - **Change things carefully.** Nothing is written until you confirm a sheet showing the change,
   its warnings, and the commands themselves.
 
@@ -38,8 +43,8 @@ type: `fin` finds Find, `kanban` finds the board, `drac` finds the theme.
 
 ![Command palette](docs/images/palette.png)
 
-`/` search · `F` filter · `⇧V` display · `⌘T` theme · `⌘N` new bead · `⌘E` edit · `⌘I` details ·
-`⌘1/2/3` layout · `⌘R` refresh · `?` the full list.
+`/` search · `F` filter · `⇧V` display · `⌘T` theme · `⌘N` new bead · `⌘E` edit · `⌘G` graph ·
+`⇧⌘P` pin · `⇧⌘S` star · `⌘I` details · `⌘1/2/3` layout · `⌘R` refresh · `?` the full list.
 
 ## Themes, and eyes that need help
 
@@ -129,7 +134,12 @@ workspace reopens on launch; `--workspace /path/to/project` overrides it.
 - **Tree context**: when a filter matches a child, its ancestors stay visible (dimmed) so nothing
   appears orphaned.
 - **Details inspector**: metadata, parent / blocked-by / blocks / children links, description and
-  notes (inline Markdown), close reason.
+  notes (inline Markdown), close reason, the unblock path when something is in the way, and a
+  **History** expander built from `bd history` — bd records a commit per change, so Beady diffs
+  consecutive versions into "status · open → in_progress" and names the actor from bd's
+  interaction log.
+- **Pins and stars** are bd labels (`pinned`, `starred`), never app-only state. Note bd also has a
+  built-in `pinned` *status*, which is a different thing: the label is Beady's "show me first".
 - **Auto-refresh**: the app watches the `.beads` folder with FSEvents and reloads within a moment
   of any write — yours or an agent's — falling back to a 15-second check. Nothing is opened or
   written to do it. ⌘R reloads on demand.
@@ -214,8 +224,8 @@ than the `@State` macro.
 
 ## Not yet
 
-Editing labels, assignees and blocking dependencies; comments and history (`bd comments`,
-`bd history`); and dependency graphs beyond parent/child and blockers.
+Editing arbitrary labels, assignees and blocking dependencies; comments (`bd comments`); and
+graphs wider than one hop around a bead.
 
 ## Developing
 

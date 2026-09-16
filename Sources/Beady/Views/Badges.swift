@@ -116,3 +116,44 @@ struct CompletionMeter: View {
         .help("\(completion.closed) of \(completion.total) descendants closed")
     }
 }
+
+
+enum MarkStyle {
+    static func symbol(_ mark: IssueMark) -> String {
+        switch mark {
+        case .pinned: "pin.fill"
+        case .starred: "star.fill"
+        }
+    }
+
+    /// What the menu item says, given what the bead already is.
+    static func action(_ mark: IssueMark, isOn: Bool) -> String {
+        switch (mark, isOn) {
+        case (.pinned, false): "Pin to Top"
+        case (.pinned, true): "Unpin"
+        case (.starred, false): "Star"
+        case (.starred, true): "Unstar"
+        }
+    }
+}
+
+/// The pin and star a bead is wearing, if any.
+struct MarkGlyphs: View {
+    let issue: Issue
+    var isSelected = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ForEach(IssueMark.allCases.filter(issue.has), id: \.self) { mark in
+            Image(systemName: MarkStyle.symbol(mark))
+                .font(.caption)
+                .foregroundStyle(color(for: mark))
+                .help(mark.title)
+        }
+    }
+
+    private func color(for mark: IssueMark) -> Color {
+        if isSelected { return Color(nsColor: .alternateSelectedControlTextColor) }
+        return mark == .pinned ? theme.pinned : theme.starred
+    }
+}

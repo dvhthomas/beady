@@ -8,7 +8,7 @@ import Observation
 @MainActor
 @Observable
 public final class WorkspaceModel {
-    public enum Layout: String, CaseIterable, Identifiable, Sendable {
+    public enum Layout: String, CaseIterable, Identifiable, Codable, Sendable {
         case list, board, tree
         public var id: String { rawValue }
     }
@@ -42,9 +42,15 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    private var viewStates: [ViewSource: ViewState] = [:]
+    private var viewStates: [ViewSource: ViewState] = [:] {
+        didSet { saveViewStates() }
+    }
 
     @ObservationIgnored private let store: any BeadsStore
+    /// Where each view's filters, layout, grouping and ordering are remembered between launches.
+    /// Standard macOS preferences: ~/Library/Preferences/me.bitsby.beady.plist.
+    @ObservationIgnored private let preferences: UserDefaults?
+    @ObservationIgnored private static let viewStatesKey = "viewStates"
     @ObservationIgnored private let allowsWriting: Bool
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let staleAfter: TimeInterval
@@ -59,6 +65,9 @@ public final class WorkspaceModel {
         title: String,
         store: any BeadsStore,
         allowsWriting: Bool = true,
+        /// Nil keeps this model out of any saved state — which is what tests and the
+        /// offscreen snapshots want. The app passes `.standard`.
+        preferences: UserDefaults? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600
@@ -66,9 +75,26 @@ public final class WorkspaceModel {
         self.title = title
         self.store = store
         self.allowsWriting = allowsWriting
+        self.preferences = preferences
         self.now = now
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
+        viewStates = Self.loadViewStates(from: preferences)
+    }
+
+    /// Saved views that can't be read — an older format, a corrupted value — are dropped rather
+    /// than fought with: the app starts from its defaults and saves again on the next change.
+    private static func loadViewStates(from preferences: UserDefaults?) -> [ViewSource: ViewState] {
+        guard let data = preferences?.data(forKey: viewStatesKey),
+              let saved = try? JSONDecoder().decode([SavedViewState].self, from: data) else { return [:] }
+        return Dictionary(saved.map { ($0.source, $0.state) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private func saveViewStates() {
+        guard let preferences else { return }
+        let saved = viewStates.map { SavedViewState(source: $0.key, state: $0.value) }
+        guard let data = try? JSONEncoder().encode(saved) else { return }
+        preferences.set(data, forKey: Self.viewStatesKey)
     }
 
     // MARK: Loading
@@ -142,6 +168,7 @@ public final class WorkspaceModel {
         switch source {
         case .lifecycle(let scope): DisplayText.scope(scope)
         case .focused(let id): snapshot?.issue(id)?.title ?? id.rawValue
+        case .label(let label): IssueMark(rawValue: label)?.title ?? label
         }
     }
 
@@ -152,9 +179,13 @@ public final class WorkspaceModel {
         let now = now()
         let source = source
         let filter = filter
-        return ordering.sorted(snapshot.issues.filter {
-            source.includes($0, in: snapshot, now: now) && filter.matches($0, in: snapshot, now: now)
-        })
+        return ordering.sorted(
+            snapshot.issues.filter {
+                source.includes($0, in: snapshot, now: now) && filter.matches($0, in: snapshot, now: now)
+            },
+            // A pin is a request to see something first, wherever it appears.
+            pinnedFirst: true
+        )
     }
 
     public var groups: [IssueGroupModel] {
@@ -295,9 +326,73 @@ public final class WorkspaceModel {
 
     public var sidebarViews: [SidebarEntry] {
         let scopes: [Scope] = [.open, .ready, .inFlight, .blocked, .deferred, .closed, .all]
-        return scopes.map { scope in
+        var entries = scopes.map { scope in
             SidebarEntry(source: .lifecycle(scope), title: DisplayText.scope(scope), count: total(in: .lifecycle(scope)))
         }
+        // Starred only earns a place in the sidebar once something is starred.
+        let starred = ViewSource.label(IssueMark.starred.label)
+        let count = total(in: starred)
+        if count > 0 {
+            entries.append(SidebarEntry(source: starred, title: IssueMark.starred.title, count: count))
+        }
+        return entries
+    }
+
+    // MARK: Pins and stars
+
+    /// Adds or removes the bd label behind a mark. Marks are reversible metadata that can't lose
+    /// anyone's work, so they apply immediately — the confirmation sheet is for content and the
+    /// graph. The write still goes through `ChangeRunner`: validated, applied, read back.
+    public func toggleMark(_ mark: IssueMark, on id: IssueID) async {
+        guard canEdit, !isWriting, let snapshot, let issue = snapshot.issue(id) else { return }
+        let change = IssueChange.setMark(id, mark, on: !issue.has(mark))
+        let pending = PendingChange(
+            change: change,
+            base: issue,
+            summary: ChangeDescriber.summary(change),
+            subject: ChangeDescriber.subject(change, in: snapshot),
+            details: ChangeDescriber.details(change, in: snapshot),
+            problems: ChangeValidator.problems(for: change, in: snapshot),
+            asksForReason: false
+        )
+        guard pending.canConfirm else { return }
+
+        isWriting = true
+        noteOwnWrite(id)
+        do {
+            _ = try await ChangeRunner(writer: store).run(change, seenIn: snapshot, base: issue)
+            record(pending, issueID: id, error: nil)
+        } catch {
+            record(pending, issueID: id, error: error)
+        }
+        isWriting = false
+        await reloadAfterWrite()
+    }
+
+    /// Filters the current view by a mark's label, using the ordinary labels rule so it reads as
+    /// a normal chip and can be removed like one.
+    public func toggleMarkFilter(_ mark: IssueMark) {
+        toggleFilterValue(mark.label, in: .labels)
+    }
+
+    /// What has to finish before this bead can start; empty when nothing is in the way.
+    public func unblockPath(for id: IssueID) -> UnblockPath? {
+        guard let snapshot else { return nil }
+        let path = UnblockPath.to(id, in: snapshot)
+        return path.isBlocked ? path : nil
+    }
+
+    public func neighbourhood(around id: IssueID) -> IssueNeighbourhood? {
+        guard let snapshot else { return nil }
+        return IssueNeighbourhood.around(id, in: snapshot)
+    }
+
+    public var hasStarredBeads: Bool {
+        snapshot?.issues.contains { $0.has(.starred) } ?? false
+    }
+
+    public func isMarked(_ mark: IssueMark, _ id: IssueID) -> Bool {
+        snapshot?.issue(id)?.has(mark) ?? false
     }
 
     /// Unfinished epics, each a view of everything under it.

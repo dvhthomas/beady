@@ -1,7 +1,7 @@
 import Foundation
 
 /// A lifecycle slice of the database: the built-in views in the sidebar.
-public enum Scope: String, CaseIterable, Identifiable, Sendable {
+public enum Scope: String, CaseIterable, Identifiable, Codable, Sendable {
     case all
     case open
     case ready
@@ -51,7 +51,7 @@ public enum TimeWindow: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public enum IssueSort: String, CaseIterable, Identifiable, Sendable {
+public enum IssueSort: String, CaseIterable, Identifiable, Codable, Sendable {
     case priority
     case recentlyUpdated
     case recentlyCreated
@@ -60,8 +60,13 @@ public enum IssueSort: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    public func sorted(_ issues: [Issue]) -> [Issue] {
-        issues.sorted(by: areInIncreasingOrder)
+    /// Sorts, optionally floating pinned beads to the top. Pinned beads keep the same ordering
+    /// among themselves, so a pin changes where a bead sits, not how the list is ordered.
+    public func sorted(_ issues: [Issue], pinnedFirst: Bool = false) -> [Issue] {
+        let ordered = issues.sorted(by: areInIncreasingOrder)
+        guard pinnedFirst else { return ordered }
+        let pinned = ordered.filter { $0.has(.pinned) }
+        return pinned.isEmpty ? ordered : pinned + ordered.filter { !$0.has(.pinned) }
     }
 
     /// Every ordering falls back to natural id order so results are stable.
