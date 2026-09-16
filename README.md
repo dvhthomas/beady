@@ -58,6 +58,10 @@ System, light or dark, with the best-known editor themes on both sides — Dracu
 Solarized Light, GitHub Light, One Light — plus a high-contrast pair that macOS's own
 **Increase Contrast** setting switches to on its own. Text scales from Small to Extra Large.
 
+A theme paints the whole window — sidebar, list, board, details and the title bar — the way Linear
+and VS Code do, rather than tinting the content and leaving system grey around it. The trade is
+macOS's translucent sidebar material, which a themed sidebar can't keep.
+
 ⌘T opens the picker: arrow up and down and the whole app repaints as you go, so you judge a theme
 by the app rather than by six coloured dots. **Apply** keeps the one you stopped on; Cancel or
 Escape puts back what you had.

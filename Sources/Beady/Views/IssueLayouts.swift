@@ -123,6 +123,9 @@ struct IssueListView: View {
                 }
             }
         }
+        .tableStyle(.inset(alternatesRowBackgrounds: false))
+        .scrollContentBackground(.hidden)
+        .background(theme.background)
     }
 
     @ViewBuilder
@@ -179,11 +182,14 @@ struct IssueListView: View {
 /// duplicated rows as the tree changed, so expansion lives in the model instead.
 struct IssueOutlineView: View {
     @Bindable var model: WorkspaceModel
+    @Environment(\.theme) private var theme
 
     var body: some View {
         List(model.outlineRows, selection: $model.selection) { row in
             OutlineRowView(row: row, model: model)
         }
+        .scrollContentBackground(.hidden)
+        .background(theme.background)
         .contextMenu {
             Button("Expand All") { model.expandAll() }
             Button("Collapse All") { model.collapseAll() }

@@ -7,6 +7,7 @@ import SwiftUI
 /// main panel, so epics aren't a special case here.
 struct SidebarView: View {
     let model: WorkspaceModel
+    @Environment(\.theme) private var theme
 
     var body: some View {
         List(selection: selection) {
@@ -18,6 +19,10 @@ struct SidebarView: View {
                 }
             }
         }
+        // The theme paints the sidebar too, which costs macOS's translucency and buys a window
+        // that looks like one thing.
+        .scrollContentBackground(.hidden)
+        .background(theme.surface)
     }
 
     private var selection: Binding<ViewSource?> {

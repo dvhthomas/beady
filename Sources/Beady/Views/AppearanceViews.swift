@@ -238,6 +238,8 @@ private struct Themed: ViewModifier {
     func body(content: Content) -> some View {
         let theme = themes.theme(for: colorScheme)
         content
+            .onAppear { themes.paintWindows(theme.colors.background) }
+            .onChange(of: theme) { themes.paintWindows(theme.colors.background) }
             .environment(\.theme, theme)
             .tint(theme.accent)
             .foregroundStyle(theme.text)
