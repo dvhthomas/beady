@@ -47,6 +47,15 @@ enum SnapshotMode {
             if !condition { failures.append(name) }
         }
 
+        // 0. Before anything takes focus: Escape lets go of the selection.
+        model.selection = model.visibleIssues.first?.id
+        pump(seconds: 0.4)
+        check("a bead is selected", model.selection != nil)
+        check("…and nothing has the keyboard yet", !ui.isSearchFocused)
+        type("\u{1b}", into: window)
+        pump(seconds: 0.4)
+        check("Escape clears the selection", model.selection == nil, "selection = \(model.selection?.rawValue ?? "nil")")
+
         // 1. Typing in the search field must reach the field, not the shortcuts.
         ui.focusSearch()
         pump(seconds: 0.6)
@@ -85,13 +94,51 @@ enum SnapshotMode {
             check("with no field focused, f opens the filter menu", ui.showsFilterMenu)
         }
 
+        // 4. Escape lets go of the selection — but not while search has the keyboard.
+        ui.showsFilterMenu = false
+        pump(seconds: 0.4)
+        model.selection = model.visibleIssues.first?.id
+        ui.focusSearch()
+        pump(seconds: 0.5)
+        if ui.isSearchFocused {
+            type("\u{1b}", into: window)
+            pump(seconds: 0.3)
+            check("Escape in the search field leaves the selection alone", model.selection != nil)
+        }
+
+        // 5. Sheets that need nothing from you close on Escape.
+        ui.showsShortcuts = true
+        pump(seconds: 0.8)
+        type("\u{1b}", into: NSApp.keyWindow ?? window)
+        pump(seconds: 0.6)
+        check("Escape closes the shortcuts sheet", !ui.showsShortcuts)
+
+        // 6. So does the dependency window.
+        var graphClosed = false
+        let graphWindow = NSWindow(
+            contentRect: CGRect(x: 160, y: 160, width: 900, height: 600),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        graphWindow.isReleasedWhenClosed = false
+        graphWindow.contentView = NSHostingView(
+            rootView: DependencyGraphView(model: model, ui: ui) { graphClosed = true }.themed(session.themes)
+        )
+        graphWindow.makeKeyAndOrderFront(nil)
+        pump(seconds: 0.8)
+        type("\u{1b}", into: graphWindow)
+        pump(seconds: 0.4)
+        check("Escape closes the dependency window", graphClosed)
+        graphWindow.close()
+
         print(failures.isEmpty ? "\nAll key checks passed." : "\nFailed: \(failures.joined(separator: ", "))")
         exit(failures.isEmpty ? 0 : 1)
     }
 
     /// Sends a keystroke the way a keyboard would, through the window's event handling.
     private static func type(_ character: String, into window: NSWindow, shift: Bool = false) {
-        let codes: [String: UInt16] = ["f": 3, "/": 44, "?": 44, "v": 9]
+        let codes: [String: UInt16] = ["f": 3, "/": 44, "?": 44, "v": 9, "\u{1b}": 53]
         guard let event = NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,

@@ -170,8 +170,8 @@ struct ShortcutsView: View {
             HStack {
                 Text("Keyboard Shortcuts").font(.headline)
                 Spacer()
-                Button("Done", action: onClose)
-                    .keyboardShortcut(.defaultAction)
+                Button("Close", action: onClose)
+                    .keyboardShortcut(.cancelAction)
             }
             .padding(14)
             Divider()
