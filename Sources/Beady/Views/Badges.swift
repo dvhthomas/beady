@@ -46,20 +46,15 @@ enum IssueTypeStyle {
 struct PriorityBadge: View {
     let priority: Int
     @Environment(\.theme) private var theme
-    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
+        // Plain text: a priority is a number you read, not a signal that needs a colour.
         Text(DisplayText.priority(priority))
-            .font(.caption2.weight(.semibold))
+            .font(.caption.weight(.medium))
             .monospacedDigit()
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .foregroundStyle(color)
-            .background(color.opacity(0.15), in: Capsule())
+            .rowForeground(theme.text)
             .help("Priority \(priority) (0 is highest)")
     }
-
-    private var color: Color { prominence == .increased ? .primary : theme.priority(priority) }
 }
 
 struct StatusBadge: View {
@@ -257,18 +252,34 @@ enum MarkStyle {
 }
 
 /// The pin and star a bead is wearing, if any.
+///
+/// A glyph is only drawn when the mark is set, so clicking one can only mean "take it off" —
+/// which saves opening the bead just to unstar it. Putting a mark *on* stays in the details
+/// panel, where there's room to say what it does.
 struct MarkGlyphs: View {
     let issue: Issue
+    /// Nil where removing isn't appropriate — a card in the graph sheet, say.
+    var remove: ((IssueMark) -> Void)?
     @Environment(\.theme) private var theme
     @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
         ForEach(IssueMark.allCases.filter(issue.has), id: \.self) { mark in
-            Image(systemName: MarkStyle.symbol(mark))
-                .font(.caption)
-                .foregroundStyle(color(for: mark))
-                .help(mark.title)
+            if let remove {
+                Button { remove(mark) } label: { glyph(mark) }
+                    .buttonStyle(.plain)
+                    .help(MarkStyle.action(mark, isOn: true))
+            } else {
+                glyph(mark)
+                    .help(mark.title)
+            }
         }
+    }
+
+    private func glyph(_ mark: IssueMark) -> some View {
+        Image(systemName: MarkStyle.symbol(mark))
+            .font(.caption)
+            .foregroundStyle(color(for: mark))
     }
 
     private func color(for mark: IssueMark) -> Color {

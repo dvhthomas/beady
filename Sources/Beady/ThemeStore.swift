@@ -152,5 +152,4 @@ extension Theme {
     var starred: Color { Color(colors.starred) }
 
     func color(_ category: StatusCategory) -> Color { Color(colors.category(category)) }
-    func priority(_ priority: Int) -> Color { Color(colors.priority(priority)) }
 }

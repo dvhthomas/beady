@@ -24,10 +24,6 @@ struct ThemeTests {
                 let ratio = theme.colors.category(category).contrast(with: theme.colors.background)
                 #expect(ratio >= 3, "\(theme.name): \(category.rawValue) is \(String(format: "%.2f", ratio)):1")
             }
-            for priority in 0...4 {
-                let ratio = theme.colors.priority(priority).contrast(with: theme.colors.background)
-                #expect(ratio >= 3, "\(theme.name): P\(priority) is \(String(format: "%.2f", ratio)):1")
-            }
             for accent in [theme.colors.blocked, theme.colors.pinned, theme.colors.starred, theme.colors.accent] {
                 #expect(accent.contrast(with: theme.colors.background) >= 3, "\(theme.name): an accent is too faint")
             }
@@ -44,10 +40,6 @@ struct ThemeTests {
             for category in StatusCategory.allCases {
                 let ratio = theme.colors.category(category).contrast(with: theme.colors.selection)
                 #expect(ratio >= 3, "\(theme.name): \(category.rawValue) on a selected row is \(String(format: "%.2f", ratio)):1")
-            }
-            for priority in 0...4 {
-                let ratio = theme.colors.priority(priority).contrast(with: theme.colors.selection)
-                #expect(ratio >= 3, "\(theme.name): P\(priority) on a selected row is \(String(format: "%.2f", ratio)):1")
             }
         }
     }

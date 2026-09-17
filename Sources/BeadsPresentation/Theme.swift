@@ -86,17 +86,6 @@ public struct ThemeColors: Equatable, Sendable {
         case .done: done
         }
     }
-
-    /// P0 is the loudest; P3 and P4 recede without becoming unreadable.
-    public func priority(_ priority: Int) -> RGB {
-        switch priority {
-        case 0: blocked
-        case 1: wip
-        case 2: accent
-        case 3: frozen
-        default: secondaryText
-        }
-    }
 }
 
 public struct Theme: Equatable, Sendable, Identifiable {
