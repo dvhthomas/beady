@@ -156,3 +156,44 @@ struct EditingSessionTests {
         #expect(model.draft == nil)
     }
 }
+
+@MainActor
+@Suite("Backup, as the window reports it")
+struct BackupSummaryTests {
+    func makeModel() async -> (WorkspaceModel, MemoryStore) {
+        let store = MemoryStore([makeIssue("a")])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 + 3600 })
+        await model.load()
+        return (model, store)
+    }
+
+    @Test("a database with no backup says so, and the palette offers to set one up")
+    func notConfigured() async {
+        let (model, _) = await makeModel()
+        #expect(model.backupSummary == "not backed up")
+        #expect(CommandCatalog.results(for: "", model: model).contains(.setUpBackup))
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.backUpNow))
+    }
+
+    @Test("setting one up runs the first backup and changes what's offered")
+    func setUp() async {
+        let (model, _) = await makeModel()
+        let failure = await model.startBackingUp(to: "/tmp/backups")
+        #expect(failure == nil)
+        #expect(model.backup.destination == "/tmp/backups")
+        #expect(model.backupSummary == "backed up 1 hour ago")
+        #expect(CommandCatalog.results(for: "", model: model).contains(.backUpNow))
+    }
+
+    @Test("a backup that fails says why rather than pretending")
+    func failure() async {
+        let (model, store) = await makeModel()
+        store.backup = BackupStatus(destination: "/tmp/backups", lastSync: nil, databaseSize: "1 KB")
+        await model.refreshBackupStatus()
+        #expect(model.backupSummary == "backup set up, not run yet")
+
+        store.failure = LoadFailure()
+        let failure = await model.backUpNow()
+        #expect(failure == "bd exploded")
+    }
+}

@@ -5,6 +5,25 @@ import Foundation
 /// optional fields get defaults, and a record that can't be read at all is skipped and
 /// counted, so one odd row never hides the whole database.
 public enum BDJSON {
+    /// `bd backup status --json`. Absent or false `configured` simply means no backup, which is
+    /// a state to report rather than an error.
+    public static func decodeBackupStatus(_ data: Data) throws -> BackupStatus {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw DecodingFailure(detail: "bd backup status didn't return an object")
+        }
+        let dolt = root["dolt"] as? [String: Any] ?? [:]
+        guard dolt["configured"] as? Bool == true, let url = dolt["backup_url"] as? String else {
+            return .none
+        }
+        // bd reports a URL; people think in paths.
+        let destination = URL(string: url).flatMap { $0.isFileURL ? $0.path : url } ?? url
+        return BackupStatus(
+            destination: destination,
+            lastSync: parseDate(dolt["last_sync"] as? String),
+            databaseSize: (root["database_size"] as? [String: Any])?["human"] as? String
+        )
+    }
+
     /// `bd history <id> --json`: one entry per Dolt commit, each with a snapshot of the issue.
     /// The commit date is used rather than the issue's `updated_at`, which several commits share.
     public static func decodeHistory(_ data: Data) throws -> [IssueVersion] {

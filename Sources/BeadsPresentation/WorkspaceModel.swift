@@ -129,6 +129,7 @@ public final class WorkspaceModel {
         if let log = try? await store.recentActivity(since: now().addingTimeInterval(-activityWindow)) {
             noteActivity(log)
         }
+        await refreshBackupStatus()
         do {
             snapshot = try await store.loadSnapshot()
             reapplyDesiredMarks()
@@ -442,6 +443,56 @@ public final class WorkspaceModel {
         if back.count > Self.maxHistory { back.removeFirst(back.count - Self.maxHistory) }
         // Going somewhere new abandons whatever was ahead, as a browser does.
         forward.removeAll()
+    }
+
+    // MARK: Backup
+
+    /// Where this database is backed up, refreshed with each load. bd does the work; the app
+    /// only reports it and asks for it.
+    public private(set) var backup: BackupStatus = .none
+    /// True while a backup is running, so the indicator can say so.
+    public private(set) var isBackingUp = false
+
+    public func refreshBackupStatus() async {
+        backup = (try? await store.backupStatus()) ?? .none
+    }
+
+    /// Runs bd's backup now. Returns the failure, if any, for the caller to show.
+    @discardableResult
+    public func backUpNow() async -> String? {
+        guard !isBackingUp, backup.isConfigured else { return nil }
+        isBackingUp = true
+        defer { isBackingUp = false }
+        do {
+            try await store.syncBackup()
+            await refreshBackupStatus()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Points bd at a folder and takes the first backup.
+    @discardableResult
+    public func startBackingUp(to folder: String) async -> String? {
+        guard !isBackingUp else { return nil }
+        isBackingUp = true
+        defer { isBackingUp = false }
+        do {
+            try await store.configureBackup(folder: folder)
+            await refreshBackupStatus()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// One phrase for the window's subtitle: the whole backup UI, as agreed.
+    public var backupSummary: String? {
+        if isBackingUp { return "backing up…" }
+        guard backup.isConfigured else { return "not backed up" }
+        guard let last = backup.lastSync else { return "backup set up, not run yet" }
+        return "backed up \(ChangeDescriber.ago(last, from: now()))"
     }
 
     // MARK: Editing a bead

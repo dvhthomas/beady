@@ -90,6 +90,21 @@ among several:
   is marked and the confirmation sheet says so. It informs; it never blocks, because a lock bd
   doesn't offer can't be faked.
 
+## Backing it up
+
+The toolbar says whether this database could be recovered — "backed up 6 min ago", or "not backed
+up" — and clicking it either backs up now or asks for a folder. Underneath it's `bd backup`, which
+is a Dolt-native push: tables, branches and history, not just the issues. (`bd export` writes
+JSONL for interchange and is explicitly *not* a backup.)
+
+Pick a folder that something already carries off the machine — Time Machine, iCloud Drive, a
+synced disk. Restoring is a two-step CLI job by design, since it replaces a database:
+
+```bash
+bd init                         # if the workspace is empty
+bd backup restore /path/to/backup --force
+```
+
 ## Install
 
 Requirements: macOS 15 or later, and `bd` on your PATH.

@@ -7,6 +7,7 @@ import Testing
 /// directly. (`BeadsCore.Issue` spelled out because Swift Testing also has an `Issue`.)
 final class MemoryStore: BeadsStore, @unchecked Sendable {
     private let lock = NSLock()
+    var backup: BackupStatus = .none
     private var issues: [IssueID: BeadsCore.Issue]
     private var _applied: [IssueChange] = []
     private var _applyStarted = false
@@ -52,6 +53,14 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
 
     func recentActivity(since: Date) async throws -> ActivityLog { .empty }
     func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] { [] }
+    func backupStatus() async throws -> BackupStatus { backup }
+    func configureBackup(folder: String) async throws { backup = BackupStatus(destination: folder, lastSync: t0, databaseSize: "1 KB") }
+    func syncBackup() async throws {
+        if let failure { throw failure }
+        if let destination = backup.destination {
+            backup = BackupStatus(destination: destination, lastSync: t0, databaseSize: "1 KB")
+        }
+    }
 
     func currentIssue(_ id: IssueID) async throws -> BeadsCore.Issue? { lock.withLock { issues[id] } }
 

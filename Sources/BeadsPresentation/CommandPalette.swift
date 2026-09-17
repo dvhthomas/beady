@@ -64,6 +64,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case toggleColumn(ListColumn)
     case resetColumns
     case openSettings
+    case backUpNow
+    case setUpBackup
     case setSidebarStyle(SidebarStyle)
     case chooseTheme
     case setTextSize(TextSize)
@@ -97,6 +99,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "column-\(column.id)"
         case .resetColumns: "reset-columns"
         case .openSettings: "open-settings"
+        case .backUpNow: "back-up-now"
+        case .setUpBackup: "set-up-backup"
         case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
@@ -132,6 +136,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "Column: \(column.title)"
         case .resetColumns: "Reset Columns"
         case .openSettings: "Settings…"
+        case .backUpNow: "Back Up Now"
+        case .setUpBackup: "Set Up Backup…"
         case .setSidebarStyle(let style): "Sidebar: \(style.title)"
         case .chooseTheme: "Theme…"
         case .setTextSize(let size): "Text Size: \(size.title)"
@@ -166,6 +172,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn: ["column", "show", "hide", "table"]
         case .resetColumns: ["columns", "reset", "default widths"]
         case .openSettings: ["settings", "preferences", "options", "text size"]
+        case .backUpNow: ["backup", "back up", "sync", "save", "copy", "dolt"]
+        case .setUpBackup: ["backup", "back up", "configure backup", "destination", "folder"]
         case .setSidebarStyle: ["sidebar", "translucent", "vibrancy", "material", "native"]
         case .goBack: ["back", "previous", "return", "undo navigation"]
         case .goForward: ["forward", "next", "again"]
@@ -181,7 +189,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     /// The section it appears under in the palette and the shortcut sheet.
     public var group: String {
         switch self {
-        case .openWorkspace, .closeWorkspace, .refresh: "Workspace"
+        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup: "Workspace"
         case .newBead, .editSelected, .toggleMark, .showGraph: "Beads"
         case .focusSearch, .addFilter, .clearFilters: "Find"
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
@@ -218,7 +226,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goForward: [KeyBinding("]", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected,
-             .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle: []
+             .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
+             .backUpNow, .setUpBackup: []
         }
     }
 
@@ -262,6 +271,7 @@ public enum CommandCatalog {
     /// workspace — isn't offered, so nothing in the list is a dead end.
     @MainActor
     public static func all(for model: WorkspaceModel) -> [AppCommand] {
+        let backup = model.backup
         var commands: [AppCommand] = [.openWorkspace, .refresh]
         if model.canEdit { commands.append(.newBead) }
         if model.canEdit, model.selection != nil {
@@ -283,6 +293,7 @@ public enum CommandCatalog {
         commands += SidebarStyle.allCases.map { .setSidebarStyle($0) }
         commands.append(.openSettings)
         if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
+        commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
         commands.append(.closeWorkspace)
         commands += Scope.allCases.map { .showView(.lifecycle($0)) }
         if model.hasStarredBeads { commands.append(.showView(.label(IssueMark.starred.label))) }

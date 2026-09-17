@@ -50,6 +50,9 @@ public enum BDCommand: Equatable, Sendable {
     case ready
     case blocked
     case history(IssueID, limit: Int)
+    case backupStatus
+    case backupInit(String)
+    case backupSync
     case updateFields(IssueID, IssueEdit)
     case setStatus(IssueID, String)
     case setParent(IssueID, IssueID?)
@@ -63,9 +66,9 @@ public enum BDCommand: Equatable, Sendable {
 
     public var isReadOnly: Bool {
         switch self {
-        case .list, .listTitled, .statuses, .show, .ready, .blocked, .history: true
+        case .list, .listTitled, .statuses, .show, .ready, .blocked, .history, .backupStatus: true
         case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .addBlocker,
-             .removeBlocker, .close, .reopen, .create: false
+             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync: false
         }
     }
 
@@ -86,6 +89,13 @@ public enum BDCommand: Equatable, Sendable {
             return Self.readOnly(["blocked", "--json"])
         case .history(let id, let limit):
             return Self.readOnly(["history", id.rawValue, "--limit", String(limit), "--json"])
+        case .backupStatus:
+            // Not --readonly: bd rejects that flag here, and reading status writes nothing.
+            return ["backup", "status", "--json"]
+        case .backupInit(let path):
+            return ["backup", "init", path]
+        case .backupSync:
+            return ["backup", "sync"]
         case .updateFields(let id, let edit):
             // One write for the whole edit: bd takes every field on a single update, so two
             // people editing different fields don't get interleaved half-changes.
