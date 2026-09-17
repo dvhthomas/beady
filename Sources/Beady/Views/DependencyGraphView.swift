@@ -11,6 +11,8 @@ struct DependencyGraphView: View {
     @Environment(\.theme) private var theme
     let model: WorkspaceModel
     let ui: WorkspaceUI
+    /// Set when the graph is its own window: it needs nothing from you, so Escape closes it.
+    var close: (() -> Void)?
 
     private static let cell = CGSize(width: 230, height: 76)
     private static let gap = CGSize(width: 64, height: 16)
@@ -72,6 +74,10 @@ struct DependencyGraphView: View {
                     .keyboardShortcut("=", modifiers: .command)
             }
             .buttonStyle(.accessoryBar)
+            if let close {
+                Button("Close", action: close)
+                    .keyboardShortcut(.cancelAction)
+            }
         }
         .controlSize(.small)
         .padding(.horizontal, 14)
@@ -296,11 +302,12 @@ struct DependencyGraphView: View {
 /// The dependency window: follows the open workspace, and the main window's selection.
 struct DependencyWindow: View {
     let session: AppSession
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         Group {
             if let model = session.model {
-                DependencyGraphView(model: model, ui: session.ui)
+                DependencyGraphView(model: model, ui: session.ui) { dismissWindow(id: "dependencies") }
                     .onChange(of: model.selection) {
                         // Picking a bead in the main window moves the graph too.
                         if let id = model.selection { session.ui.graphFocus = id }

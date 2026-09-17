@@ -1,3 +1,4 @@
+import AppKit
 import BeadsCore
 import BeadsPresentation
 import SwiftUI
@@ -16,6 +17,7 @@ struct WorkspaceView: View {
     @AppStorage("scope") private var storedScope = Scope.open.rawValue
     /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var searchFocus = FocusState<Bool>()
+    private var escapeMonitor = State<Any?>(initialValue: nil)
 
     init(
         model: WorkspaceModel,
@@ -67,6 +69,11 @@ struct WorkspaceView: View {
         .onChange(of: model.selection) { if model.selection != nil { ui.showsInspector = true } }
         .onChange(of: model.activity.first?.id) {
             if model.activity.first?.succeeded == true { ui.showsNewBead = false }
+        }
+        .onAppear(perform: watchEscape)
+        .onDisappear {
+            if let monitor = escapeMonitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+            escapeMonitor.wrappedValue = nil
         }
         .task {
             await model.load()
@@ -120,6 +127,28 @@ struct WorkspaceView: View {
 
     /// One sheet serves both the new-bead form and the confirmation of any change, so a create
     /// can move from form to confirmation (and back, on cancel) without stacking sheets.
+    /// Escape lets go of the selected bead in the list, tree or board. It stands down whenever
+    /// something else has a better claim on the key: a sheet (Escape cancels it), the search
+    /// field (Escape clears it), any other text field, or an edit in progress.
+    private func watchEscape() {
+        guard escapeMonitor.wrappedValue == nil else { return }
+        let model = model
+        let ui = ui
+        escapeMonitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
+            guard event.keyCode == 53,
+                  event.window?.identifier?.rawValue.contains("dependencies") != true,
+                  model.selection != nil,
+                  model.draft == nil,
+                  model.pendingChange == nil,
+                  !ui.isSheetOpen,
+                  !ui.isSearchFocused,
+                  !(NSApp.keyWindow?.firstResponder is NSTextView)
+            else { return event }
+            model.selection = nil
+            return nil
+        }
+    }
+
     /// The whole backup UI: one word about whether this database could be recovered, and a click
     /// to do something about it.
     ///
