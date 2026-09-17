@@ -39,7 +39,9 @@ struct IssueListView: View {
             }
             column(.title) { issue in
                 HStack(spacing: 6) {
-                    MarkGlyphs(issue: issue)
+                    MarkGlyphs(issue: issue) { mark in
+                        Task { await model.toggleMark(mark, on: issue.id) }
+                    }
                     Text(issue.title)
                         .lineLimit(1)
                         .rowForeground(theme.text)
@@ -234,7 +236,12 @@ private struct OutlineRowView: View {
                 }
             }
             .frame(width: 14)
-            TreeIssueRow(node: row.node, snapshot: model.snapshot) { model.selection = $0 }
+            TreeIssueRow(
+                node: row.node,
+                snapshot: model.snapshot,
+                openBlocker: { model.selection = $0 },
+                removeMark: { mark in Task { await model.toggleMark(mark, on: row.id) } }
+            )
         }
         .padding(.leading, CGFloat(row.depth) * 18)
         .background(isDropTarget.wrappedValue ? theme.accent.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 4))
@@ -256,6 +263,7 @@ private struct TreeIssueRow: View {
     let node: IssueTreeNode
     let snapshot: IssueSnapshot?
     let openBlocker: (IssueID) -> Void
+    let removeMark: (IssueMark) -> Void
 
     var body: some View {
         let issue = node.issue
@@ -267,7 +275,7 @@ private struct TreeIssueRow: View {
             Text(issue.id.rawValue)
                 .font(.callout.monospaced())
                 .foregroundStyle(.secondary)
-            MarkGlyphs(issue: issue)
+            MarkGlyphs(issue: issue, remove: removeMark)
             Text(issue.title)
                 .lineLimit(1)
                 .help(DisplayText.preview(issue.title) ?? "")
@@ -373,7 +381,13 @@ private struct BoardColumnView: View {
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(group.issues) { issue in
-                        IssueCard(issue: issue, snapshot: model.snapshot, isSelected: model.selection == issue.id) { model.selection = $0 }
+                        IssueCard(
+                            issue: issue,
+                            snapshot: model.snapshot,
+                            isSelected: model.selection == issue.id,
+                            openBlocker: { model.selection = $0 },
+                            removeMark: { mark in Task { await model.toggleMark(mark, on: issue.id) } }
+                        )
                             .onTapGesture { model.selection = issue.id }
                             .draggableIssue(issue.id, when: model.canEdit)
                     }
@@ -409,6 +423,7 @@ private struct IssueCard: View {
     let snapshot: IssueSnapshot?
     let isSelected: Bool
     let openBlocker: (IssueID) -> Void
+    let removeMark: (IssueMark) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -421,7 +436,7 @@ private struct IssueCard: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 4) {
-                MarkGlyphs(issue: issue)
+                MarkGlyphs(issue: issue, remove: removeMark)
                 Text("")
                     .frame(width: 0, height: 0)
             }
