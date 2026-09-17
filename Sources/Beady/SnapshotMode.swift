@@ -260,26 +260,34 @@ enum SnapshotMode {
             model.endEditing()
         }
 
+        // The dependency window: the whole graph, then focused on a bead with both a past and a
+        // future, so bold upstream and tinted downstream both show.
+        let graph = DependencyGraph(snapshot)
+        session.ui.graphFocus = nil
+        capture("17-graph-whole", DependencyGraphView(model: model, ui: session.ui))
+        if let middle = graph.nodes.max(by: {
+            min(graph.upstream(of: $0.id).count, graph.downstream(of: $0.id).count)
+                < min(graph.upstream(of: $1.id).count, graph.downstream(of: $1.id).count)
+        }) {
+            // Recentring is the point, so it's checked on a live view: open unfocused, then
+            // follow a bead, and see where the view ends up.
+            session.ui.graphFocus = nil
+            renderLive(
+                DependencyGraphView(model: model, ui: session.ui).themed(session.themes),
+                to: directory,
+                first: "18a-graph-before-follow",
+                second: "18b-graph-after-follow"
+            ) { session.ui.graphFocus = middle.id }
+            print("focused \(middle.id): \(graph.upstream(of: middle.id).count) upstream, \(graph.downstream(of: middle.id).count) downstream")
+            session.ui.graphFocus = nil
+        }
+
         // The popover behind the waiting mark.
         if let waiting = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }),
            let reason = BlockedReason.of(waiting.id, in: snapshot) {
             capture("14-waiting-detail", WaitingDetail(reason: reason, snapshot: snapshot, open: { _ in }))
         }
 
-        // The graph sheet, on whatever is most tangled up.
-        if let blocked = snapshot.issues.first(where: { snapshot.isBlocked($0) && !snapshot.openBlockers(of: $0).isEmpty }) {
-            model.selection = blocked.id
-            capture("13-graph", GraphSheet(model: model, onClose: {}))
-        }
-
-        // History reads from bd, so give it a moment before the shutter.
-        if let busiest = snapshot.issues.max(by: { $0.updatedAt < $1.updatedAt }) {
-            let section = HistorySection(model: model, issue: busiest, startExpanded: true)
-            Task { await model.loadHistory(for: busiest.id) }
-            pump(timeout: 10) { if case .loaded = model.history[busiest.id] { true } else { false } }
-            capture("12-history", section.frame(width: 420).padding())
-        }
-        capture("10-shortcuts", ShortcutsView(model: model, onClose: {}))
         exit(0)
     }
 

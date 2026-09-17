@@ -144,7 +144,7 @@ final class AppSession {
             if let model, let id = model.selection {
                 Task { await model.toggleMark(mark, on: id) }
             }
-        case .showGraph: if model?.selection != nil { ui.showsGraph = true }
+        case .showGraph: ui.openGraph(focusing: model?.selection)
         case .goBack: model?.goBack()
         case .goForward: model?.goForward()
         case .focusSelected: if let id = model?.selection { model?.focus(on: id) }

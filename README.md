@@ -31,7 +31,7 @@ touched that bead four seconds ago, and the app says so rather than pretending i
 - **Ask what's in the way.** bd's "blocked" means something upstream has to land first, so Beady
   says so rather than sounding an alarm: a quiet waiting mark, a **Blocked by** column (on by
   default in the Blocked and Ready views) naming the blocker, and a details section with the chain
-  grouped into "start now" and "then". ⌘G opens the same thing as a one-hop graph.
+  grouped into "start now" and "then". ⌘G opens the whole dependency graph in its own window.
 - **Change things carefully.** Nothing is written until you confirm a sheet showing the change,
   its warnings, and the commands themselves.
 
@@ -71,6 +71,15 @@ Escape puts back what you had.
 Every colour in the app is a design token, and the contrast of every theme is checked by tests:
 body text clears WCAG AA (4.5:1) on both the background and a row, status and priority colours
 clear 3:1, and the high-contrast themes clear AAA (7:1).
+
+## The dependency graph
+
+⌘G opens every `blocks` dependency in the database as one graph, read left to right the way
+`bd graph` reads: what can start now on the left, what waits on it further right. Click any bead
+to follow it — the view recentres on it, draws everything it's waiting on in bold, tints
+everything waiting on it, and lets the rest fade. Selecting a bead in the main window moves the
+graph too, and **Show in Main Window** goes the other way. Finished beads are drawn struck
+through, and a checkbox hides them; ⌘+ and ⌘− zoom.
 
 ## Writing to a live database
 

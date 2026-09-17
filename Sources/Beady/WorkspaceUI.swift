@@ -1,3 +1,4 @@
+import BeadsCore
 import BeadsPresentation
 import Observation
 
@@ -11,7 +12,6 @@ final class WorkspaceUI {
     var showsPalette = false
     var showsShortcuts = false
     var showsThemes = false
-    var showsGraph = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
     /// True while the search field has the keyboard. Single-key shortcuts stand down then, so
@@ -25,13 +25,24 @@ final class WorkspaceUI {
     /// missing under Command Line Tools — didn't reliably receive what was typed, leaving the
     /// list unfiltered while the field showed the text.
     var paletteQuery = ""
+    /// The dependency window's state, here for the same reason as the palette's.
+    var graphFocus: IssueID?
+    var graphIncludesFinished = true
+    var graphZoom: Double = 1
+    /// Bumped to ask the root view to open the dependency window; only a view can do that.
+    private(set) var graphWindowRequests = 0
+
+    func openGraph(focusing id: IssueID?) {
+        if let id { graphFocus = id }
+        graphWindowRequests += 1
+    }
     var paletteHighlight = 0
 
     @ObservationIgnored let columns = ColumnLayout()
 
     /// True while anything modal is up, so background key handling stands down.
     var isSheetOpen: Bool {
-        showsPalette || showsThemes || showsGraph || showsNewBead || showsShortcuts
+        showsPalette || showsThemes || showsNewBead || showsShortcuts
     }
 
     /// Opens the palette empty, wherever it was left last time.
