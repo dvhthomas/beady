@@ -11,6 +11,9 @@ struct BeadyApp: App {
     private let session = AppSession()
 
     init() {
+        if SnapshotMode.verifiesKeys {
+            SnapshotMode.verifyKeys()
+        }
         if let directory = SnapshotMode.outputDirectory {
             SnapshotMode.run(to: directory)
         }

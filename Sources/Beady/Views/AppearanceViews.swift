@@ -242,6 +242,14 @@ struct SettingsView: View {
                     ForEach(Theme.all.filter { $0.appearance == .light }) { Text($0.name).tag($0.name) }
                 }
             }
+            Section("Sidebar") {
+                Picker("Style", selection: binding(\.sidebarStyle)) {
+                    ForEach(SidebarStyle.allCases) { Text($0.title).tag($0) }
+                }
+                Text(themes.sidebarStyle.detail)
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
             Section("Reading") {
                 Picker("Text size", selection: binding(\.textSize)) {
                     ForEach(TextSize.allCases) { Text($0.title).tag($0) }
@@ -278,6 +286,7 @@ private struct Themed: ViewModifier {
     func body(content: Content) -> some View {
         let theme = themes.theme(for: colorScheme)
         content
+            .environment(\.sidebarStyle, themes.sidebarStyle)
             .onAppear { themes.paintWindows(theme.colors.background) }
             .onChange(of: theme) { themes.paintWindows(theme.colors.background) }
             .environment(\.theme, theme)

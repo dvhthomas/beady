@@ -11,6 +11,103 @@ import SwiftUI
 /// exits. It never applies a change and leaves saved preferences untouched.
 @MainActor
 enum SnapshotMode {
+    /// `BEADY_VERIFY_KEYS=1 Beady --workspace <path>` types into a real window and reports
+    /// whether single-key shortcuts behaved. It exists because "does typing f open the filter
+    /// menu?" is otherwise a question only a human at the keyboard can answer.
+    static var verifiesKeys: Bool {
+        ProcessInfo.processInfo.environment["BEADY_VERIFY_KEYS"] == "1"
+    }
+
+    static func verifyKeys() -> Never {
+        let session = AppSession(preferences: nil)
+        guard let model = session.model else { fail(session.openError ?? "no workspace; pass --workspace") }
+        Task { await model.load() }
+        pump(timeout: 60) { model.loadState != .idle && model.loadState != .loading }
+
+        let ui = session.ui
+        let window = NSWindow(
+            contentRect: CGRect(x: 100, y: 100, width: 1200, height: 800),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(
+            rootView: WorkspaceView(model: model, ui: ui, themes: session.themes, run: session.run, persistsPreferences: false)
+                .themed(session.themes)
+        )
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        pump(seconds: 1.5)
+
+        var failures: [String] = []
+        func check(_ name: String, _ condition: Bool, _ detail: @autoclosure () -> String = "") {
+            let mark = condition ? "ok  " : "FAIL"
+            print("\(mark) \(name)\(condition ? "" : " — \(detail())")")
+            if !condition { failures.append(name) }
+        }
+
+        // 1. Typing in the search field must reach the field, not the shortcuts.
+        ui.focusSearch()
+        pump(seconds: 0.6)
+        check("search field takes focus", ui.isSearchFocused)
+        type("f", into: window)
+        type("/", into: window)
+        type("?", into: window, shift: true)
+        pump(seconds: 0.5)
+        check("typing f / ? into search doesn't open the filter menu", !ui.showsFilterMenu)
+        check("…or the shortcut sheet", !ui.showsShortcuts)
+        check("…and the characters land in the field", model.searchText.contains("f"), "searchText = “\(model.searchText)”")
+
+        // 2. The same keys with a sheet open must not reach the window behind it.
+        model.searchText = ""
+        ui.showsNewBead = true
+        pump(seconds: 0.8)
+        type("f", into: window)
+        type("?", into: window, shift: true)
+        pump(seconds: 0.5)
+        check("a sheet is open", ui.showsNewBead)
+        check("typing f behind a sheet doesn't open the filter menu", !ui.showsFilterMenu)
+        check("typing ? behind a sheet doesn't open the shortcut sheet", !ui.showsShortcuts)
+        ui.showsNewBead = false
+        pump(seconds: 0.4)
+
+        // 3. The other half of the bargain: with nothing focused, the bare keys still work.
+        // Clearing the flag isn't enough — AppKit's focus has to actually move, and if the
+        // harness can't manage that, this is reported as untested rather than failed.
+        window.makeFirstResponder(nil)
+        pump(seconds: 0.8)
+        if ui.isSearchFocused {
+            print("skip  with no field focused, f opens the filter menu — harness couldn't blur the search field")
+        } else {
+            type("f", into: window)
+            pump(seconds: 0.5)
+            check("with no field focused, f opens the filter menu", ui.showsFilterMenu)
+        }
+
+        print(failures.isEmpty ? "\nAll key checks passed." : "\nFailed: \(failures.joined(separator: ", "))")
+        exit(failures.isEmpty ? 0 : 1)
+    }
+
+    /// Sends a keystroke the way a keyboard would, through the window's event handling.
+    private static func type(_ character: String, into window: NSWindow, shift: Bool = false) {
+        let codes: [String: UInt16] = ["f": 3, "/": 44, "?": 44, "v": 9]
+        guard let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: shift ? [.shift] : [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: character,
+            charactersIgnoringModifiers: shift && character == "?" ? "/" : character,
+            isARepeat: false,
+            keyCode: codes[character] ?? 0
+        ) else { return }
+        NSApp.sendEvent(event)
+        pump(seconds: 0.15)
+    }
+
     static var outputDirectory: URL? {
         ProcessInfo.processInfo.environment["BEADY_SNAPSHOT_DIR"].map { URL(fileURLWithPath: $0) }
     }

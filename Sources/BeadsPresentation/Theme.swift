@@ -212,6 +212,31 @@ public enum AppearancePreference: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// What the sidebar is made of. Theming every surface makes the window look like one thing;
+/// macOS's own material makes it look like a Mac app. Neither is wrong, so it's a setting.
+public enum SidebarStyle: String, CaseIterable, Identifiable, Sendable {
+    /// Painted from the theme, as Linear and VS Code do.
+    case themed
+    /// macOS's translucent sidebar material, as Finder and Xcode do.
+    case native
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .themed: "Themed"
+        case .native: "Translucent"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .themed: "One coherent window, painted by the theme."
+        case .native: "macOS's own material, which picks up what's behind the window."
+        }
+    }
+}
+
 /// How large the whole interface is drawn. macOS has no Dynamic Type, so the app provides it.
 public enum TextSize: String, CaseIterable, Identifiable, Sendable {
     case small

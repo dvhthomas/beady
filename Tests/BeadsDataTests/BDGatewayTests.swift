@@ -251,3 +251,27 @@ struct BDGatewayActivityTests {
         #expect(hits.value == 1, "six file writes in a burst should mean one reload, not six")
     }
 }
+
+@Suite("bd's chatter stays out of the app")
+struct BDNoiseTests {
+    @Test("warnings on a successful command are ignored, not shown")
+    func warningsIgnored() async throws {
+        // bd prints an auto-export warning on every write when no Dolt remote is configured.
+        // It goes to stderr with exit code 0, and the app must carry on as if it hadn't.
+        let runner = FakeRunner { _ in
+            CommandResult(
+                exitCode: 0,
+                stdout: Data(sampleListJSON.utf8),
+                stderr: "beads: auto-export warning: no Dolt remote configured.\n"
+            )
+        }
+        let gateway = BDGateway(
+            workspace: BeadsWorkspace(projectDirectory: URL(fileURLWithPath: "/tmp/project")),
+            executable: URL(fileURLWithPath: "/usr/bin/true"),
+            runner: runner
+        )
+        let store = BDStore(gateway: gateway)
+        let snapshot = try await store.loadSnapshot()
+        #expect(snapshot.issues.count == 4, "the warning is noise, and the data is what matters")
+    }
+}
