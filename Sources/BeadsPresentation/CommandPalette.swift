@@ -64,6 +64,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case toggleColumn(ListColumn)
     case resetColumns
     case openSettings
+    case setSidebarStyle(SidebarStyle)
     case chooseTheme
     case setTextSize(TextSize)
 
@@ -96,6 +97,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "column-\(column.id)"
         case .resetColumns: "reset-columns"
         case .openSettings: "open-settings"
+        case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
         }
@@ -130,6 +132,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "Column: \(column.title)"
         case .resetColumns: "Reset Columns"
         case .openSettings: "Settings…"
+        case .setSidebarStyle(let style): "Sidebar: \(style.title)"
         case .chooseTheme: "Theme…"
         case .setTextSize(let size): "Text Size: \(size.title)"
         }
@@ -163,6 +166,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn: ["column", "show", "hide", "table"]
         case .resetColumns: ["columns", "reset", "default widths"]
         case .openSettings: ["settings", "preferences", "options", "text size"]
+        case .setSidebarStyle: ["sidebar", "translucent", "vibrancy", "material", "native"]
         case .goBack: ["back", "previous", "return", "undo navigation"]
         case .goForward: ["forward", "next", "again"]
         case .toggleMark(let mark): mark == .pinned
@@ -183,7 +187,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
              .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
         case .focusSelected, .unfocus: "Views"
-        case .openSettings: "Appearance"
+        case .openSettings, .setSidebarStyle: "Appearance"
         case .showShortcuts: "Help"
         case .showView, .goBack, .goForward: "Views"
         case .goToIssue: "Beads"
@@ -214,7 +218,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goForward: [KeyBinding("]", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected,
-             .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns: []
+             .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle: []
         }
     }
 
@@ -276,6 +280,7 @@ public enum CommandCatalog {
             commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }
             commands.append(.resetColumns)
         }
+        commands += SidebarStyle.allCases.map { .setSidebarStyle($0) }
         commands.append(.openSettings)
         if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(.closeWorkspace)

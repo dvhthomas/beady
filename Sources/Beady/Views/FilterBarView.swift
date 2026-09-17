@@ -109,10 +109,11 @@ struct FilterBar: View {
         .allowsHitTesting(false)
     }
 
-    /// A command's bare key. It has to stand down while a field has the keyboard, or it swallows
-    /// the character being typed; the menu bar's ⌘ equivalent still works then.
+    /// A command's bare key. It stands down while a field has the keyboard or a sheet is open —
+    /// otherwise typing "f" into a title would open the filter menu behind it. The menu bar's ⌘
+    /// equivalents keep working throughout.
     private func plainKey(_ command: AppCommand) -> KeyboardShortcut? {
-        ui.isSearchFocused ? nil : command.plainShortcut
+        ui.isSearchFocused || ui.isSheetOpen ? nil : command.plainShortcut
     }
 
     private func binding(_ keyPath: ReferenceWritableKeyPath<WorkspaceUI, Bool>) -> Binding<Bool> {

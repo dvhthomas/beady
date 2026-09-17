@@ -33,6 +33,7 @@ final class ThemeStore {
         set { selection.lightName = newValue }
     }
     var textSize: TextSize { didSet { save() } }
+    var sidebarStyle: SidebarStyle { didSet { save() } }
     /// Set from the system's Increase Contrast setting; the high-contrast themes win while it's on.
     private(set) var systemWantsHighContrast: Bool
 
@@ -46,6 +47,7 @@ final class ThemeStore {
             lightName: defaults.string(forKey: "lightTheme") ?? Theme.defaultLight.name
         )
         textSize = TextSize(rawValue: defaults.string(forKey: "textSize") ?? "") ?? .default
+        sidebarStyle = SidebarStyle(rawValue: defaults.string(forKey: "sidebarStyle") ?? "") ?? .themed
         systemWantsHighContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         applyToApp()
     }
@@ -110,6 +112,19 @@ final class ThemeStore {
         defaults.set(selection.darkName, forKey: "darkTheme")
         defaults.set(selection.lightName, forKey: "lightTheme")
         defaults.set(textSize.rawValue, forKey: "textSize")
+        defaults.set(sidebarStyle.rawValue, forKey: "sidebarStyle")
+    }
+}
+
+/// Which sidebar treatment the window is using, alongside the theme.
+private struct SidebarStyleKey: EnvironmentKey {
+    static let defaultValue = SidebarStyle.themed
+}
+
+extension EnvironmentValues {
+    var sidebarStyle: SidebarStyle {
+        get { self[SidebarStyleKey.self] }
+        set { self[SidebarStyleKey.self] = newValue }
     }
 }
 

@@ -133,6 +133,7 @@ final class AppSession {
         case .collapseAll: model?.collapseAll()
         case .toggleColumn(let column): ui.columns.setVisible(column, !ui.columns.isVisible(column))
         case .resetColumns: ui.columns.reset()
+        case .setSidebarStyle(let style): themes.sidebarStyle = style
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size

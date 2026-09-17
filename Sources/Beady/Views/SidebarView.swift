@@ -8,6 +8,7 @@ import SwiftUI
 struct SidebarView: View {
     let model: WorkspaceModel
     @Environment(\.theme) private var theme
+    @Environment(\.sidebarStyle) private var style
 
     var body: some View {
         List(selection: selection) {
@@ -19,10 +20,10 @@ struct SidebarView: View {
                 }
             }
         }
-        // The theme paints the sidebar too, which costs macOS's translucency and buys a window
-        // that looks like one thing.
-        .scrollContentBackground(.hidden)
-        .background(theme.surface)
+        // Themed: one coherent window. Translucent: macOS's own material, which no theme can
+        // reproduce because it samples what's behind the window.
+        .scrollContentBackground(style == .themed ? .hidden : .automatic)
+        .background(style == .themed ? AnyShapeStyle(theme.surface) : AnyShapeStyle(.clear))
     }
 
     private var selection: Binding<ViewSource?> {
