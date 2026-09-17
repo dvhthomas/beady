@@ -26,6 +26,11 @@ struct BeadyApp: App {
         .defaultSize(width: 1320, height: 820)
         .commands { AppCommands(session: session) }
 
+        Window("Dependencies", id: "dependencies") {
+            DependencyWindow(session: session)
+        }
+        .defaultSize(width: 1100, height: 720)
+
         Settings {
             SettingsView(themes: session.themes)
                 .themed(session.themes)
@@ -45,11 +50,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct RootView: View {
     let session: AppSession
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         content
             .themed(session.themes)
             .onAppear { session.themes.watchAccessibility() }
+            // Only a view can open a window; commands ask through the UI state.
+            .onChange(of: session.ui.graphWindowRequests) { openWindow(id: "dependencies") }
     }
 
     @ViewBuilder

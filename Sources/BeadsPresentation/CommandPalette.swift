@@ -278,7 +278,8 @@ public enum CommandCatalog {
             commands.append(.editSelected)
             commands += IssueMark.allCases.map { .toggleMark($0) }
         }
-        if model.selection != nil { commands.append(.showGraph) }
+        // The graph is a whole-database view now, so it doesn't need a selection to open.
+        commands.append(.showGraph)
         if model.canGoBack { commands.append(.goBack) }
         if model.canGoForward { commands.append(.goForward) }
         if let id = model.selection, model.snapshot?.children(of: id).isEmpty == false {
