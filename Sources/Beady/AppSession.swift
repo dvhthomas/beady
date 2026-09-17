@@ -70,6 +70,26 @@ final class AppSession {
         workspace = nil
     }
 
+    /// A folder to back up into — anywhere Time Machine or a sync service already reaches.
+    func chooseBackupFolder() {
+        guard let model else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Choose a Backup Folder"
+        panel.message = "bd will push this database there: tables, branches and history, not just the issues."
+        panel.prompt = "Back Up Here"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await report(await model.startBackingUp(to: url.path)) }
+    }
+
+    /// Backup failures surface in the same alert as a workspace that wouldn't open.
+    private func report(_ failure: String?) {
+        guard let failure else { return }
+        openError = failure
+    }
+
     func chooseWorkspace() {
         let panel = NSOpenPanel()
         panel.title = "Open Beads Workspace"
@@ -134,6 +154,9 @@ final class AppSession {
         case .toggleColumn(let column): ui.columns.setVisible(column, !ui.columns.isVisible(column))
         case .resetColumns: ui.columns.reset()
         case .setSidebarStyle(let style): themes.sidebarStyle = style
+        case .backUpNow:
+            if let model { Task { await report(await model.backUpNow()) } }
+        case .setUpBackup: chooseBackupFolder()
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size

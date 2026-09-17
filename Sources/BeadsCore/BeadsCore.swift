@@ -20,4 +20,10 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
     /// Every recorded version of one bead, oldest or newest first — `History` turns these into
     /// readable changes.
     func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion]
+    /// Where this database is backed up, if anywhere.
+    func backupStatus() async throws -> BackupStatus
+    /// Points bd's backup at a folder, then pushes to it.
+    func configureBackup(folder: String) async throws
+    /// Pushes to the configured destination.
+    func syncBackup() async throws
 }

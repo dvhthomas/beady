@@ -69,6 +69,19 @@ public struct BDStore: BeadsStore {
         try BDJSON.decodeHistory(try await gateway.run(.history(id, limit: limit)))
     }
 
+    public func backupStatus() async throws -> BackupStatus {
+        try BDJSON.decodeBackupStatus(try await gateway.run(.backupStatus))
+    }
+
+    public func configureBackup(folder: String) async throws {
+        _ = try await gateway.run(.backupInit(folder))
+        _ = try await gateway.run(.backupSync)
+    }
+
+    public func syncBackup() async throws {
+        _ = try await gateway.run(.backupSync)
+    }
+
     /// The bd commands a change runs, in order.
     static func commands(for change: IssueChange) -> [BDCommand] {
         switch change {

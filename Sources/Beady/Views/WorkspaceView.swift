@@ -120,6 +120,40 @@ struct WorkspaceView: View {
 
     /// One sheet serves both the new-bead form and the confirmation of any change, so a create
     /// can move from form to confirmation (and back, on cancel) without stacking sheets.
+    /// The whole backup UI: one word about whether this database could be recovered, and a click
+    /// to do something about it.
+    ///
+    /// It sits in the toolbar rather than the window subtitle: feeding it through
+    /// `navigationSubtitle` put a state read into the title-bar update and AttributeGraph
+    /// reported a cycle for it.
+    @ViewBuilder
+    private var backupIndicator: some View {
+        if let summary = model.backupSummary {
+            Button {
+                run(model.backup.isConfigured ? .backUpNow : .setUpBackup)
+            } label: {
+                Label(summary, systemImage: symbol)
+            }
+            .labelStyle(.titleAndIcon)
+            .controlSize(.small)
+            .disabled(model.isBackingUp)
+            .help(helpText)
+        }
+    }
+
+    private var symbol: String {
+        if model.isBackingUp { return "arrow.triangle.2.circlepath" }
+        return model.backup.lastSync == nil ? "externaldrive.badge.exclamationmark" : "externaldrive.badge.checkmark"
+    }
+
+    private var helpText: String {
+        guard let destination = model.backup.destination else {
+            return "Nothing is backing this database up. bd's JSONL export carries the issues, not their history — click to choose a folder."
+        }
+        let size = model.backup.databaseSize.map { " · \($0)" } ?? ""
+        return "Backed up to \(destination)\(size). Click to back up now."
+    }
+
     private var inspectorPresented: Binding<Bool> {
         Binding(get: { ui.showsInspector }, set: { ui.showsInspector = $0 })
     }
@@ -169,12 +203,15 @@ struct WorkspaceView: View {
         if let lastLoaded = model.lastLoaded {
             parts.append("refreshed \(lastLoaded.formatted(date: .omitted, time: .standard))")
         }
+
         return parts.joined(separator: " · ")
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            backupIndicator
+
             Button {
                 run(.newBead)
             } label: {

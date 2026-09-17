@@ -30,6 +30,7 @@ struct ReadOnlyStoreError: Error {}
 /// A store for tests that only load. Serves queued results in order, repeating the last; writes fail.
 final class StubStore: BeadsStore, @unchecked Sendable {
     private let lock = NSLock()
+    var backup: BackupStatus = .none
     private var results: [Result<IssueSnapshot, Error>]
     private var _calls = 0
     private var _token = "t0"
@@ -57,6 +58,13 @@ final class StubStore: BeadsStore, @unchecked Sendable {
     func changeToken() async -> String { lock.withLock { _token } }
     func recentActivity(since: Date) async throws -> ActivityLog { .empty }
     func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] { [] }
+    func backupStatus() async throws -> BackupStatus { backup }
+    func configureBackup(folder: String) async throws { backup = BackupStatus(destination: folder, lastSync: t0, databaseSize: "1 KB") }
+    func syncBackup() async throws {
+        if let destination = backup.destination {
+            backup = BackupStatus(destination: destination, lastSync: t0, databaseSize: "1 KB")
+        }
+    }
     func currentIssue(_ id: IssueID) async throws -> Issue? { nil }
     func issuesCreated(titled title: String, since: Date) async throws -> [Issue] { [] }
     func apply(_ change: IssueChange) async throws -> IssueID { throw ReadOnlyStoreError() }
