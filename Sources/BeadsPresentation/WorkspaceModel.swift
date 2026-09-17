@@ -444,6 +444,55 @@ public final class WorkspaceModel {
         forward.removeAll()
     }
 
+    // MARK: Editing a bead
+
+    /// What's being edited right now, if anything. It lives here rather than in the form's own
+    /// state so a reload can't quietly replace what someone is typing — and so the values are
+    /// observable, which view-local storage under Command Line Tools has proved not to be.
+    public var draft: EditDraft?
+
+    public func beginEditing(_ id: IssueID) {
+        guard canEdit else { return }
+        draft = editDraft(for: id)
+    }
+
+    public func endEditing() {
+        draft = nil
+    }
+
+    /// Hands the draft to the confirmation sheet, which stays the only way to write.
+    public func reviewDraft() {
+        guard let draft, let change = draft.change else { return }
+        propose(change, basedOn: draft.original)
+    }
+
+    /// A draft of one bead, for the edit form. Nil when the bead isn't in this snapshot.
+    public func editDraft(for id: IssueID) -> EditDraft? {
+        snapshot?.issue(id).map(EditDraft.init)
+    }
+
+    /// The people already working in this database, for suggesting an assignee.
+    public var knownAssignees: [String] {
+        guard let snapshot else { return [] }
+        return snapshot.assignees.sorted()
+    }
+
+    /// Labels already in use, so a form offers them rather than inviting typos.
+    public var knownLabels: [String] {
+        guard let snapshot else { return [] }
+        return snapshot.labels.sorted()
+    }
+
+    /// bd's built-in types plus whatever this database has taken to using.
+    public var knownTypes: [String] {
+        ChangeValidator.coreTypes.union(snapshot?.types ?? []).sorted()
+    }
+
+    /// Statuses from `bd statuses`, so custom ones appear without the app knowing about them.
+    public var knownStatuses: [String] {
+        snapshot?.catalog.names ?? []
+    }
+
     // MARK: Pins and stars
 
     /// Adds or removes the bd label behind a mark.
@@ -737,6 +786,32 @@ public final class WorkspaceModel {
     }
 
     /// Moving to a lifecycle. Moving to the one it's already in does nothing.
+    /// Proposes adding or removing a blocker. bd keeps these as dependencies rather than fields,
+    /// so this is its own change and gets its own confirmation.
+    public func proposeBlocker(_ id: IssueID, blocker: IssueID, on: Bool) {
+        propose(.setBlocker(id, blocker: blocker, on: on))
+    }
+
+    /// Beads that could be made to block this one: everything else unfinished, minus the ones
+    /// already in the way and anything that would close a loop.
+    public func blockerChoices(for id: IssueID) -> [Issue] {
+        guard let snapshot, let issue = snapshot.issue(id) else { return [] }
+        let already = Set(snapshot.blockers(of: issue).map(\.id))
+        return snapshot.issues
+            .filter { $0.id != id && !already.contains($0.id) && !snapshot.isDone($0) }
+            .filter { candidate in
+                ChangeValidator.problems(for: .setBlocker(id, blocker: candidate.id, on: true), in: snapshot)
+                    .allSatisfy { $0.severity != .error }
+            }
+            .sorted { $0.id < $1.id }
+    }
+
+    /// Proposes an exact status, for a form that lists bd's own statuses.
+    public func proposeStatus(_ id: IssueID, to status: String) {
+        guard let snapshot, let issue = snapshot.issue(id), status != issue.status else { return }
+        propose(.setStatus(id, from: issue.status, to: status, reason: nil))
+    }
+
     public func proposeStatusMove(_ id: IssueID, to category: StatusCategory) {
         guard let snapshot, let issue = snapshot.issue(id), snapshot.category(of: issue) != category else { return }
         propose(.setStatus(id, from: issue.status, to: category.defaultStatus, reason: nil))

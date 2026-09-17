@@ -75,6 +75,8 @@ enum ChangeDescriber {
             return "Create \(new.type) “\(new.title)”"
         case .setMark(let id, let mark, let on):
             return on ? "\(mark.title) \(id)" : "Un\(mark.title.lowercased()) \(id)"
+        case .setBlocker(let id, let blocker, let on):
+            return on ? "Make \(id) wait for \(blocker)" : "Stop \(id) waiting for \(blocker)"
         }
     }
 
@@ -127,6 +129,8 @@ enum ChangeDescriber {
             return lines
         case .setMark(_, let mark, let on):
             return ["Label: \(on ? "add" : "remove") “\(mark.label)”"]
+        case .setBlocker(_, let blocker, let on):
+            return ["Blocked by: \(on ? "add" : "remove") \(name(blocker))"]
         }
     }
 

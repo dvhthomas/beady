@@ -82,7 +82,7 @@ struct BDStoreWritingTests {
         let id = try await store(runner).apply(.edit("demo-1", IssueEdit(title: "-p 0 --force", description: "two\nlines", priority: 1)))
         #expect(id == "demo-1")
         #expect(commands(runner) == [
-            BDCommand.updateFields("demo-1", title: "-p 0 --force", description: "two\nlines", notes: nil, priority: 1).arguments,
+            BDCommand.updateFields("demo-1", IssueEdit(title: "-p 0 --force", description: "two\nlines", priority: 1)).arguments,
         ])
     }
 

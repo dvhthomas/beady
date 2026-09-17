@@ -3,9 +3,7 @@ import BeadsPresentation
 import SwiftUI
 
 struct IssueDetailView: View {
-    let model: WorkspaceModel
-    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
-    private var isEditing = State(initialValue: false)
+    @Bindable var model: WorkspaceModel
 
     init(model: WorkspaceModel) {
         self.model = model
@@ -18,11 +16,26 @@ struct IssueDetailView: View {
             }
             content
         }
-        .onChange(of: model.selection) { isEditing.wrappedValue = false }
-        .onChange(of: model.editRequests) { isEditing.wrappedValue = model.canEdit && model.selectedIssue != nil }
-        .onChange(of: model.activity.first?.id) {
-            if model.activity.first?.succeeded == true { isEditing.wrappedValue = false }
+        .onChange(of: model.selection) { model.endEditing() }
+        .onChange(of: model.editRequests) {
+            if let id = model.selection { model.beginEditing(id) }
         }
+        .onChange(of: model.activity.first?.id) {
+            if model.activity.first?.succeeded == true { model.endEditing() }
+        }
+    }
+
+    /// A binding to the draft that survives the draft being cleared underneath it.
+    ///
+    /// `Binding($model.draft)` looks tidier and force-unwraps: when a write lands and editing
+    /// ends, SwiftUI updates the binding before the view goes away and traps on the nil. This
+    /// falls back to the last value instead.
+    private func draftBinding(for issue: Issue) -> Binding<EditDraft>? {
+        guard let current = model.draft, current.id == issue.id else { return nil }
+        return Binding(
+            get: { model.draft ?? current },
+            set: { model.draft = $0 }
+        )
     }
 
     /// Following a blocker link replaces what's in this pane, so there has to be a way back to
@@ -54,12 +67,11 @@ struct IssueDetailView: View {
     private var content: some View {
         Group {
             if let issue = model.selectedIssue, let snapshot = model.snapshot {
-                if isEditing.wrappedValue, model.canEdit {
-                    EditIssueForm(issue: issue, model: model) { isEditing.wrappedValue = false }
-                        .id(issue.id)
+                if let draft = draftBinding(for: issue) {
+                    EditBeadForm(model: model, draft: draft) { model.endEditing() }
                 } else {
                     IssueDetailContent(issue: issue, snapshot: snapshot, model: model) {
-                        isEditing.wrappedValue = true
+                        model.beginEditing(issue.id)
                     }
                 }
             } else {
@@ -290,106 +302,6 @@ private struct IssueDetailContent: View {
 }
 
 /// Inline editor for the text fields and priority. Proposes only the fields that changed.
-private struct EditIssueForm: View {
-    @Environment(\.theme) private var theme
-    let model: WorkspaceModel
-    let onDone: () -> Void
-    /// `State` as plain DynamicProperties: Command Line Tools lack the @State macro plugin.
-    /// `base` is the issue as it was when editing began. It stays put when an auto-refresh brings a
-    /// newer version, so the live conflict check compares against what the user started from.
-    private var base: State<Issue>
-    private var title: State<String>
-    private var priority: State<Int>
-    private var description: State<String>
-    private var notes: State<String>
-
-    init(issue: Issue, model: WorkspaceModel, onDone: @escaping () -> Void) {
-        self.model = model
-        self.onDone = onDone
-        base = State(initialValue: issue)
-        title = State(initialValue: issue.title)
-        priority = State(initialValue: issue.priority)
-        description = State(initialValue: issue.description)
-        notes = State(initialValue: issue.notes)
-    }
-
-    private var edit: IssueEdit {
-        let original = base.wrappedValue
-        func changed(_ value: String, from old: String) -> String? {
-            let trim = { (text: String) in text.trimmingCharacters(in: .whitespacesAndNewlines) }
-            return trim(value) == trim(old) ? nil : value
-        }
-        return IssueEdit(
-            title: changed(title.wrappedValue, from: original.title),
-            description: changed(description.wrappedValue, from: original.description),
-            notes: changed(notes.wrappedValue, from: original.notes),
-            priority: priority.wrappedValue == original.priority ? nil : priority.wrappedValue
-        )
-    }
-
-    private var changedInBdMeanwhile: Bool {
-        guard let latest = model.selectedIssue, latest.id == base.wrappedValue.id else { return false }
-        return latest.updatedAt != base.wrappedValue.updatedAt
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(base.wrappedValue.id.rawValue)
-                        .font(.callout.monospaced())
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Label("Editing", systemImage: "pencil")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(theme.pinned)
-                }
-                if changedInBdMeanwhile {
-                    Label(
-                        "This bead changed in bd since you started editing. Applying is refused if any field you changed was also changed there.",
-                        systemImage: "exclamationmark.triangle.fill"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(theme.pinned)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                TextField("Title", text: title.projectedValue)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.title3)
-                Picker("Priority", selection: priority.projectedValue) {
-                    ForEach(0...4, id: \.self) { Text(DisplayText.priority($0)).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                editor("Description", description.projectedValue)
-                editor("Notes", notes.projectedValue)
-                HStack {
-                    Button("Cancel", action: onDone)
-                    Spacer()
-                    Button("Review Changes…") {
-                        model.propose(.edit(base.wrappedValue.id, edit), basedOn: base.wrappedValue)
-                    }
-                    .disabled(edit.isEmpty)
-                }
-                Text("Only the fields you change are sent. Nothing is written until you confirm.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-        }
-    }
-
-    private func editor(_ label: String, _ text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.headline)
-            TextEditor(text: text)
-                .font(.body)
-                .frame(minHeight: 120)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3)))
-        }
-    }
-}
-
-
 /// Collapsed by default: every change bd has recorded for this bead, newest first. Reading it
 /// runs `bd history`, so it only happens when the expander is opened.
 struct HistorySection: View {

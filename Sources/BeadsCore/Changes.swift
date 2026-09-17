@@ -2,21 +2,44 @@ import Foundation
 
 // MARK: Change model
 
-/// Fields to change on an existing issue. `nil` leaves a field alone.
+/// Fields to change on an existing issue. `nil` leaves a field alone; labels are a pair of sets
+/// because bd adds and removes them rather than replacing the lot, which keeps two people
+/// labelling the same bead from clobbering each other.
 public struct IssueEdit: Equatable, Sendable {
     public var title: String?
     public var description: String?
     public var notes: String?
     public var priority: Int?
+    public var type: String?
+    /// Empty string clears the assignee.
+    public var assignee: String?
+    public var addedLabels: Set<String>
+    public var removedLabels: Set<String>
 
-    public init(title: String? = nil, description: String? = nil, notes: String? = nil, priority: Int? = nil) {
+    public init(
+        title: String? = nil,
+        description: String? = nil,
+        notes: String? = nil,
+        priority: Int? = nil,
+        type: String? = nil,
+        assignee: String? = nil,
+        addedLabels: Set<String> = [],
+        removedLabels: Set<String> = []
+    ) {
         self.title = title
         self.description = description
         self.notes = notes
         self.priority = priority
+        self.type = type
+        self.assignee = assignee
+        self.addedLabels = addedLabels
+        self.removedLabels = removedLabels
     }
 
-    public var isEmpty: Bool { title == nil && description == nil && notes == nil && priority == nil }
+    public var isEmpty: Bool {
+        title == nil && description == nil && notes == nil && priority == nil
+            && type == nil && assignee == nil && addedLabels.isEmpty && removedLabels.isEmpty
+    }
 }
 
 public struct NewIssue: Equatable, Sendable {
@@ -43,11 +66,14 @@ public enum IssueChange: Equatable, Sendable {
     case create(NewIssue)
     /// Pin or star: a bd label, on or off.
     case setMark(IssueID, IssueMark, on: Bool)
+    /// Whether one bead has to finish before another can start — bd's `blocks` dependency.
+    case setBlocker(IssueID, blocker: IssueID, on: Bool)
 
     /// The existing issue this change targets; nil for a create.
     public var issueID: IssueID? {
         switch self {
-        case .edit(let id, _), .setStatus(let id, _, _, _), .setParent(let id, _, _), .setMark(let id, _, _): id
+        case .edit(let id, _), .setStatus(let id, _, _, _), .setParent(let id, _, _),
+             .setMark(let id, _, _), .setBlocker(let id, _, _): id
         case .create: nil
         }
     }
@@ -67,11 +93,15 @@ public enum IssueChange: Equatable, Sendable {
             edit.title = edit.title.map(trimmed)
             edit.description = edit.description.map(blankAsEmpty)
             edit.notes = edit.notes.map(blankAsEmpty)
+            edit.type = edit.type.map(trimmed)
+            edit.assignee = edit.assignee.map(trimmed)
+            edit.addedLabels = normalizedLabels(edit.addedLabels)
+            edit.removedLabels = normalizedLabels(edit.removedLabels)
             return .edit(id, edit)
         case .setStatus(let id, let from, let to, let reason):
             let reason = reason.map(trimmed).flatMap { $0.isEmpty ? nil : $0 }
             return .setStatus(id, from: from, to: trimmed(to), reason: reason)
-        case .setParent, .setMark:
+        case .setParent, .setMark, .setBlocker:
             return self
         case .create(var new):
             new.title = trimmed(new.title)
@@ -84,6 +114,11 @@ public enum IssueChange: Equatable, Sendable {
 
 func trimmed(_ text: String) -> String {
     text.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// Labels are trimmed, and blank ones are dropped rather than sent to bd as empty.
+private func normalizedLabels(_ labels: Set<String>) -> Set<String> {
+    Set(labels.map(trimmed).filter { !$0.isEmpty })
 }
 
 private func blankAsEmpty(_ text: String) -> String {
@@ -107,6 +142,8 @@ public struct ChangeProblem: Equatable, Sendable {
         case unknownParent, parentIsSelf, parentIsDescendant, closedParent
         case clearsDescription, clearsNotes
         case recentlyChangedElsewhere
+        case assigneeHasLineBreaks, contradictoryLabels, unusableLabel
+        case blockerIsSelf, blockerLoops, blockerIsDone
     }
 
     public let code: Code
@@ -118,6 +155,16 @@ public struct ChangeProblem: Equatable, Sendable {
         self.severity = severity
         self.message = message
     }
+}
+
+/// True when `issue` already waits for `target`, however many beads deep.
+private func waits(_ issue: Issue, on target: IssueID, in snapshot: IssueSnapshot, depth: Int = 0) -> Bool {
+    guard depth < 100 else { return true }
+    for blocker in snapshot.blockers(of: issue) {
+        if blocker.id == target { return true }
+        if waits(blocker, on: target, in: snapshot, depth: depth + 1) { return true }
+    }
+    return false
 }
 
 public enum ChangeValidator {
@@ -154,11 +201,31 @@ public enum ChangeValidator {
             }
             if let title = edit.title { checkTitle(title) }
             if let priority = edit.priority { checkPriority(priority) }
+            if let type = edit.type, !(coreTypes.contains(type) || snapshot.types.contains(type)) {
+                error(.invalidType, "“\(type)” isn't a type this database uses.")
+            }
+            if let assignee = edit.assignee {
+                let control = CharacterSet.controlCharacters.union(.newlines)
+                if assignee.unicodeScalars.contains(where: control.contains) {
+                    error(.assigneeHasLineBreaks, "An assignee is a single line of text.")
+                }
+            }
+            for label in edit.addedLabels.union(edit.removedLabels) where label.contains(",") {
+                error(.unusableLabel, "bd splits label lists on commas, so “\(label)” can't be a label.")
+            }
+            for label in edit.addedLabels.intersection(edit.removedLabels) {
+                error(.contradictoryLabels, "“\(label)” is being added and removed at the same time.")
+            }
+            let existing = Set(issue.labels)
             let changesSomething = [
                 edit.title.map { $0 != trimmed(issue.title) },
                 edit.description.map { trimmed($0) != trimmed(issue.description) },
                 edit.notes.map { trimmed($0) != trimmed(issue.notes) },
                 edit.priority.map { $0 != issue.priority },
+                edit.type.map { $0 != issue.type },
+                edit.assignee.map { $0 != (issue.assignee ?? "") },
+                edit.addedLabels.isEmpty ? nil : !edit.addedLabels.subtracting(existing).isEmpty,
+                edit.removedLabels.isEmpty ? nil : !edit.removedLabels.intersection(existing).isEmpty,
             ].contains(true)
             if !changesSomething { error(.noChange, "Nothing would change.") }
             if edit.description == "", !trimmed(issue.description).isEmpty {
@@ -224,6 +291,35 @@ public enum ChangeValidator {
                 break
             }
             if snapshot.isDone(parent) { warning(.closedParent, "\(to) is closed.") }
+
+        case .setBlocker(let id, let blocker, let on):
+            guard let issue = snapshot.issue(id) else {
+                error(.unknownIssue, "\(id) isn't in this database.")
+                break
+            }
+            guard let blocking = snapshot.issue(blocker) else {
+                error(.unknownIssue, "\(blocker) isn't in this database.")
+                break
+            }
+            guard id != blocker else {
+                error(.blockerIsSelf, "A bead can't wait for itself.")
+                break
+            }
+            let already = snapshot.blockers(of: issue).contains { $0.id == blocker }
+            guard already != on else {
+                error(.noChange, on
+                    ? "\(id) already waits for \(blocker)."
+                    : "\(id) doesn't wait for \(blocker).")
+                break
+            }
+            if on {
+                // bd checks for cycles itself, but refusing here costs nothing and explains why.
+                if waits(blocking, on: id, in: snapshot) {
+                    error(.blockerLoops, "\(blocker) already waits for \(id), so this would leave both stuck.")
+                } else if snapshot.isDone(blocking) {
+                    warning(.blockerIsDone, "\(blocker) is already finished, so this won't hold anything up.")
+                }
+            }
 
         case .setMark(let id, let mark, let on):
             guard let issue = snapshot.issue(id) else {
@@ -294,6 +390,15 @@ public enum ChangeGuard {
             if let description = edit.description { expect("description", description, after.description) }
             if let notes = edit.notes { expect("notes", notes, after.notes) }
             if let priority = edit.priority { expect("priority", "P\(priority)", "P\(after.priority)") }
+            if let type = edit.type { expect("type", type, after.type) }
+            if let assignee = edit.assignee { expect("assignee", assignee, after.assignee ?? "") }
+            let landed = Set(after.labels)
+            for label in edit.addedLabels where !landed.contains(label) {
+                expect("label \(label)", "present", "absent")
+            }
+            for label in edit.removedLabels where landed.contains(label) {
+                expect("label \(label)", "absent", "present")
+            }
         case .setStatus(_, let from, let to, let reason):
             expect("status", to, after.status)
             if to == "closed", let reason {
@@ -307,6 +412,9 @@ public enum ChangeGuard {
             expect("parent", to?.rawValue ?? "none", after.parentID?.rawValue ?? "none")
         case .setMark(_, let mark, let on):
             expect(mark.label, on ? "present" : "absent", after.has(mark) ? "present" : "absent")
+        case .setBlocker(_, let blocker, let on):
+            let waits = after.dependencies.contains { $0.kind == .blocks && $0.dependsOnID == blocker }
+            expect("blocked by \(blocker)", on ? "yes" : "no", waits ? "yes" : "no")
         case .create(let new):
             expect("title", new.title, trimmed(after.title))
             expect("type", new.type, after.type)
@@ -330,7 +438,9 @@ public enum ChangeGuard {
         case .setParent: return [.parent]
         // A mark touches only its own label, and two sessions marking the same bead don't
         // conflict in any way worth stopping for.
-        case .setMark, .create: return []
+        // A mark or a blocker touches only its own edge, and two sessions changing different
+        // edges of the same bead don't conflict in any way worth stopping for.
+        case .setMark, .setBlocker, .create: return []
         }
     }
 

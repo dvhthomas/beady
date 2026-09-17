@@ -83,6 +83,12 @@ final class MemoryStore: BeadsStore, @unchecked Sendable {
             case .setParent(let id, _, let to):
                 issues[id]?.parentID = to
                 return id
+            case .setBlocker(let id, let blocker, let on):
+                var dependencies = issues[id]?.dependencies ?? []
+                dependencies.removeAll { $0.kind == .blocks && $0.dependsOnID == blocker }
+                if on { dependencies.append(Dependency(issueID: id, dependsOnID: blocker, kind: .blocks)) }
+                issues[id]?.dependencies = dependencies
+                return id
             case .setMark(let id, let mark, let on):
                 var labels = issues[id]?.labels ?? []
                 labels.removeAll { $0 == mark.label }
