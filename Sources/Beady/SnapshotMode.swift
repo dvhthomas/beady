@@ -249,6 +249,17 @@ enum SnapshotMode {
             capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
         }
 
+        // The edit form, which is the thing being overhauled.
+        if let subject = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }) {
+            model.selection = subject.id
+            model.beginEditing(subject.id)
+            if model.draft != nil {
+                let draft = Binding(get: { model.draft ?? EditDraft(issue: subject) }, set: { model.draft = $0 })
+                capture("16-edit-form", EditBeadForm(model: model, draft: draft, onCancel: {}).frame(width: 460, height: 800))
+            }
+            model.endEditing()
+        }
+
         // The popover behind the waiting mark.
         if let waiting = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }),
            let reason = BlockedReason.of(waiting.id, in: snapshot) {

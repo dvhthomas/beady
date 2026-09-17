@@ -19,7 +19,7 @@ struct BDCommandTests {
 
     @Test("writes pass values with = and put the id after --, so nothing can be read as a flag")
     func writes() {
-        #expect(BDCommand.updateFields("demo-1", title: "-p 0 --force", description: "two\nlines", notes: nil, priority: 1).arguments == [
+        #expect(BDCommand.updateFields("demo-1", IssueEdit(title: "-p 0 --force", description: "two\nlines", priority: 1)).arguments == [
             "update", "--title=-p 0 --force", "--description=two\nlines", "--priority=1", "--json", "--", "demo-1",
         ])
         #expect(BDCommand.setStatus("demo-1", "in_progress").arguments == ["update", "--status=in_progress", "--json", "--", "demo-1"])
@@ -38,7 +38,7 @@ struct BDCommandTests {
     func classification() {
         let reads: [BDCommand] = [.list, .listTitled("x"), .statuses, .show("x"), .ready, .blocked]
         let writes: [BDCommand] = [
-            .updateFields("x", title: "t", description: nil, notes: nil, priority: nil),
+            .updateFields("x", IssueEdit(title: "t")),
             .setStatus("x", "open"), .setParent("x", "y"), .close("x", reason: "r"),
             .reopen("x", reason: nil), .create(NewIssue(title: "t"), dryRun: false),
         ]
@@ -124,6 +124,42 @@ struct ArchitectureTests {
     func compositionRoot() throws {
         #expect(try files(containing: "import BeadsData") == ["Beady/AppSession.swift"])
     }
+}
+
+@Suite("bd update carries a whole edit")
+struct UpdateFlagsTests {
+    @Test("every changed field rides on one command, with values kept out of flag position")
+    func flags() {
+        let edit = IssueEdit(
+            title: "Tile cache",
+            notes: "note",
+            priority: 0,
+            type: "bug",
+            assignee: "Ada",
+            addedLabels: ["urgent", "offline"],
+            removedLabels: ["stale"]
+        )
+        #expect(BDCommand.updateFields("demo-1", edit).arguments == [
+            "update",
+            "--title=Tile cache",
+            "--notes=note",
+            "--priority=0",
+            "--type=bug",
+            "--assignee=Ada",
+            "--add-label=offline",
+            "--add-label=urgent",
+            "--remove-label=stale",
+            "--json",
+            "--",
+            "demo-1",
+        ])
+    }
+
+    @Test("clearing the assignee is an empty value, not a missing flag")
+    func clearing() {
+        #expect(BDCommand.updateFields("demo-1", IssueEdit(assignee: "")).arguments.contains("--assignee="))
+    }
+
 }
 
 @Suite("bd history")

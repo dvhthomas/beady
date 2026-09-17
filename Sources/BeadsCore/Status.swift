@@ -36,6 +36,11 @@ public struct StatusCatalog: Equatable, Sendable {
     ]
 
     /// Whether this is a built-in status or one the database defines.
+    /// Every status this database uses, built-in and custom, in a stable order.
+    public var names: [String] {
+        categories.keys.sorted()
+    }
+
     public func knows(_ status: String) -> Bool {
         categories[status] != nil || Self.builtInCategories[status] != nil
     }

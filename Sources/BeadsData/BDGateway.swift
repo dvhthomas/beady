@@ -50,11 +50,13 @@ public enum BDCommand: Equatable, Sendable {
     case ready
     case blocked
     case history(IssueID, limit: Int)
-    case updateFields(IssueID, title: String?, description: String?, notes: String?, priority: Int?)
+    case updateFields(IssueID, IssueEdit)
     case setStatus(IssueID, String)
     case setParent(IssueID, IssueID?)
     case addLabel(IssueID, String)
     case removeLabel(IssueID, String)
+    case addBlocker(IssueID, blocker: IssueID)
+    case removeBlocker(IssueID, blocker: IssueID)
     case close(IssueID, reason: String?)
     case reopen(IssueID, reason: String?)
     case create(NewIssue, dryRun: Bool)
@@ -62,7 +64,8 @@ public enum BDCommand: Equatable, Sendable {
     public var isReadOnly: Bool {
         switch self {
         case .list, .listTitled, .statuses, .show, .ready, .blocked, .history: true
-        case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .close, .reopen, .create: false
+        case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .addBlocker,
+             .removeBlocker, .close, .reopen, .create: false
         }
     }
 
@@ -83,12 +86,18 @@ public enum BDCommand: Equatable, Sendable {
             return Self.readOnly(["blocked", "--json"])
         case .history(let id, let limit):
             return Self.readOnly(["history", id.rawValue, "--limit", String(limit), "--json"])
-        case .updateFields(let id, let title, let description, let notes, let priority):
+        case .updateFields(let id, let edit):
+            // One write for the whole edit: bd takes every field on a single update, so two
+            // people editing different fields don't get interleaved half-changes.
             var flags: [String] = []
-            if let title { flags.append("--title=\(title)") }
-            if let description { flags.append("--description=\(description)") }
-            if let notes { flags.append("--notes=\(notes)") }
-            if let priority { flags.append("--priority=\(priority)") }
+            if let title = edit.title { flags.append("--title=\(title)") }
+            if let description = edit.description { flags.append("--description=\(description)") }
+            if let notes = edit.notes { flags.append("--notes=\(notes)") }
+            if let priority = edit.priority { flags.append("--priority=\(priority)") }
+            if let type = edit.type { flags.append("--type=\(type)") }
+            if let assignee = edit.assignee { flags.append("--assignee=\(assignee)") }
+            flags += edit.addedLabels.sorted().map { "--add-label=\($0)" }
+            flags += edit.removedLabels.sorted().map { "--remove-label=\($0)" }
             return ["update"] + flags + ["--json", "--", id.rawValue]
         case .setStatus(let id, let status):
             return ["update", "--status=\(status)", "--json", "--", id.rawValue]
@@ -98,6 +107,11 @@ public enum BDCommand: Equatable, Sendable {
             return ["update", "--add-label=\(label)", "--json", "--", id.rawValue]
         case .removeLabel(let id, let label):
             return ["update", "--remove-label=\(label)", "--json", "--", id.rawValue]
+        case .addBlocker(let id, let blocker):
+            // bd's own wording: this bead depends on that one.
+            return ["dep", "add", id.rawValue, blocker.rawValue]
+        case .removeBlocker(let id, let blocker):
+            return ["dep", "remove", id.rawValue, blocker.rawValue]
         case .close(let id, let reason):
             return ["close"] + Self.reasonFlag(reason) + ["--json", "--", id.rawValue]
         case .reopen(let id, let reason):

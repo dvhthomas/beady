@@ -73,7 +73,7 @@ public struct BDStore: BeadsStore {
     static func commands(for change: IssueChange) -> [BDCommand] {
         switch change {
         case .edit(let id, let edit):
-            return [.updateFields(id, title: edit.title, description: edit.description, notes: edit.notes, priority: edit.priority)]
+            return [.updateFields(id, edit)]
         case .setStatus(let id, let from, let to, let reason):
             if to == "closed" { return [.close(id, reason: reason)] }
             if from == "closed" {
@@ -84,6 +84,8 @@ public struct BDStore: BeadsStore {
             return [.setParent(id, to)]
         case .setMark(let id, let mark, let on):
             return [on ? .addLabel(id, mark.label) : .removeLabel(id, mark.label)]
+        case .setBlocker(let id, let blocker, let on):
+            return [on ? .addBlocker(id, blocker: blocker) : .removeBlocker(id, blocker: blocker)]
         case .create(let new):
             return [.create(new, dryRun: true), .create(new, dryRun: false)]
         }
