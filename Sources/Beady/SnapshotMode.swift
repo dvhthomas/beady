@@ -132,6 +132,28 @@ enum SnapshotMode {
         check("Escape closes the dependency window", graphClosed)
         graphWindow.close()
 
+        // 7. Switching sidebar views must hand the keyboard to the center pane — otherwise the
+        // first arrow key after a click walks the sidebar's own list instead of the beads.
+        // (NSOutlineView, which backs both List and Table, is itself an NSTableView, so the
+        // sidebar's single "Views" column and the center pane's ten columns tell them apart.)
+        model.source = .lifecycle(.open)
+        pump(seconds: 0.4)
+        let tables = allTables(in: window.contentView!)
+        if let sidebarTable = tables.first(where: { $0.tableColumns.count < 3 }),
+           let centerTable = tables.first(where: { $0.tableColumns.count >= 3 }) {
+            window.makeFirstResponder(sidebarTable)
+            check("the sidebar can be made first responder, as a click would leave it", window.firstResponder === sidebarTable)
+            model.source = .lifecycle(.deferred)
+            pump(seconds: 0.6)
+            check(
+                "switching views hands the keyboard to the center pane",
+                window.firstResponder === centerTable,
+                "firstResponder = \(String(describing: window.firstResponder))"
+            )
+        } else {
+            print("skip  switching views refocuses the center pane — harness couldn't find both tables")
+        }
+
         print(failures.isEmpty ? "\nAll key checks passed." : "\nFailed: \(failures.joined(separator: ", "))")
         exit(failures.isEmpty ? 0 : 1)
     }
@@ -153,6 +175,15 @@ enum SnapshotMode {
         ) else { return }
         NSApp.sendEvent(event)
         pump(seconds: 0.15)
+    }
+
+    /// Every table in this view's subtree, sidebar and center pane alike — used only to seed the
+    /// harness with the sidebar's table as first responder, the way a real click would leave it.
+    private static func allTables(in view: NSView) -> [NSTableView] {
+        var found: [NSTableView] = []
+        if let table = view as? NSTableView { found.append(table) }
+        for subview in view.subviews { found += allTables(in: subview) }
+        return found
     }
 
     static var outputDirectory: URL? {

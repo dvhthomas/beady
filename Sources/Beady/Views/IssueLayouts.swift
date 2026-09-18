@@ -483,28 +483,11 @@ private struct IssueCard: View {
 }
 
 
-/// Gives the table's column headers their own tooltips.
-///
-/// SwiftUI's `Table` offers no way to build a header view, and AppKit truncates a header that
-/// doesn't fit — so the full column name would otherwise be unreachable. `NSTableColumn` has
-/// `headerToolTip` for exactly this; finding the table means a short walk through the view
-/// hierarchy, and if that ever fails the table simply keeps its truncated headers.
-private struct TableHeaderTooltips: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        NSView(frame: .zero)
-    }
-
-    func updateNSView(_ view: NSView, context: Context) {
-        DispatchQueue.main.async {
-            guard let table = Self.tableView(near: view) else { return }
-            for column in table.tableColumns where column.headerToolTip != column.title {
-                column.headerToolTip = column.title
-            }
-        }
-    }
-
-    /// The table this background view sits behind: up to the nearest common ancestor, then down.
-    private static func tableView(near view: NSView) -> NSTableView? {
+/// Finds the `NSTableView` backing a SwiftUI `Table` or `List`, starting from a plain `NSView`
+/// planted in the same spot with `.background(...)`: up to the nearest common ancestor, then down.
+@MainActor
+private enum NearbyTable {
+    static func tableView(near view: NSView) -> NSTableView? {
         var ancestor: NSView? = view
         while let current = ancestor {
             if let found = descendantTable(of: current) { return found }
@@ -519,5 +502,58 @@ private struct TableHeaderTooltips: NSViewRepresentable {
             if let found = descendantTable(of: subview) { return found }
         }
         return nil
+    }
+}
+
+/// Gives the table's column headers their own tooltips.
+///
+/// SwiftUI's `Table` offers no way to build a header view, and AppKit truncates a header that
+/// doesn't fit — so the full column name would otherwise be unreachable. `NSTableColumn` has
+/// `headerToolTip` for exactly this; finding the table means a short walk through the view
+/// hierarchy, and if that ever fails the table simply keeps its truncated headers.
+private struct TableHeaderTooltips: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let table = NearbyTable.tableView(near: view) else { return }
+            for column in table.tableColumns where column.headerToolTip != column.title {
+                column.headerToolTip = column.title
+            }
+        }
+    }
+}
+
+/// Moves keyboard focus into this pane's table whenever `trigger` changes.
+///
+/// Clicking a row in the sidebar's list leaves that list as the first responder, so the very
+/// next arrow key walks the sidebar — switching views — instead of moving through the beads the
+/// user is actually looking at. Planting this behind the center pane's Table or List, keyed to
+/// the view source, hands the keyboard back as soon as the view finishes changing.
+struct FocusesOnChange<Trigger: Equatable>: NSViewRepresentable {
+    let trigger: Trigger
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        guard context.coordinator.lastTrigger != trigger else { return }
+        context.coordinator.lastTrigger = trigger
+        DispatchQueue.main.async {
+            guard let table = NearbyTable.tableView(near: view) else { return }
+            view.window?.makeFirstResponder(table)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(lastTrigger: trigger)
+    }
+
+    final class Coordinator {
+        var lastTrigger: Trigger
+        init(lastTrigger: Trigger) { self.lastTrigger = lastTrigger }
     }
 }
