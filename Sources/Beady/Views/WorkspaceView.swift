@@ -41,6 +41,10 @@ struct WorkspaceView: View {
             VStack(spacing: 0) {
                 FilterBar(model: model, ui: ui, run: run)
                 content
+                    // Switching sidebar views must not leave the sidebar's own list holding the
+                    // keyboard — otherwise the first arrow key after a click walks the sidebar
+                    // instead of the beads.
+                    .background(FocusesOnChange(trigger: model.source))
             }
             .inspector(isPresented: inspectorPresented) {
                 IssueDetailView(model: model)
