@@ -82,6 +82,45 @@ public struct BDStore: BeadsStore {
         _ = try await gateway.run(.backupSync)
     }
 
+    /// Asked once per workspace: a bd older than 1.3 isn't asked about settings it doesn't have.
+    public func journalStatus() async -> JournalStatus {
+        guard let version = try? BDJSON.decodeVersion(try await gateway.run(.version)) else { return .unsupported(nil) }
+        guard version.supportsEventsJournal else { return .unsupported(version) }
+        func value(_ key: String) async -> String? {
+            try? BDJSON.decodeConfigValue(try await gateway.run(.configGet(key)))
+        }
+        return .supported(version, JournalSettings(
+            isEnabled: await value("events-journal") == "true",
+            retainDays: await value("events-journal-retain-days").flatMap { Int($0) },
+            retainRows: await value("events-journal-retain-rows").flatMap { Int($0) }
+        ))
+    }
+
+    /// bd exits 1 when the checkpoint has been pruned past, with the details on stdout; that is
+    /// an answer to act on rather than a failure.
+    public func journalRecords(after checkpoint: Int64) async throws -> JournalRead {
+        let result = try await gateway.result(of: .eventsTail(since: checkpoint))
+        if result.exitCode != 0 {
+            guard let read = try? BDJSON.decodeJournal(result.stdout), case .truncated = read else {
+                throw BDGateway.failure(result)
+            }
+            return read
+        }
+        do {
+            return try BDJSON.decodeJournal(result.stdout)
+        } catch let failure as BDJSON.DecodingFailure {
+            throw BeadsDataError.unreadableOutput(detail: failure.detail)
+        }
+    }
+
+    public func enableJournal(_ settings: [ConfigSetting]) async throws {
+        _ = try await gateway.run(.configSet(settings))
+    }
+
+    public func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] {
+        [gateway.preview(.configSet(settings))]
+    }
+
     /// The bd commands a change runs, in order.
     static func commands(for change: IssueChange) -> [BDCommand] {
         switch change {

@@ -95,8 +95,8 @@ among several:
 - **The exact commands**, shown before you agree to them.
 - **A read-back** afterwards. If anything goes wrong, the result is resolved into landed, failed or
   uncertain by re-reading — never guessed.
-- **Live-work warnings.** If another actor touched a bead recently (bd's interaction log), the row
-  is marked and the confirmation sheet says so. It informs; it never blocks, because a lock bd
+- **Live-work warnings.** If another actor touched a bead recently (bd's events journal, or its
+  interaction log before bd 1.3), the row is marked and the confirmation sheet says so. It informs; it never blocks, because a lock bd
   doesn't offer can't be faked.
 
 ## Backing it up
@@ -182,8 +182,16 @@ workspace reopens on launch; `--workspace /path/to/project` overrides it.
   of any write — yours or an agent's — falling back to a 15-second check. Nothing is opened or
   written to do it. ⌘R reloads on demand.
 - **Other sessions**: bd has no lease or lock, so when another actor changed a bead recently
-  (from `.beads/interactions.jsonl`) the details panel says who and when, the row is marked, and a
-  change to that bead carries a warning on the confirmation sheet. It informs; it never blocks.
+  the details panel says who and when, the row is marked, and a change to that bead carries a
+  warning on the confirmation sheet. It informs; it never blocks.
+- **bd's events journal** (bd 1.3 and later): Beady checks bd's version when a workspace opens.
+  If the journal is off, a **Who's working?** button offers to turn it on and shows the exact
+  `bd config set-many` it will run. It's a workspace setting, so every bd command there (agents'
+  included) records to it from then on; Beady also shortens bd's week-long retention to a day
+  where bd's defaults still stand. With it on, each change is attributed from the journal. With it
+  off, or an older bd, Beady reads `.beads/interactions.jsonl` as before, which bd 1.3 writes only
+  when `audit.enabled` is set. **Not Now** is remembered; ⌘P → "Turn On bd's Change Journal…" is
+  there if you change your mind. See [docs/plans/0003-events-journal.md](docs/plans/0003-events-journal.md).
 
 ## Architecture
 

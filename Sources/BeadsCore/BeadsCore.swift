@@ -26,4 +26,20 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
     func configureBackup(folder: String) async throws
     /// Pushes to the configured destination.
     func syncBackup() async throws
+    /// Whether bd is new enough to keep an events journal here, and whether it does.
+    func journalStatus() async -> JournalStatus
+    /// Journal records after a checkpoint, oldest first.
+    func journalRecords(after checkpoint: Int64) async throws -> JournalRead
+    /// Writes the journal's settings to the workspace's bd config.
+    func enableJournal(_ settings: [ConfigSetting]) async throws
+    /// The exact commands `enableJournal` would run, for the user to see first.
+    func journalCommandPreview(_ settings: [ConfigSetting]) -> [String]
+}
+
+/// A store with no journal: the app carries on with the file watcher and the interaction log.
+public extension BeadsStore {
+    func journalStatus() async -> JournalStatus { .unsupported(nil) }
+    func journalRecords(after checkpoint: Int64) async throws -> JournalRead { .records([]) }
+    func enableJournal(_ settings: [ConfigSetting]) async throws {}
+    func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] { [] }
 }

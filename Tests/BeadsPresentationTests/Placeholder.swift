@@ -56,7 +56,45 @@ final class StubStore: BeadsStore, @unchecked Sendable {
     }
 
     func changeToken() async -> String { lock.withLock { _token } }
-    func recentActivity(since: Date) async throws -> ActivityLog { .empty }
+    /// What bd's interaction log reports: the only activity when there's no journal.
+    var interactions: ActivityLog = .empty
+    func recentActivity(since: Date) async throws -> ActivityLog { interactions }
+
+    // The events journal: off (bd too old) unless a test says otherwise.
+    var journal: JournalStatus = .unsupported(nil)
+    /// Served in order, then empty reads.
+    var journalReads: [Result<JournalRead, Error>] = []
+    private(set) var journalStatusChecks = 0
+    private(set) var journalCheckpoints: [Int64] = []
+    private(set) var enabledJournal: [[ConfigSetting]] = []
+
+    func journalStatus() async -> JournalStatus {
+        lock.withLock {
+            journalStatusChecks += 1
+            return journal
+        }
+    }
+
+    func journalRecords(after checkpoint: Int64) async throws -> JournalRead {
+        try lock.withLock {
+            journalCheckpoints.append(checkpoint)
+            return journalReads.isEmpty ? .success(.records([])) : journalReads.removeFirst()
+        }.get()
+    }
+
+    func enableJournal(_ settings: [ConfigSetting]) async throws {
+        lock.withLock {
+            enabledJournal.append(settings)
+            if case .supported(let version, var current) = journal {
+                current.isEnabled = true
+                journal = .supported(version, current)
+            }
+        }
+    }
+
+    func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] {
+        ["bd config set-many " + settings.map { "\($0.key)=\($0.value)" }.joined(separator: " ")]
+    }
     func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] { [] }
     func backupStatus() async throws -> BackupStatus { backup }
     func configureBackup(folder: String) async throws { backup = BackupStatus(destination: folder, lastSync: t0, databaseSize: "1 KB") }

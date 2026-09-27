@@ -53,6 +53,10 @@ public enum BDCommand: Equatable, Sendable {
     case backupStatus
     case backupInit(String)
     case backupSync
+    case version
+    case configGet(String)
+    case configSet([ConfigSetting])
+    case eventsTail(since: Int64)
     case updateFields(IssueID, IssueEdit)
     case setStatus(IssueID, String)
     case setParent(IssueID, IssueID?)
@@ -66,9 +70,10 @@ public enum BDCommand: Equatable, Sendable {
 
     public var isReadOnly: Bool {
         switch self {
-        case .list, .listTitled, .statuses, .show, .ready, .blocked, .history, .backupStatus: true
+        case .list, .listTitled, .statuses, .show, .ready, .blocked, .history, .backupStatus,
+             .version, .configGet, .eventsTail: true
         case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .addBlocker,
-             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync: false
+             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet: false
         }
     }
 
@@ -96,6 +101,16 @@ public enum BDCommand: Equatable, Sendable {
             return ["backup", "init", path]
         case .backupSync:
             return ["backup", "sync"]
+        case .version:
+            // Neither of these opens the database, so there is nothing for --readonly to guard.
+            return ["version", "--json"]
+        case .configGet(let key):
+            return ["config", "get", key, "--json"]
+        case .configSet(let settings):
+            // One write for all of them, as one `bd config set` would be per key.
+            return ["config", "set-many"] + settings.map { "\($0.key)=\($0.value)" }
+        case .eventsTail(let since):
+            return Self.readOnly(["events", "tail", "--since", String(since), "--json"])
         case .updateFields(let id, let edit):
             // One write for the whole edit: bd takes every field on a single update, so two
             // people editing different fields don't get interleaved half-changes.

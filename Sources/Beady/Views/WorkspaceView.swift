@@ -174,6 +174,22 @@ struct WorkspaceView: View {
         }
     }
 
+    /// Shown only while there's a choice to make: bd is new enough to keep a change journal,
+    /// it's off, and nobody has said no. Once it's on, or declined, it gets out of the way.
+    @ViewBuilder
+    private var journalIndicator: some View {
+        if model.offersJournal {
+            Button {
+                run(.turnOnJournal)
+            } label: {
+                Label("Who's working?", systemImage: "person.2.badge.gearshape")
+            }
+            .labelStyle(.titleAndIcon)
+            .controlSize(.small)
+            .help("bd can record who made each change, so Beady can say which agent is working on a bead. Click to see what turning it on changes.")
+        }
+    }
+
     private var symbol: String {
         if model.isBackingUp { return "arrow.triangle.2.circlepath" }
         return model.backup.lastSync == nil ? "externaldrive.badge.exclamationmark" : "externaldrive.badge.checkmark"
@@ -240,6 +256,7 @@ struct WorkspaceView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
+            journalIndicator
             backupIndicator
 
             Button {

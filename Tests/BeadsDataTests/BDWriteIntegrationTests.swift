@@ -88,4 +88,33 @@ struct BDWriteIntegrationTests {
         snapshot = try await store.loadSnapshot()
         _ = try await runner.run(.setStatus(id, from: "open", to: "closed", reason: "integration test tidy-up"), seenIn: snapshot)
     }
+
+    @Test("with bd 1.3, the journal can be turned on and names who made each write")
+    func journalThroughRealBD() async throws {
+        let path = try #require(writableWorkspace)
+        let store = BDStore(gateway: try BDGateway.open(URL(fileURLWithPath: path)))
+        guard case .supported(_, let settings) = await store.journalStatus() else {
+            print("journal check skipped: this bd is older than 1.3")
+            return
+        }
+        try await store.enableJournal(JournalRetention.settings(toEnable: settings))
+        #expect(await store.journalStatus().isOn)
+
+        // Catch up first, so only this test's write is new.
+        var checkpoint: Int64 = 0
+        if case .records(let existing) = try await store.journalRecords(after: 0) {
+            checkpoint = existing.map(\.seq).max() ?? 0
+        }
+        let stamp = UUID().uuidString.prefix(6)
+        let id = try await ChangeRunner(writer: store)
+            .run(.create(NewIssue(title: "IT journal \(stamp)")), seenIn: try await store.loadSnapshot())
+
+        let tokenBefore = await store.changeToken()
+        let read = try await store.journalRecords(after: checkpoint)
+        #expect(await store.changeToken() == tokenBefore, "reading the journal must not look like a write, or auto-refresh would loop")
+        guard case .records(let records) = read else { Testing.Issue.record("expected records, got \(read)"); return }
+        let created = try #require(records.first { $0.issueID == id && $0.op == "create" })
+        #expect(created.actor?.isEmpty == false)
+        #expect(created.seq > checkpoint)
+    }
 }
