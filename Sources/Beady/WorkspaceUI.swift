@@ -14,6 +14,8 @@ final class WorkspaceUI {
     var showsThemes = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
+    /// The question about turning on bd's change journal.
+    var showsJournalOffer = false
     /// True while the search field has the keyboard. Single-key shortcuts stand down then, so
     /// typing "?" into a search reaches the field instead of opening the shortcut sheet.
     var isSearchFocused = false

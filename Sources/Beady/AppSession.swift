@@ -21,6 +21,8 @@ final class AppSession {
     @ObservationIgnored private var watcher: BDChangeWatcher?
 
     private static let recentsKey = "recentWorkspaces"
+    /// Workspaces whose owner said no to bd's change journal, so it isn't asked again.
+    private static let declinedJournalsKey = "declinedEventsJournal"
 
     /// Where view state is remembered; nil for the offscreen snapshots, which must not disturb
     /// the saved views.
@@ -42,11 +44,20 @@ final class AppSession {
             let gateway = try BDGateway.open(url)
             let store = BDStore(gateway: gateway)
             workspace = gateway.workspace
-            model = WorkspaceModel(title: gateway.workspace.displayName, store: store, preferences: preferences)
+            let path = gateway.workspace.projectDirectory.path
+            model = WorkspaceModel(
+                title: gateway.workspace.displayName,
+                store: store,
+                preferences: preferences,
+                declinedJournal: declinedJournals.contains(path)
+            )
             openError = nil
             watcher?.stop()
-            // Passive FSEvents on bd's folder: every write rewrites issues.jsonl and appends to
-            // the interaction log, so this fires within a moment of any agent's change.
+            // Passive FSEvents on bd's folder: every write touches last-touched and grows Dolt's
+            // storage, so this fires within a moment of any agent's change. It stays the wake-up
+            // even with bd's events journal on: following that journal would mean a bd process
+            // held open for as long as the window is, and FSEvents costs nothing. The events
+            // journal is read after the wake-up, to say who made the change.
             watcher = gateway.watchChanges { [weak self] in
                 Task { @MainActor in await self?.model?.refreshIfChanged() }
             }
@@ -57,6 +68,24 @@ final class AppSession {
                 forget(url.standardizedFileURL.path)
             }
         }
+    }
+
+    /// Workspace-level: remembered by path, because the offer is about this database, not this
+    /// window.
+    private var declinedJournals: [String] {
+        UserDefaults.standard.stringArray(forKey: Self.declinedJournalsKey) ?? []
+    }
+
+    func turnOnJournal() {
+        guard let model else { return }
+        Task { await report(await model.enableJournal()) }
+    }
+
+    func declineJournal() {
+        guard let model, let path = workspace?.projectDirectory.path else { return }
+        model.declineJournal()
+        guard !declinedJournals.contains(path) else { return }
+        UserDefaults.standard.set(declinedJournals + [path], forKey: Self.declinedJournalsKey)
     }
 
     func dismissOpenError() {
@@ -157,6 +186,7 @@ final class AppSession {
         case .backUpNow:
             if let model { Task { await report(await model.backUpNow()) } }
         case .setUpBackup: chooseBackupFolder()
+        case .turnOnJournal: ui.showsJournalOffer = true
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size

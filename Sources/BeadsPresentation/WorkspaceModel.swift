@@ -77,6 +77,9 @@ public final class WorkspaceModel {
     /// True while `goBack`/`goForward` are moving, so the move isn't recorded as a new step.
     @ObservationIgnored private var isTravelling = false
     @ObservationIgnored private let activityWindow: TimeInterval
+    /// Where the journal has been read up to, when it's on.
+    @ObservationIgnored private var journalFeed = JournalFeed()
+    @ObservationIgnored private var journalChecked = false
     /// Where `unfocus()` goes back to.
     @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
 
@@ -89,7 +92,9 @@ public final class WorkspaceModel {
         preferences: UserDefaults? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         staleAfter: TimeInterval = 300,
-        activityWindow: TimeInterval = 600
+        activityWindow: TimeInterval = 600,
+        /// The user already said no to the journal for this workspace; the app remembers it.
+        declinedJournal: Bool = false
     ) {
         self.title = title
         self.store = store
@@ -98,6 +103,7 @@ public final class WorkspaceModel {
         self.now = now
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
+        journalDeclined = declinedJournal
         viewStates = Self.loadViewStates(from: preferences)
     }
 
@@ -126,7 +132,13 @@ public final class WorkspaceModel {
 
         // Taken before loading, so a write that lands mid-load still triggers the next refresh.
         lastAttempt = (await store.changeToken(), now())
-        if let log = try? await store.recentActivity(since: now().addingTimeInterval(-activityWindow)) {
+        if !journalChecked {
+            // bd's version decides whether there's a journal to follow; it won't change while
+            // the workspace is open, so it's asked once.
+            journal = await store.journalStatus()
+            journalChecked = true
+        }
+        if let log = await readActivity(since: now().addingTimeInterval(-activityWindow)) {
             noteActivity(log)
         }
         await refreshBackupStatus()
@@ -793,11 +805,90 @@ public final class WorkspaceModel {
             // The cached activity only covers the last few minutes; history reaches back further,
             // so ask for a window that actually spans what's being shown.
             let oldest = versions.map(\.date).min() ?? now()
-            let log = (try? await store.recentActivity(since: oldest.addingTimeInterval(-60))) ?? activityLog
+            let log = journal.isOn
+                ? journalFeed.activity
+                : (try? await store.recentActivity(since: oldest.addingTimeInterval(-60))) ?? activityLog
             history[id] = .loaded(History.events(from: versions, activity: log))
         } catch {
             history[id] = .failed(error.localizedDescription)
         }
+    }
+
+    // MARK: The events journal
+
+    /// Whether bd keeps its events journal here. With it on, the journal says who made each
+    /// write; without it (bd older than 1.3, or the user said no) the interaction log does, as
+    /// before. The file watcher wakes the app either way.
+    public private(set) var journal: JournalStatus = .unsupported(nil)
+    public private(set) var journalDeclined: Bool
+
+    /// Whether to ask. It's a workspace setting every bd command (agents' included) will follow,
+    /// so it is only ever offered, never assumed, and a no is remembered.
+    public var offersJournal: Bool {
+        canEdit && journal.canBeTurnedOn && !journalDeclined
+    }
+
+    /// Exactly what turning it on will run.
+    public var journalCommands: [String] {
+        guard case .supported(_, let settings) = journal else { return [] }
+        return store.journalCommandPreview(JournalRetention.settings(toEnable: settings))
+    }
+
+    /// What the offer says: what the journal is for, what it changes beyond Beady, and the
+    /// command that does it. Nil when there's nothing to turn on.
+    public var journalOffer: String? {
+        guard case .supported(let version, let settings) = journal, !settings.isEnabled else { return nil }
+        let lowersRetention = JournalRetention.settings(toEnable: settings).count > 1
+        let retention = lowersRetention
+            ? "Beady only needs recent records, so records older than a day are pruned (bd's default is a week)."
+            : "Your retention settings are kept."
+        return """
+            bd \(version) can keep a journal of every change made through bd, with who made it, so \
+            Beady can tell which agent is working on which bead.
+
+            It's a workspace setting in .beads/config.yaml: every bd command in this workspace, \
+            agents' included, records to it from then on. \(retention)
+
+            \(journalCommands.joined(separator: "\n"))
+            """
+    }
+
+    public func declineJournal() {
+        journalDeclined = true
+    }
+
+    /// Writes the journal setting, with Beady's shorter retention where bd's defaults still
+    /// stand, then starts following it. Returns the failure, if any, for the caller to show.
+    @discardableResult
+    public func enableJournal() async -> String? {
+        guard canEdit, case .supported(_, let settings) = journal, !settings.isEnabled else { return nil }
+        do {
+            try await store.enableJournal(JournalRetention.settings(toEnable: settings))
+        } catch {
+            return error.localizedDescription
+        }
+        journal = await store.journalStatus()
+        journalFeed = JournalFeed()
+        if let log = await readActivity(since: now().addingTimeInterval(-activityWindow)) {
+            noteActivity(log)
+        }
+        return nil
+    }
+
+    /// Who has been working where: from the journal when it's on, else bd's interaction log.
+    /// A pruned checkpoint moves up to what bd still has and reads once more; a journal that
+    /// can't be read falls back to the log rather than going quiet.
+    private func readActivity(since cutoff: Date) async -> ActivityLog? {
+        guard journal.isOn else { return try? await store.recentActivity(since: cutoff) }
+        let kept = now().addingTimeInterval(-TimeInterval(JournalRetention.days) * 86_400)
+        for _ in 0..<2 {
+            guard let read = try? await store.journalRecords(after: journalFeed.checkpoint) else {
+                return try? await store.recentActivity(since: cutoff)
+            }
+            journalFeed = journalFeed.applying(read, keepingSince: min(kept, cutoff))
+            if case .records = read { break }
+        }
+        return journalFeed.activity
     }
 
     /// Beads another session has touched lately, for marking rows in a list.

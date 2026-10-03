@@ -66,6 +66,14 @@ struct RootView: View {
             if let model = session.model {
                 WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run)
                     .id(ObjectIdentifier(model))
+                    // Here rather than in the workspace view: saying no is remembered per
+                    // workspace, which is the session's to do.
+                    .alert("Turn On bd's Change Journal?", isPresented: showsJournalOffer) {
+                        Button("Turn On") { session.turnOnJournal() }
+                        Button("Not Now", role: .cancel) { session.declineJournal() }
+                    } message: {
+                        Text(model.journalOffer ?? "")
+                    }
             } else {
                 WelcomeView(session: session)
             }
@@ -77,6 +85,13 @@ struct RootView: View {
         } message: {
             Text(session.openError ?? "")
         }
+    }
+
+    private var showsJournalOffer: Binding<Bool> {
+        Binding(
+            get: { session.ui.showsJournalOffer && session.model?.journalOffer != nil },
+            set: { session.ui.showsJournalOffer = $0 }
+        )
     }
 
     private var showsOpenError: Binding<Bool> {

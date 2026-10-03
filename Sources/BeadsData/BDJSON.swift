@@ -40,6 +40,46 @@ public enum BDJSON {
         }
     }
 
+    /// `bd version --json`.
+    public static func decodeVersion(_ data: Data) throws -> BeadsVersion {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let text = root["version"] as? String, let version = BeadsVersion(parsing: text) else {
+            throw DecodingFailure(detail: "bd version didn't report a version number")
+        }
+        return version
+    }
+
+    /// `bd config get <key> --json`: the value, as text, whatever the setting's type.
+    public static func decodeConfigValue(_ data: Data) throws -> String {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = root["value"] else {
+            throw DecodingFailure(detail: "bd config get didn't report a value")
+        }
+        return "\(value)"
+    }
+
+    /// `bd events tail --json`: one record per line, or, for a checkpoint bd has pruned past,
+    /// one error object naming the oldest record left. A line that isn't a record is skipped.
+    public static func decodeJournal(_ data: Data) throws -> JournalRead {
+        let text = String(decoding: data, as: UTF8.self)
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           root["code"] as? String == "events_journal_truncated" {
+            guard let floor = (root["floor"] as? NSNumber)?.int64Value else {
+                throw DecodingFailure(detail: "bd reported a pruned journal without saying what's left")
+            }
+            return .truncated(floor: floor)
+        }
+        let records = text.split(separator: "\n").compactMap { line -> JournalRecord? in
+            guard let record = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                  let seq = (record["seq"] as? NSNumber)?.int64Value,
+                  let date = parseDate(record["ts"] as? String),
+                  let op = record["op"] as? String,
+                  let id = record["issue_id"] as? String else { return nil }
+            return JournalRecord(seq: seq, date: date, op: op, issueID: IssueID(id), actor: record["actor"] as? String)
+        }
+        return .records(records)
+    }
+
     public struct DecodingFailure: Error, Equatable {
         public let detail: String
     }

@@ -66,6 +66,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case openSettings
     case backUpNow
     case setUpBackup
+    case turnOnJournal
     case setSidebarStyle(SidebarStyle)
     case chooseTheme
     case setTextSize(TextSize)
@@ -101,6 +102,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .openSettings: "open-settings"
         case .backUpNow: "back-up-now"
         case .setUpBackup: "set-up-backup"
+        case .turnOnJournal: "turn-on-journal"
         case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
@@ -138,6 +140,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .openSettings: "Settings…"
         case .backUpNow: "Back Up Now"
         case .setUpBackup: "Set Up Backup…"
+        case .turnOnJournal: "Turn On bd's Change Journal…"
         case .setSidebarStyle(let style): "Sidebar: \(style.title)"
         case .chooseTheme: "Theme…"
         case .setTextSize(let size): "Text Size: \(size.title)"
@@ -174,6 +177,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .openSettings: ["settings", "preferences", "options", "text size"]
         case .backUpNow: ["backup", "back up", "sync", "save", "copy", "dolt"]
         case .setUpBackup: ["backup", "back up", "configure backup", "destination", "folder"]
+        case .turnOnJournal: ["journal", "events", "live", "activity", "who changed", "agents", "watch"]
         case .setSidebarStyle: ["sidebar", "translucent", "vibrancy", "material", "native"]
         case .goBack: ["back", "previous", "return", "undo navigation"]
         case .goForward: ["forward", "next", "again"]
@@ -189,7 +193,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     /// The section it appears under in the palette and the shortcut sheet.
     public var group: String {
         switch self {
-        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup: "Workspace"
+        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: "Workspace"
         case .newBead, .editSelected, .toggleMark, .showGraph: "Beads"
         case .focusSearch, .addFilter, .clearFilters: "Find"
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
@@ -227,7 +231,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .chooseTheme: [KeyBinding("t", .command)]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
-             .backUpNow, .setUpBackup: []
+             .backUpNow, .setUpBackup, .turnOnJournal: []
         }
     }
 
@@ -295,6 +299,8 @@ public enum CommandCatalog {
         commands.append(.openSettings)
         if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
+        // Still here after a "not now": the palette is where a change of mind goes.
+        if model.canEdit, model.journal.canBeTurnedOn { commands.append(.turnOnJournal) }
         commands.append(.closeWorkspace)
         commands += Scope.allCases.map { .showView(.lifecycle($0)) }
         if model.hasStarredBeads { commands.append(.showView(.label(IssueMark.starred.label))) }
