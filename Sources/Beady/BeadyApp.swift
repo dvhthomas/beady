@@ -55,7 +55,10 @@ struct RootView: View {
     var body: some View {
         content
             .themed(session.themes)
-            .onAppear { session.themes.watchAccessibility() }
+            .onAppear {
+                session.themes.watchAccessibility()
+                if SnapshotMode.tracesPanes { SnapshotMode.tracePanes(ui: session.ui) }
+            }
             // Only a view can open a window; commands ask through the UI state.
             .onChange(of: session.ui.graphWindowRequests) { openWindow(id: "dependencies") }
     }
