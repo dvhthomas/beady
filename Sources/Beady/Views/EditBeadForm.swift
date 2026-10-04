@@ -242,23 +242,8 @@ struct EditBeadForm: View {
     }
 
     private func textField(_ title: String, _ text: Binding<String>, prompt: String) -> some View {
-        field(title) {
-            TextEditor(text: text)
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .frame(minHeight: title == "Description" ? 140 : 90)
-                .background(theme.surface, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.border))
-                .overlay(alignment: .topLeading) {
-                    if text.wrappedValue.isEmpty {
-                        Text(prompt)
-                            .foregroundStyle(theme.secondaryText)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 14)
-                            .allowsHitTesting(false)
-                    }
-                }
+        FormField(title: title) {
+            ProseEditor(text: text, prompt: prompt, minHeight: title == "Description" ? 140 : 90)
         }
     }
 
@@ -297,12 +282,51 @@ struct EditBeadForm: View {
     }
 
     private func field(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        FormField(title: title, content: content)
+    }
+}
+
+/// A captioned control, the unit both the edit form and the new-bead form are built from.
+struct FormField<Content: View>: View {
+    @Environment(\.theme) private var theme
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(theme.secondaryText)
-            content()
+            content
         }
+    }
+}
+
+/// A multi-line text box that reads as one: a visible edge, the theme's surface, and a prompt
+/// while empty. The bare `TextEditor` is a white rectangle with no affordance.
+struct ProseEditor: View {
+    @Environment(\.theme) private var theme
+    let text: Binding<String>
+    let prompt: String
+    let minHeight: CGFloat
+
+    var body: some View {
+        TextEditor(text: text)
+            .font(.body)
+            .scrollContentBackground(.hidden)
+            .padding(6)
+            .frame(minHeight: minHeight)
+            .background(theme.surface, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.border))
+            .overlay(alignment: .topLeading) {
+                if text.wrappedValue.isEmpty {
+                    Text(prompt)
+                        .foregroundStyle(theme.secondaryText)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 14)
+                        .allowsHitTesting(false)
+                }
+            }
     }
 }
 

@@ -117,6 +117,7 @@ struct NewBeadForm: View {
     private var priority = State(initialValue: 2)
     private var parent: State<IssueID?>
     private var description = State(initialValue: "")
+    private var titleFocus = FocusState<Bool>()
 
     init(model: WorkspaceModel, onCancel: @escaping () -> Void) {
         self.model = model
@@ -139,34 +140,50 @@ struct NewBeadForm: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("New Bead").font(.title3.weight(.semibold))
-            Form {
-                TextField("Title", text: title.projectedValue)
-                Picker("Type", selection: type.projectedValue) {
-                    ForEach(types, id: \.self) { Text($0).tag($0) }
+            FormField(title: "Title") {
+                TextField("What needs doing?", text: title.projectedValue)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.title3)
+                    .labelsHidden()
+                    .focused(titleFocus.projectedValue)
+            }
+            HStack(alignment: .top, spacing: 16) {
+                FormField(title: "Type") {
+                    Picker("Type", selection: type.projectedValue) {
+                        ForEach(types, id: \.self) { type in
+                            Label(type, systemImage: IssueTypeStyle.symbol(for: type)).tag(type)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
                 }
-                Picker("Priority", selection: priority.projectedValue) {
-                    ForEach(0...4, id: \.self) { Text(DisplayText.priority($0)).tag($0) }
+                FormField(title: "Priority") {
+                    Picker("Priority", selection: priority.projectedValue) {
+                        ForEach(0...4, id: \.self) { Text(DisplayText.priority($0)).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
+            }
+            FormField(title: "Parent") {
                 Picker("Parent", selection: parent.projectedValue) {
                     Text("None").tag(IssueID?.none)
                     ForEach(parentChoices) { issue in
                         Text("\(issue.id.rawValue) — \(issue.title)").lineLimit(1).tag(IssueID?.some(issue.id))
                     }
                 }
-                LabeledContent("Description") {
-                    TextEditor(text: description.projectedValue)
-                        .font(.body)
-                        .frame(minHeight: 110)
-                }
+                .labelsHidden()
             }
-            .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
+            FormField(title: "Description") {
+                ProseEditor(text: description.projectedValue, prompt: "What is this bead about?", minHeight: 140)
+            }
             HStack {
                 Text("Nothing is created until you review and confirm.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondaryText)
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
@@ -185,6 +202,8 @@ struct NewBeadForm: View {
         }
         .padding(20)
         .frame(width: 560)
+        .background(theme.background)
+        .onAppear { titleFocus.wrappedValue = true }
     }
 }
 
