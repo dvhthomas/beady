@@ -15,6 +15,7 @@ struct WorkspaceView: View {
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
     var persistsPreferences = true
     @AppStorage("scope") private var storedScope = Scope.open.rawValue
+    @AppStorage("inspectorWidth") private var inspectorWidth = 360.0
     /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var searchFocus = FocusState<Bool>()
     private var escapeMonitor = State<Any?>(initialValue: nil)
@@ -38,20 +39,30 @@ struct WorkspaceView: View {
             SidebarView(model: model)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
-            VStack(spacing: 0) {
-                FilterBar(model: model, ui: ui, run: run)
-                content
-                    // Switching sidebar views must not leave the sidebar's own list holding the
-                    // keyboard — otherwise the first arrow key after a click walks the sidebar
-                    // instead of the beads.
-                    .background(FocusesOnChange(trigger: model.source))
+            // Not `.inspector`: that grows the right pane by pushing the whole window's layout,
+            // which squeezed the sidebar and snapped it back. Here the center pane is the only
+            // thing that gives way, and each pane animates on its own.
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    FilterBar(model: model, ui: ui, run: run)
+                    content
+                        // Switching sidebar views must not leave the sidebar's own list holding the
+                        // keyboard — otherwise the first arrow key after a click walks the sidebar
+                        // instead of the beads.
+                        .background(FocusesOnChange(trigger: model.source))
+                }
+                .frame(maxWidth: .infinity)
+                if ui.showsInspector {
+                    InspectorDivider(width: $inspectorWidth)
+                    IssueDetailView(model: model)
+                        .scrollContentBackground(.hidden)
+                        .frame(width: inspectorWidth)
+                        .background(theme.background)
+                        .transition(.move(edge: .trailing))
+                }
             }
-            .inspector(isPresented: inspectorPresented) {
-                IssueDetailView(model: model)
-                    .scrollContentBackground(.hidden)
-                    .background(theme.background)
-                    .inspectorColumnWidth(min: 280, ideal: 360, max: 640)
-            }
+            .clipped()
+            .animation(.smooth(duration: 0.25), value: ui.showsInspector)
         }
         .background(theme.background)
         .toolbarBackground(theme.surface, for: .windowToolbar)
@@ -203,10 +214,6 @@ struct WorkspaceView: View {
         return "Backed up to \(destination)\(size). Click to back up now."
     }
 
-    private var inspectorPresented: Binding<Bool> {
-        Binding(get: { ui.showsInspector }, set: { ui.showsInspector = $0 })
-    }
-
     /// One sheet, shown for whichever thing is open; a change being confirmed wins.
     private var sheetPresented: Binding<Bool> {
         Binding(
@@ -294,5 +301,38 @@ struct WorkspaceView: View {
             }
             .help("Show or hide issue details")
         }
+    }
+}
+
+/// The draggable edge between the center pane and the details.
+private struct InspectorDivider: View {
+    @Environment(\.theme) private var theme
+    @Binding var width: Double
+    private var startWidth = State<Double?>(initialValue: nil)
+
+    static let range = 280.0...640.0
+
+    init(width: Binding<Double>) {
+        _width = width
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(theme.border)
+            .frame(width: 1)
+            .padding(.horizontal, 3)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { drag in
+                        let start = startWidth.wrappedValue ?? width
+                        startWidth.wrappedValue = start
+                        width = min(max(start - drag.translation.width, Self.range.lowerBound), Self.range.upperBound)
+                    }
+                    .onEnded { _ in startWidth.wrappedValue = nil }
+            )
     }
 }

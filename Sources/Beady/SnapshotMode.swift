@@ -154,6 +154,27 @@ enum SnapshotMode {
             print("skip  switching views refocuses the center pane — harness couldn't find both tables")
         }
 
+        // 8. Opening the detail pane must not squeeze the sidebar: the two panes are independent.
+        if let sidebarTable = allTables(in: window.contentView!).first(where: { $0.tableColumns.count < 3 }) {
+            func sidebarWidth() -> CGFloat { sidebarTable.window == nil ? 0 : sidebarTable.convert(sidebarTable.bounds, to: nil).maxX }
+            window.setContentSize(CGSize(width: 960, height: 800))
+            ui.showsInspector = false
+            pump(seconds: 1.0)
+            let resting = sidebarWidth()
+            var narrowest = resting
+            ui.showsInspector = true
+            let deadline = Date().addingTimeInterval(1.2)
+            while Date() < deadline {
+                pump(seconds: 0.016)
+                narrowest = min(narrowest, sidebarWidth())
+            }
+            check(
+                "opening the detail pane leaves the sidebar alone",
+                narrowest >= resting - 1 && sidebarWidth() >= resting - 1,
+                "sidebar \(Int(resting))pt at rest, \(Int(narrowest))pt at its narrowest, \(Int(sidebarWidth()))pt after"
+            )
+        }
+
         print(failures.isEmpty ? "\nAll key checks passed." : "\nFailed: \(failures.joined(separator: ", "))")
         exit(failures.isEmpty ? 0 : 1)
     }
@@ -184,6 +205,37 @@ enum SnapshotMode {
         if let table = view as? NSTableView { found.append(table) }
         for subview in view.subviews { found += allTables(in: subview) }
         return found
+    }
+
+    private static func splitWidths(in view: NSView) -> [[Int]] {
+        var found: [[Int]] = []
+        if let split = view as? NSSplitView { found.append(split.arrangedSubviews.map { split.isSubviewCollapsed($0) ? -1 : Int($0.frame.width) }) }
+        for sub in view.subviews { found += splitWidths(in: sub) }
+        return found
+    }
+
+    /// `BEADY_TRACE_PANES=1`: in the real app window, closes then opens the detail pane and logs
+    /// every split-view pane's width through the animation, then quits.
+    static var tracesPanes: Bool { ProcessInfo.processInfo.environment["BEADY_TRACE_PANES"] == "1" }
+
+    static func tracePanes(ui: WorkspaceUI) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard let window = NSApp.windows.first(where: { $0.contentView != nil && $0.isVisible }),
+                  let root = window.contentView else { FileHandle.standardError.write(Data("trace no window: \(NSApp.windows.map { "\($0.title)|\($0.isVisible)" })\n".utf8)); exit(2) }
+            @MainActor func log(_ label: String) {
+                FileHandle.standardError.write(Data("trace \(label) window=\(Int(window.frame.width)) \(splitWidths(in: root))\n".utf8))
+            }
+            ui.showsInspector = false
+            try? await Task.sleep(for: .seconds(1.5))
+            log("closed")
+            ui.showsInspector = true
+            for step in 0..<60 {
+                try? await Task.sleep(for: .milliseconds(16))
+                log("open+\(step)")
+            }
+            exit(0)
+        }
     }
 
     static var outputDirectory: URL? {

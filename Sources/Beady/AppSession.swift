@@ -53,7 +53,7 @@ final class AppSession {
             )
             openError = nil
             watcher?.stop()
-            // Passive FSEvents on bd's folder: every write touches last-touched and grows Dolt's
+            // Passive FSEvents on bd's folder: every write touches a marker file and grows Dolt's
             // storage, so this fires within a moment of any agent's change. It stays the wake-up
             // even with bd's events journal on: following that journal would mean a bd process
             // held open for as long as the window is, and FSEvents costs nothing. The events
