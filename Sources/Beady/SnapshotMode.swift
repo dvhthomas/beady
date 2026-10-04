@@ -327,6 +327,9 @@ enum SnapshotMode {
             capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
         }
 
+        model.selection = nil
+        capture("10-new-bead", NewBeadForm(model: model, onCancel: {}))
+
         // The edit form, which is the thing being overhauled.
         if let subject = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }) {
             model.selection = subject.id
