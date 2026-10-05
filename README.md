@@ -12,8 +12,8 @@ be writing to the same database while you read it. Beady is the window onto that
 `bd --readonly`, watches the database for changes so the view is never stale, and puts every write
 behind validation, a preview of the exact `bd` commands, and a read-back check.
 
-The screenshot above is Beady noticing that something else moved while you were looking: an agent
-touched that bead four seconds ago, and the app says so rather than pretending it owns the data.
+The screenshot above is the In Flight view: work grouped by status, the pinned P0 bug on top, and
+the details of the selected bead — including what it's holding up — alongside.
 
 ## What it's for
 
@@ -56,6 +56,8 @@ the theme.
 
 ![Theme picker](docs/images/themes.png)
 
+![The same list in a light theme](docs/images/list-light.png)
+
 System, light or dark, with the best-known editor themes on both sides — Dracula, One Dark, Nord,
 Solarized Light, GitHub Light, One Light — plus a high-contrast pair that macOS's own
 **Increase Contrast** setting switches to on its own. Text scales from Small to Extra Large.
@@ -73,6 +75,8 @@ body text clears WCAG AA (4.5:1) on both the background and a row, status and pr
 clear 3:1, and the high-contrast themes clear AAA (7:1).
 
 ## The dependency graph
+
+![Dependency graph focused on one bead](docs/images/graph.png)
 
 ⌘G opens every `blocks` dependency in the database as one graph, read left to right the way
 `bd graph` reads: what can start now on the left, what waits on it further right. Click any bead
