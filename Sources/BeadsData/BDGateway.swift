@@ -57,6 +57,7 @@ public enum BDCommand: Equatable, Sendable {
     case configGet(String)
     case configSet([ConfigSetting])
     case eventsTail(since: Int64)
+    case migrateSchema
     case updateFields(IssueID, IssueEdit)
     case setStatus(IssueID, String)
     case setParent(IssueID, IssueID?)
@@ -73,7 +74,7 @@ public enum BDCommand: Equatable, Sendable {
         case .list, .listTitled, .statuses, .show, .ready, .blocked, .history, .backupStatus,
              .version, .configGet, .eventsTail: true
         case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .addBlocker,
-             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet: false
+             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet, .migrateSchema: false
         }
     }
 
@@ -95,22 +96,28 @@ public enum BDCommand: Equatable, Sendable {
         case .history(let id, let limit):
             return Self.readOnly(["history", id.rawValue, "--limit", String(limit), "--json"])
         case .backupStatus:
-            // Not --readonly: bd rejects that flag here, and reading status writes nothing.
-            return ["backup", "status", "--json"]
+            // --readonly matters even though this only reads: without it bd 1.3 opens the store
+            // for writing, which upgrades an older database's schema as a side effect.
+            return Self.readOnly(["backup", "status", "--json"])
         case .backupInit(let path):
             return ["backup", "init", path]
         case .backupSync:
             return ["backup", "sync"]
         case .version:
-            // Neither of these opens the database, so there is nothing for --readonly to guard.
+            // Doesn't open the database, so there's nothing for --readonly to guard.
             return ["version", "--json"]
         case .configGet(let key):
-            return ["config", "get", key, "--json"]
+            // Does open it, and without --readonly bd 1.3 upgrades an older schema to read a setting.
+            return Self.readOnly(["config", "get", key, "--json"])
         case .configSet(let settings):
             // One write for all of them, as one `bd config set` would be per key.
             return ["config", "set-many"] + settings.map { "\($0.key)=\($0.value)" }
         case .eventsTail(let since):
             return Self.readOnly(["events", "tail", "--since", String(since), "--json"])
+        case .migrateSchema:
+            // bd's explicit, idempotent migration. Its output is a line of text, not JSON; success
+            // is the exit status, and the app re-reads to confirm.
+            return ["migrate", "schema"]
         case .updateFields(let id, let edit):
             // One write for the whole edit: bd takes every field on a single update, so two
             // people editing different fields don't get interleaved half-changes.
@@ -164,6 +171,8 @@ public struct BDGateway: Sendable {
     private let executable: URL
     private let runner: any CommandRunning
     private let timeout: TimeInterval
+    /// Flags that go before every command, such as `--ignore-schema-skew`.
+    private let globalFlags: [String]
 
     public init(
         workspace: BeadsWorkspace,
@@ -171,10 +180,22 @@ public struct BDGateway: Sendable {
         runner: any CommandRunning = ProcessCommandRunner(),
         timeout: TimeInterval = 60
     ) {
+        self.init(workspace: workspace, executable: executable, runner: runner, timeout: timeout, globalFlags: [])
+    }
+
+    private init(workspace: BeadsWorkspace, executable: URL, runner: any CommandRunning, timeout: TimeInterval, globalFlags: [String]) {
         self.workspace = workspace
         self.executable = executable
         self.runner = runner
         self.timeout = timeout
+        self.globalFlags = globalFlags
+    }
+
+    /// The same gateway, asking bd to read past a schema mismatch. Only for reads: a database a
+    /// newer bd has upgraded can still be read by an older one, but must not be written by it.
+    public func ignoringSchemaSkew() -> BDGateway {
+        BDGateway(workspace: workspace, executable: executable, runner: runner, timeout: timeout,
+                  globalFlags: globalFlags + ["--ignore-schema-skew"])
     }
 
     /// Resolves a folder to a workspace and finds the bd executable.
@@ -191,7 +212,7 @@ public struct BDGateway: Sendable {
 
     /// Runs a command and returns the raw result, for callers that interpret failures themselves.
     public func result(of command: BDCommand) async throws -> CommandResult {
-        try await runner.run(executable, arguments: ["-C", workspace.projectDirectory.path] + command.arguments, timeout: timeout)
+        try await runner.run(executable, arguments: ["-C", workspace.projectDirectory.path] + globalFlags + command.arguments, timeout: timeout)
     }
 
     /// The exact command line, quoted the way a shell would need.
@@ -222,6 +243,28 @@ public struct BDGateway: Sendable {
             }
         }
         return parts.joined(separator: "|")
+    }
+
+    /// Copies the whole `.beads` folder, as it is on disk, into `folder` before an upgrade. A plain
+    /// file copy rather than `bd backup`: any bd command that opens the database for writing,
+    /// backups included, upgrades its schema first, which would defeat the point. Never overwrites.
+    public func copyDatabase(into folder: URL, schema: Int, at date: Date) throws -> URL {
+        let name = "\(workspace.displayName)-beads-v\(schema)-\(Self.copyStamp(date))"
+        let destination = folder.appendingPathComponent(name, isDirectory: true)
+        // Checked rather than left to copyItem, which doesn't refuse on every platform.
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destination.path])
+        }
+        try FileManager.default.copyItem(at: workspace.beadsDirectory, to: destination)
+        return destination
+    }
+
+    /// A sortable local timestamp for a copy's folder name.
+    public static func copyStamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        return formatter.string(from: date)
     }
 
     /// bd appends every field change to `.beads/interactions.jsonl` (actor, time, field). Reading

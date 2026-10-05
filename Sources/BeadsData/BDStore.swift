@@ -12,8 +12,21 @@ public struct BDStore: BeadsStore {
     }
 
     public func loadSnapshot() async throws -> IssueSnapshot {
+        try await loadSnapshot(ignoringSchemaSkew: false)
+    }
+
+    /// A schema mismatch comes back as `SchemaMismatch`, so the app can offer what fits it rather
+    /// than showing bd's message.
+    public func loadSnapshot(ignoringSchemaSkew: Bool) async throws -> IssueSnapshot {
+        let gateway = ignoringSchemaSkew ? gateway.ignoringSchemaSkew() : gateway
         // Sequential on purpose: embedded Dolt serialises access through a file lock.
-        let decoded = try decodeIssueList(try await gateway.run(.list))
+        let listing: Data
+        do {
+            listing = try await gateway.run(.list)
+        } catch BeadsDataError.commandFailed(_, let message) where BDJSON.schemaMismatch(in: message) != nil {
+            throw BDJSON.schemaMismatch(in: message)!
+        }
+        let decoded = try decodeIssueList(listing)
         let catalog = (try? await gateway.run(.statuses)).flatMap { try? BDJSON.decodeStatusCatalog($0) }
         return IssueSnapshot(
             issues: decoded.issues,
@@ -119,6 +132,29 @@ public struct BDStore: BeadsStore {
 
     public func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] {
         [gateway.preview(.configSet(settings))]
+    }
+
+    public func copyDatabase(into folder: String, schema: Int, at date: Date) async throws -> String {
+        try gateway.copyDatabase(into: URL(fileURLWithPath: folder), schema: schema, at: date).path
+    }
+
+    /// bd refuses to migrate a database shared through a remote or server when doing so here could
+    /// split the schema between clones; that refusal is a decision for a person, so it comes back
+    /// as its own error rather than as a failure to retry.
+    public func upgradeSchema() async throws {
+        let result = try await gateway.result(of: .migrateSchema)
+        guard result.exitCode != 0 else { return }
+        let message = [result.stderr, String(decoding: result.stdout, as: UTF8.self)]
+            .joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        if message.contains("refusing to") {
+            let text = message.hasPrefix("Error: ") ? String(message.dropFirst("Error: ".count)) : message
+            throw SchemaUpgradeRefused(message: text)
+        }
+        throw BDGateway.failure(result)
+    }
+
+    public func schemaUpgradePreview() -> [String] {
+        [gateway.preview(.migrateSchema)]
     }
 
     /// The bd commands a change runs, in order.

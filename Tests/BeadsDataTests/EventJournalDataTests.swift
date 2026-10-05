@@ -41,7 +41,8 @@ struct JournalCommandTests {
     @Test("reading the version, settings and journal never writes")
     func reads() {
         #expect(BDCommand.version.arguments == ["version", "--json"])
-        #expect(BDCommand.configGet("events-journal").arguments == ["config", "get", "events-journal", "--json"])
+        // Without --readonly, bd 1.3 upgrades an older database's schema just to read a setting.
+        #expect(BDCommand.configGet("events-journal").arguments == ["--readonly", "config", "get", "events-journal", "--json"])
         #expect(BDCommand.eventsTail(since: 42).arguments == ["--readonly", "events", "tail", "--since", "42", "--json"])
         #expect([BDCommand.version, .configGet("x"), .eventsTail(since: 0)].allSatisfy { $0.isReadOnly })
     }

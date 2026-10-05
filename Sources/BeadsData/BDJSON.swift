@@ -80,6 +80,27 @@ public enum BDJSON {
         return .records(records)
     }
 
+    /// bd's refusal to open a database whose schema differs from its own, from a failed command's
+    /// message. bd words it as plain text when the database is behind, and as JSON with a
+    /// `schema_skew` object when it is ahead.
+    public static func schemaMismatch(in message: String) -> SchemaMismatch? {
+        if let root = try? JSONSerialization.jsonObject(with: Data(message.utf8)) as? [String: Any],
+           let skew = root["schema_skew"] as? [String: Any],
+           let database = (skew["current_version"] as? NSNumber)?.intValue,
+           let bd = (skew["required_version"] as? NSNumber)?.intValue {
+            return SchemaMismatch(database > bd ? .ahead : .behind, database: database, bd: bd)
+        }
+        if let match = message.firstMatch(of: /database is at v(\d+), binary expects v(\d+)/),
+           let database = Int(match.1), let bd = Int(match.2) {
+            return SchemaMismatch(.behind, database: database, bd: bd)
+        }
+        if let match = message.firstMatch(of: /database is at v(\d+), binary knows up to v(\d+)/),
+           let database = Int(match.1), let bd = Int(match.2) {
+            return SchemaMismatch(.ahead, database: database, bd: bd)
+        }
+        return nil
+    }
+
     public struct DecodingFailure: Error, Equatable {
         public let detail: String
     }

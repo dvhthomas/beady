@@ -23,6 +23,8 @@ final class AppSession {
     private static let recentsKey = "recentWorkspaces"
     /// Workspaces whose owner said no to bd's change journal, so it isn't asked again.
     private static let declinedJournalsKey = "declinedEventsJournal"
+    /// Where the copy before a schema upgrade went last time, so the folder prompt starts there.
+    private static let upgradeCopyFolderKey = "preUpgradeCopyFolder"
 
     /// Where view state is remembered; nil for the offscreen snapshots, which must not disturb
     /// the saved views.
@@ -86,6 +88,35 @@ final class AppSession {
         model.declineJournal()
         guard !declinedJournals.contains(path) else { return }
         UserDefaults.standard.set(declinedJournals + [path], forKey: Self.declinedJournalsKey)
+    }
+
+    /// Copies the database to a folder the user picks (unless they unticked that), then upgrades
+    /// it. Cancelling the folder prompt cancels the upgrade: the copy was asked for, so it isn't
+    /// skipped silently.
+    func upgradeDatabase() {
+        guard let model else { return }
+        var folder: String?
+        if ui.copiesDatabaseBeforeUpgrade {
+            let panel = NSOpenPanel()
+            panel.title = "Choose Where to Copy the Database"
+            panel.message = "A copy of .beads goes here, as it is now, before bd upgrades it."
+            panel.prompt = "Copy Here"
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            if let last = UserDefaults.standard.string(forKey: Self.upgradeCopyFolderKey) {
+                panel.directoryURL = URL(fileURLWithPath: last)
+            }
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            folder = url.path
+            UserDefaults.standard.set(url.path, forKey: Self.upgradeCopyFolderKey)
+        }
+        let ui = ui
+        Task {
+            guard await model.upgradeDatabase(copyingTo: folder) else { return }
+            ui.schemaUpgradeNotice = model.preUpgradeCopy.map { "A copy of the database as it was before the upgrade is at \($0)." }
+                ?? "bd upgraded the database. No copy was taken."
+        }
     }
 
     func dismissOpenError() {
@@ -187,6 +218,8 @@ final class AppSession {
             if let model { Task { await report(await model.backUpNow()) } }
         case .setUpBackup: chooseBackupFolder()
         case .turnOnJournal: ui.showsJournalOffer = true
+        case .upgradeDatabase: ui.showsSchemaUpgrade = true
+        case .readPastSchemaSkew: if let model { Task { await model.readPastSchemaSkew() } }
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size

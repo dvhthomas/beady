@@ -143,12 +143,16 @@ public final class WorkspaceModel {
         }
         await refreshBackupStatus()
         do {
-            snapshot = try await store.loadSnapshot()
+            snapshot = try await store.loadSnapshot(ignoringSchemaSkew: isReadingPastSchemaSkew)
             reapplyDesiredMarks()
             loadState = .loaded
             lastLoaded = now()
             refreshError = nil
+            schemaMismatch = nil
+            // An agent may have upgraded it meanwhile; an old failure no longer applies.
+            if case .failed = schemaUpgrade { schemaUpgrade = .idle }
         } catch {
+            schemaMismatch = error as? SchemaMismatch
             if snapshot == nil {
                 loadState = .failed(error.localizedDescription)
             } else {
@@ -758,7 +762,9 @@ public final class WorkspaceModel {
 
     // MARK: Editing
 
-    public var canEdit: Bool { allowsWriting && snapshot != nil }
+    /// Never while reading past a schema mismatch: an older bd writing to a newer schema is the
+    /// very thing bd's check is there to stop.
+    public var canEdit: Bool { allowsWriting && snapshot != nil && !isReadingPastSchemaSkew }
 
     /// Bumped when something asks for the selected bead to be edited (⌘E); the detail view watches it.
     public private(set) var editRequests = 0
@@ -812,6 +818,79 @@ public final class WorkspaceModel {
         } catch {
             history[id] = .failed(error.localizedDescription)
         }
+    }
+
+    // MARK: A database on another schema
+
+    /// Set when bd won't read the database because its schema differs from bd's own.
+    public private(set) var schemaMismatch: SchemaMismatch?
+    /// True once the user chose to read a newer database with this older bd; editing is off.
+    public private(set) var isReadingPastSchemaSkew = false
+    /// Where the copy taken before the last upgrade went, if one was taken.
+    public private(set) var preUpgradeCopy: String?
+
+    public enum SchemaUpgradeState: Equatable, Sendable {
+        case idle
+        case upgrading
+        /// `needsDecision` when bd refused because the database is shared: a person decides how.
+        case failed(String, needsDecision: Bool)
+    }
+
+    public private(set) var schemaUpgrade: SchemaUpgradeState = .idle
+
+    /// The database is older than this bd, which can upgrade it, and the window may write.
+    public var offersSchemaUpgrade: Bool {
+        allowsWriting && schemaMismatch?.direction == .behind
+    }
+
+    /// The database is newer than this bd. An older bd can still read it, without editing.
+    /// Not offered the other way round: bd's own queries fail on a schema older than they expect.
+    public var offersReadingPastSchemaSkew: Bool {
+        schemaMismatch?.direction == .ahead && !isReadingPastSchemaSkew
+    }
+
+    /// What the upgrade will do, in order, for the confirmation.
+    public func schemaUpgradeSteps(copyingTo folder: String?) -> [String] {
+        (folder.map { ["Copy .beads to \($0)"] } ?? []) + store.schemaUpgradePreview()
+    }
+
+    /// Copies the database first when given a folder, then upgrades it and loads. Nothing is
+    /// upgraded if the copy fails. Returns whether the database was upgraded.
+    @discardableResult
+    public func upgradeDatabase(copyingTo folder: String?) async -> Bool {
+        guard offersSchemaUpgrade, let mismatch = schemaMismatch, schemaUpgrade != .upgrading else { return false }
+        schemaUpgrade = .upgrading
+        if let folder {
+            do {
+                preUpgradeCopy = try await store.copyDatabase(into: folder, schema: mismatch.databaseVersion, at: now())
+            } catch {
+                schemaUpgrade = .failed("Couldn't copy the database: \(error.localizedDescription) Nothing was upgraded.", needsDecision: false)
+                return false
+            }
+        } else {
+            preUpgradeCopy = nil
+        }
+        do {
+            try await store.upgradeSchema()
+        } catch let refused as SchemaUpgradeRefused {
+            schemaUpgrade = .failed(refused.message, needsDecision: true)
+            return false
+        } catch {
+            schemaUpgrade = .failed(error.localizedDescription, needsDecision: false)
+            return false
+        }
+        schemaUpgrade = .idle
+        // The journal settings couldn't be read on the old schema; ask again.
+        journalChecked = false
+        await load()
+        return true
+    }
+
+    /// Reads a database a newer bd upgraded, with editing off, for as long as the window is open.
+    public func readPastSchemaSkew() async {
+        guard offersReadingPastSchemaSkew else { return }
+        isReadingPastSchemaSkew = true
+        await load()
     }
 
     // MARK: The events journal

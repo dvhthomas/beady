@@ -188,6 +188,16 @@ workspace reopens on launch; `--workspace /path/to/project` overrides it.
 - **Other sessions**: bd has no lease or lock, so when another actor changed a bead recently
   the details panel says who and when, the row is marked, and a change to that bead carries a
   warning on the confirmation sheet. It informs; it never blocks.
+- **A database on another schema**: when bd is upgraded, workspaces last written by the older bd
+  are on an older database schema, and bd won't read them with `--readonly` until they're
+  upgraded. Beady says so instead of showing bd's error, and offers **Upgrade Database…**: it
+  copies `.beads` to a folder you choose (on by default), then runs `bd migrate schema` and
+  reloads. The upgrade is one-way, so any older bd still using the workspace stops being able
+  to open it, and the confirmation says so. If the database is shared through a Dolt remote and bd
+  refuses, Beady shows bd's reason and leaves the decision to you (`bd migrate --inspect`). A
+  database upgraded by a *newer* bd than yours can be opened read-only. Beady never upgrades a
+  database without asking. See
+  [docs/plans/0004-schema-mismatch.md](docs/plans/0004-schema-mismatch.md).
 - **bd's events journal** (bd 1.3 and later): Beady checks bd's version when a workspace opens.
   If the journal is off, a **Who's working?** button offers to turn it on and shows the exact
   `bd config set-many` it will run. It's a workspace setting, so every bd command there (agents'

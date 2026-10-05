@@ -77,6 +77,17 @@ struct RootView: View {
                     } message: {
                         Text(model.journalOffer ?? "")
                     }
+                    .alert("Upgrade This Database?", isPresented: showsSchemaUpgrade) {
+                        Button("Upgrade") { session.upgradeDatabase() }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(schemaUpgradeMessage(model))
+                    }
+                    .alert("Database Upgraded", isPresented: showsSchemaUpgradeNotice) {
+                        Button("OK", role: .cancel) { session.ui.schemaUpgradeNotice = nil }
+                    } message: {
+                        Text(session.ui.schemaUpgradeNotice ?? "")
+                    }
             } else {
                 WelcomeView(session: session)
             }
@@ -88,6 +99,27 @@ struct RootView: View {
         } message: {
             Text(session.openError ?? "")
         }
+    }
+
+    private var showsSchemaUpgrade: Binding<Bool> {
+        Binding(
+            get: { session.ui.showsSchemaUpgrade && session.model?.offersSchemaUpgrade == true },
+            set: { session.ui.showsSchemaUpgrade = $0 }
+        )
+    }
+
+    private var showsSchemaUpgradeNotice: Binding<Bool> {
+        Binding(
+            get: { session.ui.schemaUpgradeNotice != nil },
+            set: { if !$0 { session.ui.schemaUpgradeNotice = nil } }
+        )
+    }
+
+    /// What the upgrade will do, step by step, including the exact bd command.
+    private func schemaUpgradeMessage(_ model: WorkspaceModel) -> String {
+        let folder: String? = session.ui.copiesDatabaseBeforeUpgrade ? "a folder you choose next" : nil
+        let steps = model.schemaUpgradeSteps(copyingTo: folder).enumerated().map { "\($0.offset + 1). \($0.element)" }
+        return (["Any older bd still using this workspace won't open it afterwards."] + steps).joined(separator: "\n")
     }
 
     private var showsJournalOffer: Binding<Bool> {
