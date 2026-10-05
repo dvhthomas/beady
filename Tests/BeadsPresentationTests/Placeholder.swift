@@ -92,6 +92,35 @@ final class StubStore: BeadsStore, @unchecked Sendable {
         }
     }
 
+    // Schema upgrades.
+    private(set) var skewFlags: [Bool] = []
+    private(set) var copies: [(folder: String, schema: Int)] = []
+    var copyFailure: Error?
+    private(set) var upgrades = 0
+    var upgradeFailure: Error?
+
+    func loadSnapshot(ignoringSchemaSkew: Bool) async throws -> IssueSnapshot {
+        lock.withLock { skewFlags.append(ignoringSchemaSkew) }
+        return try await loadSnapshot()
+    }
+
+    func copyDatabase(into folder: String, schema: Int, at date: Date) async throws -> String {
+        try lock.withLock {
+            if let copyFailure { throw copyFailure }
+            copies.append((folder, schema))
+            return folder + "/demo-beads-v\(schema)"
+        }
+    }
+
+    func upgradeSchema() async throws {
+        try lock.withLock {
+            upgrades += 1
+            if let upgradeFailure { throw upgradeFailure }
+        }
+    }
+
+    func schemaUpgradePreview() -> [String] { ["bd migrate schema"] }
+
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] {
         ["bd config set-many " + settings.map { "\($0.key)=\($0.value)" }.joined(separator: " ")]
     }

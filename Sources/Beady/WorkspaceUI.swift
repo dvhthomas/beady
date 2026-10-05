@@ -16,6 +16,12 @@ final class WorkspaceUI {
     var showsDisplayOptions = false
     /// The question about turning on bd's change journal.
     var showsJournalOffer = false
+    /// The confirmation for upgrading a database to this bd's schema.
+    var showsSchemaUpgrade = false
+    /// Whether to copy the database somewhere before upgrading it. On unless the user unticks it.
+    var copiesDatabaseBeforeUpgrade = true
+    /// Said once an upgrade finishes: where the copy of the old database went.
+    var schemaUpgradeNotice: String?
     /// True while the search field has the keyboard. Single-key shortcuts stand down then, so
     /// typing "?" into a search reaches the field instead of opening the shortcut sheet.
     var isSearchFocused = false

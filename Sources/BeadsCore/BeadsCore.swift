@@ -34,7 +34,19 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
     func enableJournal(_ settings: [ConfigSetting]) async throws
     /// The exact commands `enableJournal` would run, for the user to see first.
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String]
+    /// A snapshot, optionally read past a schema mismatch: for a database a newer bd upgraded,
+    /// which an older bd can still read but must not write.
+    func loadSnapshot(ignoringSchemaSkew: Bool) async throws -> IssueSnapshot
+    /// Copies the database's files somewhere safe, as they are, before an upgrade. Returns where.
+    func copyDatabase(into folder: String, schema: Int, at date: Date) async throws -> String
+    /// Upgrades the database to the schema this bd expects.
+    func upgradeSchema() async throws
+    /// The exact commands `upgradeSchema` runs, for the user to see first.
+    func schemaUpgradePreview() -> [String]
 }
+
+/// A store that can't do this is asked to do it anyway only when it reported a mismatch itself.
+public struct UnsupportedByStore: Error, Equatable, Sendable {}
 
 /// A store with no journal: the app carries on with the file watcher and the interaction log.
 public extension BeadsStore {
@@ -42,4 +54,12 @@ public extension BeadsStore {
     func journalRecords(after checkpoint: Int64) async throws -> JournalRead { .records([]) }
     func enableJournal(_ settings: [ConfigSetting]) async throws {}
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] { [] }
+}
+
+/// A store that never reports a schema mismatch has nothing to upgrade.
+public extension BeadsStore {
+    func loadSnapshot(ignoringSchemaSkew: Bool) async throws -> IssueSnapshot { try await loadSnapshot() }
+    func copyDatabase(into folder: String, schema: Int, at date: Date) async throws -> String { throw UnsupportedByStore() }
+    func upgradeSchema() async throws { throw UnsupportedByStore() }
+    func schemaUpgradePreview() -> [String] { [] }
 }

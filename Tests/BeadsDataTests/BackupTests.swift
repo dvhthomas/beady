@@ -41,7 +41,9 @@ struct BackupStatusTests {
 
     @Test("the commands are the ones bd documents, and only sync and init write")
     func commands() {
-        #expect(BDCommand.backupStatus.arguments == ["backup", "status", "--json"])
+        // --readonly matters: without it bd 1.3 opens the store for writing, which upgrades an
+        // older database's schema as a side effect of merely asking about backups.
+        #expect(BDCommand.backupStatus.arguments == ["--readonly", "backup", "status", "--json"])
         #expect(BDCommand.backupStatus.isReadOnly)
         #expect(BDCommand.backupSync.arguments == ["backup", "sync"])
         #expect(!BDCommand.backupSync.isReadOnly)

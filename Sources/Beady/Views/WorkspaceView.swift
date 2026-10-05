@@ -101,6 +101,16 @@ struct WorkspaceView: View {
         }
     }
 
+    private func failedView(_ message: String) -> some View {
+        ContentUnavailableView {
+            Label("Couldn't load beads", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("Try Again") { Task { await model.load() } }
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.loadState {
@@ -108,12 +118,10 @@ struct WorkspaceView: View {
             ProgressView("Loading beads…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            ContentUnavailableView {
-                Label("Couldn't load beads", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(message)
-            } actions: {
-                Button("Try Again") { Task { await model.load() } }
+            if let mismatch = model.schemaMismatch {
+                SchemaMismatchView(mismatch: mismatch, model: model, ui: ui, run: run)
+            } else {
+                failedView(message)
             }
         case .loaded:
             if model.visibleIssues.isEmpty && model.layout != .board {
@@ -249,7 +257,11 @@ struct WorkspaceView: View {
     private var subtitle: String {
         guard let snapshot = model.snapshot else { return model.title }
         var parts = [model.title, "\(model.visibleIssues.count) of \(snapshot.issues.count)"]
-        if !model.canEdit { parts.append("read-only") }
+        if model.isReadingPastSchemaSkew {
+            parts.append("read-only: newer schema than your bd")
+        } else if !model.canEdit {
+            parts.append("read-only")
+        }
         if snapshot.unreadableRecordCount > 0 {
             parts.append("\(snapshot.unreadableRecordCount) unreadable records skipped")
         }
