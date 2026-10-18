@@ -59,7 +59,7 @@ public struct IssueGroupModel: Identifiable, Equatable, Sendable {
 public struct SidebarEntry: Identifiable, Equatable, Sendable {
     public let id: IssueView.ID
     public let title: String
-    /// The view's own SF Symbol name; rows show the layout glyph instead, except Starred.
+    /// The view's own SF Symbol name, which is what the row draws: never the layout glyph.
     public let symbol: String
     /// How the view is laid out right now, so you know before you click what you'll get.
     public let layout: ViewLayout

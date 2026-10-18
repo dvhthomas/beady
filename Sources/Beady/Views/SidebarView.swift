@@ -4,8 +4,8 @@ import SwiftUI
 
 /// Navigation only, as in Linear: views and nothing else. Filters live in each view's header,
 /// and anything to do with one bead — including focusing on its subtree — happens in the main
-/// panel. Each row carries its layout glyph, so you know before you click whether you're getting
-/// a list, a board or a tree, and a dot when the view has unsaved changes.
+/// panel. Each row carries the view's own icon (never the layout glyph: the header's switcher
+/// owns those) and a dot when the view has unsaved changes.
 struct SidebarView: View {
     let model: WorkspaceModel
     let ui: WorkspaceUI
@@ -70,8 +70,7 @@ struct SidebarView: View {
                 }
             }
         } icon: {
-            // The layout glyph says what you'll get; Starred keeps its star.
-            Image(systemName: entry.id == .starred ? entry.symbol : DisplayText.layoutSymbol(entry.layout))
+            Image(systemName: entry.symbol)
         }
         .badge(entry.count)
         .tag(entry.id)
@@ -82,6 +81,7 @@ struct SidebarView: View {
                 Button("Duplicate") { model.duplicateView(entry.id) }
             } else if let view = model.views.first(where: { $0.id == entry.id }) {
                 Button("Rename…") { ui.promptRename(view) }
+                Button("Change Icon…") { ui.promptChangeIcon(of: view) }
                 Button("Duplicate") { model.duplicateView(entry.id) }
                 Divider()
                 Button("Export…") { run(.exportView(entry.id)) }

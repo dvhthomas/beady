@@ -80,15 +80,11 @@ struct WorkspaceView: View {
         .onChange(of: searchFocus.wrappedValue) { ui.isSearchFocused = searchFocus.wrappedValue }
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
-        .alert("Save as New View", isPresented: Binding(get: { ui.showsSaveAsNewView }, set: { ui.showsSaveAsNewView = $0 })) {
-            TextField("Name", text: Binding(get: { ui.newViewName }, set: { ui.newViewName = $0 }))
-            Button("Save") {
-                let name = ui.newViewName.trimmingCharacters(in: .whitespacesAndNewlines)
-                model.saveAsNewView(name: name.isEmpty ? "\(model.view.name) copy" : name)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Keeps this view's filters, layout, grouping and ordering under a name of its own.")
+        .sheet(isPresented: Binding(get: { ui.showsSaveAsNewView }, set: { ui.showsSaveAsNewView = $0 })) {
+            SaveAsNewViewSheet(model: model, ui: ui)
+        }
+        .sheet(isPresented: Binding(get: { ui.changingIconOf != nil }, set: { if !$0 { ui.changingIconOf = nil } })) {
+            ChangeIconSheet(model: model, ui: ui)
         }
         .alert("Rename View", isPresented: Binding(get: { ui.renamingView != nil }, set: { if !$0 { ui.renamingView = nil } })) {
             TextField("Name", text: Binding(get: { ui.renameText }, set: { ui.renameText = $0 }))

@@ -258,9 +258,10 @@ public final class WorkspaceModel {
     /// A new user view from what's on screen, which becomes the current view. The view you came
     /// from goes back to how it was saved.
     @discardableResult
-    public func saveAsNewView(name: String) -> IssueView {
+    public func saveAsNewView(name: String, symbol: String = ViewIcon.defaultUserChoice) -> IssueView {
+        let symbol = symbol.trimmingCharacters(in: .whitespaces)
         let view = IssueView(
-            id: IssueView.ID(UUID().uuidString), name: name, symbol: "bookmark",
+            id: IssueView.ID(UUID().uuidString), name: name, symbol: symbol.isEmpty ? ViewIcon.defaultUserChoice : symbol,
             filter: state.filter, presentation: state.presentation
         )
         library.live[viewID] = nil
@@ -272,6 +273,16 @@ public final class WorkspaceModel {
     /// Back to the view as saved.
     public func reset() {
         library.live[viewID] = nil
+    }
+
+    /// Gives a user view an icon (an SF Symbol name). Refused for a built-in, whose icon is part
+    /// of what it is, and for a blank name, which would draw nothing.
+    @discardableResult
+    public func setIcon(_ symbol: String, for id: IssueView.ID) -> Bool {
+        let symbol = symbol.trimmingCharacters(in: .whitespaces)
+        guard !symbol.isEmpty, let index = library.index(of: id), !library.views[index].isBuiltIn else { return false }
+        library.views[index].symbol = symbol
+        return true
     }
 
     /// Renames a user view. Refused for a built-in, and for a blank name.
