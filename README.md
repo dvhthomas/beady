@@ -13,12 +13,17 @@ be writing to the same database while you read it. Beady is the window onto that
 behind validation, a preview of the exact `bd` commands, and a read-back check.
 
 The screenshot above is the In Flight view: work grouped by status, the pinned P0 bug on top, and
-the details of the selected bead — including what it's holding up — alongside.
+the details of the selected bead — including what it's holding up — alongside. The sidebar is
+views: each row says with its glyph whether it opens as a list, a board or a tree.
 
 ## What it's for
 
-- **See the shape of the work.** Lifecycle views (Open, Ready, In Flight, Blocked, Deferred,
-  Closed, All), each keeping its own filters, grouping, ordering and layout.
+- **See the shape of the work.** Every entry in the sidebar is a view: a saved filter with a saved
+  layout, grouping and ordering. The built-ins answer the questions you actually ask — **Frontier**
+  (what's ready), **In Flight**, **Stuck** (what's blocked), **Pipeline** (everything live plus a
+  week of done, as a board), **Recent**, **Landed**, **Deferred**, **Everything** and **Starred** —
+  and your own views sit under them. Add a chip to a built-in and a dot says it's modified; save it
+  as a new view, or reset.
 - **Filter the way you think.** Pick a property, tick values; rules read as chips —
   `Priority · is any of · P1, P2 · ✕` — and combine with AND.
 - **Three ways to look.** A resizable table, a tree that keeps ancestors visible, and a board you
@@ -30,27 +35,35 @@ the details of the selected bead — including what it's holding up — alongsid
   and the Changes menu says why.
 - **Ask what's in the way.** bd's "blocked" means something upstream has to land first, so Beady
   says so rather than sounding an alarm: a quiet waiting mark, a **Blocked by** column (on by
-  default in the Blocked and Ready views) naming the blocker, and a details section with the chain
-  grouped into "start now" and "then". ⌘G opens the whole dependency graph in its own window.
+  default in Stuck) naming the blocker, and a details section with the chain grouped into "start
+  now" and "then". ⌘G opens the whole dependency graph in its own window.
+- **Know what bd's words mean.** Ready, Blocked, Deferred, Pinned, Hooked and the lifecycle
+  categories each mean something exact in bd. Hover a view, a chip, a filter value or a status and
+  the tooltip says what, in bd's own words.
+- **Keep and share views.** Your views live as one `.beadyview` file each in
+  `~/Library/Application Support/Beady/views`, so they follow you and `cp` works. Export… writes
+  one, Share… hands it to AirDrop or Messages, and double-clicking a `.beadyview` in Finder — or
+  dropping it on the sidebar — imports it under My Views.
 - **Change things carefully.** Nothing is written until you confirm a sheet showing the change,
   its warnings, and the commands themselves.
 
 | | |
 |---|---|
 | ![Board](docs/images/board.png) | ![Tree](docs/images/tree.png) |
-| Board — drag between columns; the grouping decides what a drop means | Tree — a bead's subtree, ancestors kept visible when a filter matches a child |
+| Pipeline — a board of everything live plus a week of done; drag between columns, and the grouping decides what a drop means | Tree — focused on one bead, ancestors kept visible when a filter matches a child |
 
 ## Everything from the keyboard
 
 `⌘P` runs any command or jumps to a bead by id or title — and it really is any command: views,
-filters, layouts, columns, themes, text size, pins, stars, focus, back and forward, settings. It
-answers to the words you'd actually type: `fin` finds Find, `kanban` finds the board, `drac` finds
-the theme.
+filters, layouts, columns, themes, text size, pins, stars, focus, back and forward, saving and
+resetting a view, settings. It answers to the words you'd actually type: `fin` finds Find,
+`kanban` finds the board, `ready` finds Frontier, `drac` finds the theme.
 
 ![Command palette](docs/images/palette.png)
 
 `/` search · `F` filter · `⇧V` display · `⌘T` theme · `⌘N` new bead · `⌘E` edit · `⌘G` graph ·
-`⇧⌘P` pin · `⇧⌘S` star · `⌘I` details · `⌘1/2/3` layout · `⌘R` refresh · `?` the full list.
+`⇧⌘P` pin · `⇧⌘S` star · `⌘S` save view · `⌥⌘S` save as new view · `⌥⌘R` reset view ·
+`⌘I` details · `⌘1/2/3` layout · `⌘R` refresh · `?` the full list.
 
 ## Themes, and eyes that need help
 
@@ -146,23 +159,44 @@ workspace reopens on launch; `--workspace /path/to/project` overrides it.
 
 ## What you can see
 
-- **Views** (sidebar, modelled on Linear, navigation only): Open, Ready (open and unblocked),
-  In Flight, Blocked, Deferred, Closed and All, with each view's total. Categories come from `bd statuses`, so custom statuses
-  land in the right place. Each view keeps its own filters, search, layout, grouping and ordering,
-  so switching from Open to In Flight never carries Open's filters along.
+- **Views** (sidebar, modelled on Linear, navigation only): a view is a saved filter with a saved
+  layout, grouping, ordering and columns, over every bead. The built-ins, each with its total:
+  **Frontier** — `ready is yes`, bd's ready work: active, nothing open blocking it, not deferred
+  to a future date; **In Flight** — bd's wip category; **Stuck** — `blocked is yes`, computed from
+  the dependency graph; **Pipeline** — everything live plus the last week of done, as a board of
+  lifecycle columns; **Recent** — updated in the last 24 hours, by assignee; **Landed** — done and
+  closed in the last week; **Deferred** — bd's frozen category; **Everything**; and **Starred**,
+  once something is starred. Open and Closed are one Lifecycle chip away. Categories come from
+  `bd statuses`, so custom statuses land in the right place. Each view keeps its own filters,
+  search, layout, grouping and ordering, so switching views never carries filters along.
+- **Saving views**: a built-in's filter is its definition, so adding a chip to Frontier shows a
+  dot and a **Save** control with *Save as new view…* and *Reset*; its layout, grouping and
+  ordering are simply remembered. Your own views, under **My Views**, remember everything and
+  offer *Save* too (⌘S). Right-click one to rename, duplicate, export, share or delete it; the
+  `+` on the section saves the current view under a name. Views are `.beadyview` files (JSON with
+  a `beadyView: 1` header) in `~/Library/Application Support/Beady/views`, read at launch and
+  watched; a `.beadyviews` file is an array of them. Double-click one in Finder, drop it on the
+  sidebar, or use *Import Views…*; a view whose id is already taken comes in under a fresh id.
+- **One-column boards**: a board whose grouping would put everything in one column says
+  *Nothing to split* and offers the groupings that would spread it out, each a button.
+- **Hover help**: every view, filter field, fixed filter value (a status, a window, Ready,
+  Blocked), status badge and grouping carries a one-sentence definition in bd's own words.
 - **Filter** (button or `F`, in the view header): pick a property, then tick values. The menu
   stays open, and each value shows how many issues you'd see. Rules appear as chips reading
   `Priority · is any of · P1, P2 · ✕`; click the operator to switch between `is` / `is not` (or
-  `includes all / any / none` for labels), and the values to change them. Chips are ANDed, and a
-  view's status options only include statuses that view can contain.
+  `includes all / any / none` for labels), and the values to change them. Chips are ANDed. The
+  fields are Lifecycle (bd's active / wip / frozen / done), Status, Priority, Type, Assignee,
+  Labels, Blocked, Ready, Parent, Updated and Closed; `Closed · within · 7 days` keeps every live
+  bead and hides done beads older than that, so one chip turns Everything into a working board.
 - **Display** (button or `⇧V`): layout (List, Board, Tree), grouping (Lifecycle, Status, Priority,
   Type, Assignee, Parent), ordering, and which columns the list shows.
 - **Columns**: the list is a real table — drag the header dividers to resize, right-click the
   header (or use Display) to show and hide columns, including Labels and Progress. Your layout is
   saved between launches; **Reset Columns** puts it back.
-- **Focus** (any row's context menu, or the details panel): points the whole view at everything
-  under that bead, at any depth — for any bead, not just epics. A breadcrumb in the header names
-  it, and its ✕ returns you to the view you came from.
+- **Focus** (any row's context menu, or the details panel): narrows the current view to
+  everything under that bead, at any depth — for any bead, not just epics. It is a
+  `Parent · is · X` chip, shown as a breadcrumb in the header; its ✕ pops it and the view's other
+  filters stay. Save while focused and you have "this epic, as a tree" as a view of its own.
 - **Layouts**: List (a table with section headers per group), Board (a column per group, lifecycle
   when ungrouped), and Tree (parent/child outline, expanded by default, with completion;
   right-click to expand or collapse all).
@@ -290,7 +324,8 @@ BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch scripts/test.sh   # writes; needs a
 
 `BEADY_SNAPSHOT_DIR=/tmp/shots build/Beady.app/Contents/MacOS/Beady --workspace <project>` renders
 the main views to PNGs offscreen, which is how UI changes get checked without a window — the
-screenshots above were made that way, from a small demo database.
+screenshots above were made that way, from a small demo database. `BEADY_VERIFY_KEYS=1` types
+into a real window and reports whether the single-key shortcuts and the keyboard focus behave.
 
 `swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.
 

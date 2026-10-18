@@ -339,8 +339,13 @@ enum SnapshotMode {
 
         let parents = snapshot.issues.filter { !snapshot.children(of: $0.id).isEmpty }
         if let biggest = parents.max(by: { (snapshot.progress(of: $0.id)?.total ?? 0) < (snapshot.progress(of: $1.id)?.total ?? 0) }) {
+            // Under Everything, so the whole subtree shows, not only what Frontier lets through.
+            model.viewID = .everything
             model.focus(on: biggest.id)
+            model.layout = .tree
             captureWorkspace("6-focused-bead-tree")
+            model.reset()
+            model.viewID = .frontier
         }
 
         model.viewID = .frontier
