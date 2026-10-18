@@ -28,7 +28,11 @@ public final class WorkspaceModel {
 
     /// The view picked in the sidebar.
     public var viewID: IssueView.ID = .frontier {
-        didSet { recordPlace(view: oldValue, selection: selection) }
+        didSet {
+            recordPlace(view: oldValue, selection: selection)
+            // Asking for a board that can't split is a decision about one view, now.
+            explicitBoardView = nil
+        }
     }
 
     /// The view on screen: the view as saved, with what's live on top.
@@ -212,9 +216,40 @@ public final class WorkspaceModel {
         set { state.filter = newValue }
     }
 
+    /// The view's layout as remembered or chosen. What is drawn is `presentedLayout`.
     public var layout: Layout {
         get { state.presentation.layout }
-        set { present { $0.layout = newValue } }
+        set { chooseLayout(newValue) }
+    }
+
+    /// The view the user asked to see as a board even though it has nothing to split, if any.
+    /// Per view and per session: never saved, cleared when the view changes.
+    private var explicitBoardView: IssueView.ID?
+
+    /// Sets the layout as the user's choice: the switcher, ⌘1/2/3, the palette. Choosing Board
+    /// shows the board even when it can't split.
+    public func chooseLayout(_ layout: Layout) {
+        present { $0.layout = layout }
+        explicitBoardView = layout == .board ? viewID : nil
+    }
+
+    /// What is drawn. A view never opens on a board that can't split: Board stays its preference
+    /// and nothing is written, but it presents as a list, grouping and ordering unchanged, until
+    /// the data spreads out or the user asks for the board anyway.
+    public var presentedLayout: Layout {
+        if layout == .board, explicitBoardView != viewID, boardNeedsSplitting != nil { return .list }
+        return layout
+    }
+
+    /// True while a Board preference is being shown as a list, for the switcher's help.
+    public var isBoardShownAsList: Bool {
+        layout == .board && presentedLayout == .list
+    }
+
+    /// Back from an explicitly chosen board that can't split to the list, keeping Board as the
+    /// preference so the board returns on its own.
+    public func showBoardAsList() {
+        explicitBoardView = nil
     }
 
     public var grouping: IssueGrouping {
