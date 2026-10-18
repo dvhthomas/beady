@@ -330,10 +330,12 @@ public final class WorkspaceModel {
 
     private func valueTitle(_ raw: String, field: FilterField) -> String {
         switch field {
+        case .lifecycle: StatusCategory(rawValue: raw).map(DisplayText.lifecycle) ?? raw
         case .status: DisplayText.status(raw)
         case .priority: Int(raw).map(DisplayText.priority) ?? raw
         case .assignee: raw.isEmpty ? "Unassigned" : raw
         case .blocked: "Blocked"
+        case .ready: raw
         case .parent: snapshot?.issue(IssueID(raw))?.title ?? raw
         case .updated, .closed: TimeWindow(rawValue: raw).map(DisplayText.window) ?? raw
         case .type, .labels: raw
@@ -344,6 +346,9 @@ public final class WorkspaceModel {
         switch rule.field {
         case .priority:
             return rule.values.sorted { (Int($0) ?? .max) < (Int($1) ?? .max) }
+        case .lifecycle:
+            let order = { (raw: String) in StatusCategory(rawValue: raw).flatMap(StatusCategory.allCases.firstIndex) ?? .max }
+            return rule.values.sorted { order($0) < order($1) }
         case .status:
             let catalog = snapshot?.catalog ?? .builtIn
             let order = { (status: String) in StatusCategory.allCases.firstIndex(of: catalog.category(of: status)) ?? 0 }

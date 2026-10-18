@@ -209,6 +209,19 @@ struct WorkspaceViewStateTests {
         #expect(model.filterChips.map(\.field) == [.labels])
     }
 
+    @Test("lifecycle chips name bd's categories; ready reads 'is yes'")
+    func lifecycleAndReadyChips() async {
+        let model = await loadedModel()
+        model.source = .lifecycle(.all)
+        model.toggleFilterValue("wip", in: .lifecycle)
+        model.toggleFilterValue("active", in: .lifecycle)
+        #expect(chipText(model) == ["Lifecycle | is any of | Active, In Flight"])
+        model.toggleFilterValue(FilterRule.readyValue, in: .ready)
+        #expect(chipText(model).last == "Ready | is | yes")
+        #expect(model.filterOptions(for: .lifecycle).map(\.title) == ["Active", "In Flight", "Frozen", "Done"])
+        #expect(model.filterOptions(for: .ready).map(\.title) == ["yes"])
+    }
+
     @Test("filter menu options have readable titles and counts")
     func optionTitles() async {
         let model = await loadedModel()
@@ -262,5 +275,9 @@ struct DisplayTextTests {
         #expect(DisplayText.scope(.inFlight) == "In Flight")
         #expect(DisplayText.category(.frozen) == "Deferred")
         #expect(DisplayText.field(.parent) == "Parent epic")
+        #expect(DisplayText.field(.lifecycle) == "Lifecycle")
+        #expect(DisplayText.field(.ready) == "Ready")
+        #expect(DisplayText.lifecycle(.active) == "Active")
+        #expect(DisplayText.lifecycle(.wip) == "In Flight")
     }
 }

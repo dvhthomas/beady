@@ -6,14 +6,16 @@ import Foundation
 // MARK: Rules
 
 public enum FilterField: String, CaseIterable, Identifiable, Codable, Sendable {
-    case status, priority, type, assignee, labels, blocked, parent, updated, closed
+    case lifecycle, status, priority, type, assignee, labels, blocked, ready, parent, updated, closed
 
     public var id: String { rawValue }
 
     /// The operators that make sense for this field. The first is the default.
     public var operators: [FilterOperator] {
         switch self {
-        case .status, .priority, .type, .assignee, .blocked, .parent: [.isAnyOf, .isNoneOf]
+        case .lifecycle, .status, .priority, .type, .assignee, .blocked, .parent: [.isAnyOf, .isNoneOf]
+        // "Not ready" is not a question anyone asks.
+        case .ready: [.isAnyOf]
         case .labels: [.includesAll, .includesAny, .includesNone]
         case .updated, .closed: [.within]
         }
@@ -24,7 +26,7 @@ public enum FilterField: String, CaseIterable, Identifiable, Codable, Sendable {
     /// Choosing a value replaces the previous one instead of adding to it.
     public var isSingleChoice: Bool {
         switch self {
-        case .blocked, .updated, .closed: true
+        case .blocked, .ready, .updated, .closed: true
         default: false
         }
     }
@@ -39,11 +41,13 @@ public struct FilterRule: Identifiable, Hashable, Codable, Sendable {
     public static let unassigned = ""
     /// The only value of the blocked field.
     public static let blockedValue = "blocked"
+    /// The only value of the ready field.
+    public static let readyValue = "yes"
 
     public var field: FilterField
     public var op: FilterOperator
-    /// Raw values: status names, priorities as "0"…"4", types, assignee names, labels, parent ids,
-    /// or a `TimeWindow` raw value.
+    /// Raw values: `StatusCategory` raw values, status names, priorities as "0"…"4", types,
+    /// assignee names, labels, parent ids, or a `TimeWindow` raw value.
     public var values: Set<String>
 
     public var id: FilterField { field }
@@ -69,25 +73,34 @@ public struct FilterRule: Identifiable, Hashable, Codable, Sendable {
             guard let window = values.first.flatMap(TimeWindow.init(rawValue:)) else { return true }
             return window.contains(issue.updatedAt, now: now)
         case .closed:
+            // Hides done beads that landed before the window; live beads always stay, so a mixed
+            // view reads "everything live, plus what landed this week". Combined with
+            // lifecycle · is · done it is "only what landed this week".
             guard let window = values.first.flatMap(TimeWindow.init(rawValue:)) else { return true }
-            return snapshot.isDone(issue) && window.contains(issue.closedAt, now: now)
+            return Self.closedWithin(window, issue, in: snapshot, now: now)
         case .parent:
             let under = values.contains { snapshot.isDescendant(issue, of: IssueID($0)) }
             return op == .isNoneOf ? !under : under
-        case .status, .priority, .type, .assignee, .blocked:
-            let hit = values.contains(Self.value(of: issue, for: field, in: snapshot))
+        case .lifecycle, .status, .priority, .type, .assignee, .blocked, .ready:
+            let hit = values.contains(Self.value(of: issue, for: field, in: snapshot, now: now))
             return op == .isNoneOf ? !hit : hit
         }
     }
 
+    static func closedWithin(_ window: TimeWindow, _ issue: Issue, in snapshot: IssueSnapshot, now: Date) -> Bool {
+        !snapshot.isDone(issue) || window.contains(issue.closedAt, now: now)
+    }
+
     /// The one value an issue has for a single-valued field.
-    static func value(of issue: Issue, for field: FilterField, in snapshot: IssueSnapshot) -> String {
+    static func value(of issue: Issue, for field: FilterField, in snapshot: IssueSnapshot, now: Date) -> String {
         switch field {
+        case .lifecycle: snapshot.category(of: issue).rawValue
         case .status: issue.status
         case .priority: String(issue.priority)
         case .type: issue.type
         case .assignee: issue.assignee ?? unassigned
         case .blocked: snapshot.isBlocked(issue) ? blockedValue : ""
+        case .ready: snapshot.isReady(issue, now: now) ? readyValue : ""
         case .labels, .parent, .updated, .closed: ""
         }
     }
@@ -135,6 +148,15 @@ public struct ViewFilter: Hashable, Codable, Sendable {
 
     public func rule(for field: FilterField) -> FilterRule? {
         rules.first { $0.field == field }
+    }
+
+    /// The status categories the Lifecycle rule lets through: all of them without one.
+    /// Status options are limited to these.
+    public var lifecycleCategories: Set<StatusCategory> {
+        let all = Set(StatusCategory.allCases)
+        guard let rule = rule(for: .lifecycle), !rule.values.isEmpty else { return all }
+        let chosen = Set(rule.values.compactMap(StatusCategory.init(rawValue:)))
+        return rule.op == .isNoneOf ? all.subtracting(chosen) : chosen
     }
 
     /// Every rule, and every search word, must match.
@@ -237,7 +259,8 @@ public struct FilterValueOption: Identifiable, Hashable, Sendable {
 
 public enum FilterOptions {
     /// The values offered for a field in a view. Counts ignore the field's own rule, so choosing
-    /// a second value is informed. Status, priority, blocked and date options are always listed;
+    /// a second value is informed. Lifecycle, status, priority, blocked, ready and date options
+    /// are always listed;
     /// the longer lists (type, assignee, labels, parent) hide values with nothing to show unless ticked.
     public static func options(
         for field: FilterField,
@@ -269,10 +292,14 @@ public enum FilterOptions {
         }
 
         switch field {
+        case .lifecycle:
+            return listed(StatusCategory.allCases.map(\.rawValue), tally { [snapshot.category(of: $0).rawValue] }, hidingEmpty: false)
         case .status:
+            // The source's categories stay in force until step 2 (bdv-jlx.2) removes ViewSource.
+            let allowed = source.categories.intersection(filter.lifecycleCategories)
             let order = { (status: String) in StatusCategory.allCases.firstIndex(of: snapshot.catalog.category(of: status)) ?? 0 }
             let statuses = snapshot.statuses
-                .filter { source.categories.contains(snapshot.catalog.category(of: $0)) }
+                .filter { allowed.contains(snapshot.catalog.category(of: $0)) }
                 .sorted { (order($0), $0) < (order($1), $1) }
             return listed(statuses, tally { [$0.status] }, hidingEmpty: false)
         case .priority:
@@ -286,6 +313,9 @@ public enum FilterOptions {
         case .blocked:
             let count = base.filter { snapshot.isBlocked($0) }.count
             return [FilterValueOption(value: FilterRule.blockedValue, count: count, isSelected: selected.contains(FilterRule.blockedValue))]
+        case .ready:
+            let count = base.filter { snapshot.isReady($0, now: now) }.count
+            return [FilterValueOption(value: FilterRule.readyValue, count: count, isSelected: selected.contains(FilterRule.readyValue))]
         case .parent:
             // Anything that holds work, not only epics: bd's parent/child graph doesn't care
             // about types, and neither should the filter.
@@ -302,7 +332,7 @@ public enum FilterOptions {
                 let count = base.filter { issue in
                     field == .updated
                         ? window.contains(issue.updatedAt, now: now)
-                        : snapshot.isDone(issue) && window.contains(issue.closedAt, now: now)
+                        : FilterRule.closedWithin(window, issue, in: snapshot, now: now)
                 }.count
                 return FilterValueOption(value: window.rawValue, count: count, isSelected: selected.contains(window.rawValue))
             }

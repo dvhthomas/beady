@@ -17,9 +17,7 @@ public enum Scope: String, CaseIterable, Identifiable, Codable, Sendable {
         switch self {
         case .all: return true
         case .open: return category == .active
-        case .ready:
-            let deferred = issue.deferUntil.map { $0 > now } ?? false
-            return category == .active && !deferred && !snapshot.isBlocked(issue)
+        case .ready: return snapshot.isReady(issue, now: now)
         case .inFlight: return category == .wip
         case .blocked: return snapshot.isBlocked(issue)
         case .deferred: return category == .frozen

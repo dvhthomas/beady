@@ -56,6 +56,17 @@ public enum DisplayText {
         }
     }
 
+    /// A category as a Lifecycle filter value, in bd's own words, so it isn't mistaken for the
+    /// status of the same name: "Lifecycle · is · Active" rather than "Open".
+    public static func lifecycle(_ category: StatusCategory) -> String {
+        switch category {
+        case .active: "Active"
+        case .wip: "In Flight"
+        case .frozen: "Frozen"
+        case .done: "Done"
+        }
+    }
+
     public static func sort(_ sort: IssueSort) -> String {
         switch sort {
         case .priority: "Priority"
@@ -97,12 +108,14 @@ public enum DisplayText {
 
     public static func field(_ field: FilterField) -> String {
         switch field {
+        case .lifecycle: "Lifecycle"
         case .status: "Status"
         case .priority: "Priority"
         case .type: "Type"
         case .assignee: "Assignee"
         case .labels: "Labels"
         case .blocked: "Blocked"
+        case .ready: "Ready"
         case .parent: "Parent epic"
         case .updated: "Updated"
         case .closed: "Closed"
@@ -112,12 +125,13 @@ public enum DisplayText {
     /// Plural noun for summaries like "3 labels".
     static func noun(_ field: FilterField) -> String {
         switch field {
+        case .lifecycle: "categories"
         case .status: "statuses"
         case .priority: "priorities"
         case .type: "types"
         case .assignee: "assignees"
         case .labels: "labels"
-        case .blocked: "values"
+        case .blocked, .ready: "values"
         case .parent: "epics"
         case .updated, .closed: "windows"
         }

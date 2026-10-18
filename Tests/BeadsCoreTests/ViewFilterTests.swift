@@ -62,6 +62,67 @@ struct FilterRuleMatchingTests {
         #expect(F.ids(F.rule(.blocked, .isNoneOf, [FilterRule.blockedValue])) == ["epic", "a", "b", "c"])
     }
 
+    @Test("lifecycle is / is not any of bd's status categories")
+    func lifecycle() {
+        // One bead per category, so each value is checked on its own.
+        let snapshot = IssueSnapshot(issues: [
+            makeIssue("active"),
+            makeIssue("wip", status: "in_progress"),
+            makeIssue("frozen", status: "deferred"),
+            makeIssue("done", status: "closed", closed: t0),
+        ])
+        func ids(_ op: FilterOperator, _ values: Set<String>) -> Set<IssueID> {
+            let filter = F.rule(.lifecycle, op, values)
+            return Set(snapshot.issues.filter { filter.matches($0, in: snapshot, now: F.now) }.map(\.id))
+        }
+        for category in StatusCategory.allCases {
+            let own = IssueID(category.rawValue)
+            #expect(ids(.isAnyOf, [category.rawValue]) == [own])
+            #expect(ids(.isNoneOf, [category.rawValue]) == Set(snapshot.issues.map(\.id)).subtracting([own]))
+        }
+        #expect(ids(.isAnyOf, ["active", "wip"]) == ["active", "wip"])
+        #expect(F.ids(F.rule(.lifecycle, .isAnyOf, [StatusCategory.active.rawValue])) == ["epic", "a", "d"])
+    }
+
+    @Test("ready is yes means what Scope.ready means: active, not blocked, not deferred into the future")
+    func ready() {
+        let filter = F.rule(.ready, .isAnyOf, [FilterRule.readyValue])
+        #expect(F.ids(filter) == ["epic", "a"])
+        #expect(F.ids(filter) == F.ids(ViewFilter(), in: .lifecycle(.ready)))
+
+        let snapshot = IssueSnapshot(issues: [
+            makeIssue("later", deferUntil: F.now + days(1)),
+            makeIssue("due", deferUntil: F.now - days(1)),
+            makeIssue("wip", status: "in_progress"),
+            makeIssue("stuck", blockedBy: ["wip"]),
+        ])
+        let ready = snapshot.issues.filter { filter.matches($0, in: snapshot, now: F.now) }.map(\.id)
+        #expect(ready == ["due"])
+        #expect(ready == snapshot.issues.filter { Scope.ready.includes($0, in: snapshot, now: F.now) }.map(\.id))
+    }
+
+    @Test("closed within keeps every live bead and hides done beads closed before the window")
+    func closedWithinHidesStaleDone() {
+        // "Everything live, plus what landed this week" is the point of the rule on a mixed view.
+        let snapshot = IssueSnapshot(issues: [
+            makeIssue("open"),
+            makeIssue("wip", status: "in_progress"),
+            makeIssue("fresh", status: "closed", closed: F.now - days(3)),
+            makeIssue("stale", status: "closed", closed: F.now - days(8)),
+            makeIssue("undated", status: "closed"),
+        ])
+        func ids(_ filter: ViewFilter) -> Set<IssueID> {
+            Set(snapshot.issues.filter { filter.matches($0, in: snapshot, now: F.now) }.map(\.id))
+        }
+        #expect(ids(F.rule(.closed, .within, [TimeWindow.week.rawValue])) == ["open", "wip", "fresh"])
+        // On an all-done view the two readings agree: only what landed in the window.
+        let landed = ViewFilter(rules: [
+            FilterRule(field: .lifecycle, op: .isAnyOf, values: [StatusCategory.done.rawValue]),
+            FilterRule(field: .closed, op: .within, values: [TimeWindow.week.rawValue]),
+        ])
+        #expect(ids(landed) == ["fresh"])
+    }
+
     @Test("parent epic matches anything under it, at any depth")
     func parent() {
         #expect(F.ids(F.rule(.parent, .isAnyOf, ["epic"])) == ["a", "d"])
@@ -71,7 +132,11 @@ struct FilterRuleMatchingTests {
     @Test("dates match within the chosen window")
     func dates() {
         #expect(F.ids(F.rule(.updated, .within, [TimeWindow.day.rawValue])) == ["a", "b"])
-        #expect(F.ids(F.rule(.closed, .within, [TimeWindow.week.rawValue])) == ["c"])
+        // closed · within hides done beads closed before the window and keeps every live bead
+        // (bdv-jlx.1), so with c closed 3 days ago the week window hides nothing and the day
+        // window hides only c.
+        #expect(F.ids(F.rule(.closed, .within, [TimeWindow.week.rawValue])).count == 5)
+        #expect(F.ids(F.rule(.closed, .within, [TimeWindow.day.rawValue])) == ["epic", "a", "b", "d"])
     }
 
     @Test("a rule with no values matches everything")
@@ -126,6 +191,10 @@ struct ViewFilterEditingTests {
         #expect(FilterField.labels.operators == [.includesAll, .includesAny, .includesNone])
         #expect(FilterField.updated.operators == [.within])
         #expect(FilterField.blocked.operators == [.isAnyOf, .isNoneOf])
+        #expect(FilterField.lifecycle.operators == [.isAnyOf, .isNoneOf])
+        #expect(FilterField.ready.operators == [.isAnyOf])
+        #expect(FilterField.ready.isSingleChoice)
+        #expect(!FilterField.lifecycle.isSingleChoice)
 
         var filter = ViewFilter()
         filter.toggle("bug", in: .type)
@@ -204,6 +273,21 @@ struct FilterOptionsTests {
         #expect(options(.status) == ["[ ] open 3", "[ ] in_progress 1", "[ ] closed 1"])
     }
 
+    @Test("status options are limited to the categories the filter's Lifecycle rule allows")
+    func statusLimitedToLifecycleRule() {
+        #expect(options(.status, filter: F.rule(.lifecycle, .isAnyOf, ["wip"])) == ["[ ] in_progress 1"])
+        #expect(options(.status, filter: F.rule(.lifecycle, .isNoneOf, ["done"])) == ["[ ] open 3", "[ ] in_progress 1"])
+        // Until step 2 (bdv-jlx.2) removes ViewSource, the source's own categories still apply too.
+        #expect(options(.status, in: .lifecycle(.inFlight), filter: F.rule(.lifecycle, .isAnyOf, ["active"])).isEmpty)
+    }
+
+    @Test("lifecycle lists every category with counts; ready is a single option")
+    func lifecycleAndReady() {
+        #expect(options(.lifecycle) == ["[ ] active 3", "[ ] wip 1", "[ ] frozen 0", "[ ] done 1"])
+        #expect(options(.ready) == ["[ ] yes 2"])
+        #expect(options(.ready, in: .lifecycle(.blocked)) == ["[ ] yes 0"])
+    }
+
     @Test("counts ignore the field's own rule but respect the others, so adding a second value is informed")
     func countsExcludeOwnRule() {
         var filter = ViewFilter()
@@ -228,7 +312,9 @@ struct FilterOptionsTests {
     @Test("date options count the issues in each window")
     func dates() {
         #expect(options(.updated) == ["[ ] day 2", "[ ] week 2", "[ ] month 5", "[ ] quarter 5"])
-        #expect(options(.closed) == ["[ ] day 0", "[ ] week 1", "[ ] month 1", "[ ] quarter 1"])
+        // closed · within keeps the four live beads in every window and adds c once the window
+        // reaches back 3 days (bdv-jlx.1).
+        #expect(options(.closed) == ["[ ] day 4", "[ ] week 5", "[ ] month 5", "[ ] quarter 5"])
     }
 
     @Test("parent options are any unfinished bead holding work, not only epics; blocked is a single option")

@@ -388,12 +388,14 @@ struct DisplayOptionsView: View {
 enum FilterStyle {
     static func symbol(for field: FilterField) -> String {
         switch field {
+        case .lifecycle: "circle.dotted"
         case .status: "circle.lefthalf.filled"
         case .priority: "exclamationmark.3"
         case .type: "square.grid.2x2"
         case .assignee: "person"
         case .labels: "tag"
         case .blocked: "exclamationmark.octagon"
+        case .ready: "bolt"
         case .parent: "square.stack.3d.up"
         case .updated: "clock.arrow.circlepath"
         case .closed: "checkmark.circle"
