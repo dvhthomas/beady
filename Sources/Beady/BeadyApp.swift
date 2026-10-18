@@ -135,8 +135,8 @@ struct AppCommands: Commands {
             item(.goBack, needsWorkspace: true)
             item(.goForward, needsWorkspace: true)
             Divider()
-            ForEach(Scope.allCases) { scope in
-                Button(DisplayText.scope(scope)) { session.run(.showView(.lifecycle(scope))) }
+            ForEach(IssueView.builtIns) { view in
+                Button(view.name) { session.run(.showView(view.id)) }
                     .disabled(session.model == nil)
             }
         }

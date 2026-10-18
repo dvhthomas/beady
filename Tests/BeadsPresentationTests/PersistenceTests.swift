@@ -25,33 +25,33 @@ struct ViewStatePersistenceTests {
     func roundTrip() async {
         let defaults = scratchDefaults()
         let model = await makeModel(defaults)
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         model.toggleFilterValue("1", in: .priority)
         model.layout = .board
         model.grouping = .status
         model.ordering = .issueID
         model.searchText = "cache"
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         model.layout = .tree
 
         let reopened = await makeModel(defaults)
-        reopened.source = .lifecycle(.open)
-        #expect(reopened.filter.rules.first?.values == ["1"])
+        reopened.viewID = .frontier
+        #expect(reopened.filter.rule(for: .priority)?.values == ["1"])
         #expect(reopened.layout == .board)
         #expect(reopened.grouping == .status)
         #expect(reopened.ordering == .issueID)
         #expect(reopened.searchText == "cache", "a search is part of the view you left")
-        reopened.source = .lifecycle(.inFlight)
+        reopened.viewID = .inFlight
         #expect(reopened.layout == .tree)
-        #expect(reopened.filter.isEmpty, "each view keeps its own")
+        #expect(reopened.filter == IssueView.builtIn(.inFlight)?.filter, "each view keeps its own")
     }
 
     @Test("a fresh workspace starts from the defaults, not from someone else's saved views")
     func emptyDefaults() async {
         let model = await makeModel(scratchDefaults())
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         #expect(model.grouping == .status, "In Flight groups by status out of the box")
-        #expect(model.filter.isEmpty)
+        #expect(model.filter == IssueView.builtIn(.inFlight)?.filter)
     }
 
     @Test("saved state that no longer makes sense is ignored rather than crashing")
@@ -59,7 +59,7 @@ struct ViewStatePersistenceTests {
         let defaults = scratchDefaults()
         defaults.set(Data("not json".utf8), forKey: "viewStates")
         let model = await makeModel(defaults)
-        #expect(model.filter.isEmpty)
+        #expect(model.filter == IssueView.builtIn(.frontier)?.filter)
         model.layout = .board
         let reopened = await makeModel(defaults)
         #expect(reopened.layout == .board, "and it recovers by saving again")

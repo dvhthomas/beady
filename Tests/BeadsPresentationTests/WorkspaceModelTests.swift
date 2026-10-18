@@ -104,18 +104,19 @@ struct WorkspaceViewStateTests {
         model.filterChips.map { "\($0.fieldTitle) | \($0.operatorTitle) | \($0.valuesTitle)" }
     }
 
-    @Test("a status picked in Open doesn't leak into In Flight, and is still there back in Open")
+    @Test("a status picked in Frontier doesn't leak into In Flight, and is still there back in Frontier")
     func filtersArePerView() async {
         let model = await loadedModel()
-        #expect(model.source == .lifecycle(.open))
+        #expect(model.viewID == .frontier)
+        #expect(model.filter == IssueView.builtIn(.frontier)?.filter, "a built-in starts from its own filter")
         model.toggleFilterValue("open", in: .status)
         #expect(model.visibleIssues.map(\.id) == ["todo", "epic"])
 
-        model.source = .lifecycle(.inFlight)
-        #expect(model.filter.isEmpty)
+        model.viewID = .inFlight
+        #expect(model.filter == IssueView.builtIn(.inFlight)?.filter)
         #expect(Set(model.visibleIssues.map(\.id)) == ["epic.1", "epic.2"])
 
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         #expect(model.filter.rule(for: .status)?.values == ["open"])
     }
 
@@ -128,67 +129,72 @@ struct WorkspaceViewStateTests {
         model.searchText = "todo"
         #expect(model.visibleIssues.map(\.id) == ["todo"])
 
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         #expect(model.layout == .list)
         #expect(model.grouping == .status)
         #expect(model.ordering == .recentlyUpdated)
         #expect(model.searchText == "")
 
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         #expect(model.layout == .board)
         #expect(model.grouping == .priority)
         #expect(model.ordering == .issueID)
         #expect(model.searchText == "todo")
     }
 
-    @Test("each kind of view starts with sensible display defaults")
+    @Test("each built-in view starts with its own display")
     func defaults() async {
         let model = await loadedModel()
         #expect(model.grouping == .none)
         #expect(model.ordering == .priority)
-        model.source = .lifecycle(.closed)
+        model.viewID = .landed
         #expect(model.ordering == .recentlyClosed)
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         #expect(model.grouping == .category)
         #expect(model.ordering == .recentlyUpdated)
-        model.source = .focused("epic")
-        #expect(model.layout == .tree)
+        model.viewID = .pipeline
+        #expect(model.layout == .board)
     }
 
-    @Test("the status filter only offers statuses the view can contain")
+    @Test("the status filter only offers statuses the view's Lifecycle rule allows")
     func statusOptionsFollowView() async {
         let model = await loadedModel()
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         #expect(model.filterOptions(for: .status).map { "\($0.title) \($0.count)" } == ["Blocked 1", "In Progress 1"])
-        model.source = .lifecycle(.closed)
+        model.viewID = .landed
         #expect(model.filterOptions(for: .status).map(\.title) == ["Closed"])
     }
 
-    @Test("sidebar counts are each view's total, whatever the filters")
+    @Test("sidebar counts are each built-in's own total, whatever you've added to it")
     func sidebarCounts() async {
         let model = await loadedModel()
-        let expected = ["Open 2", "Ready 2", "In Flight 2", "Blocked 1", "Deferred 0", "Closed 2", "All 6"]
+        // Pipeline keeps everything live plus a week of done; Recent is a day of updates; nothing is starred.
+        let expected = ["Frontier 2", "In Flight 2", "Stuck 1", "Pipeline 6", "Recent 6", "Landed 2", "Deferred 0", "Everything 6"]
         #expect(model.sidebarViews.map { "\($0.title) \($0.count)" } == expected)
         model.toggleFilterValue("ui", in: .labels)
         #expect(model.sidebarViews.map { "\($0.title) \($0.count)" } == expected)
+        #expect(model.sidebarViews.map(\.id) == IssueView.builtIns.map(\.id).filter { $0 != .starred })
     }
 
-    @Test("a focused view shows everything under one bead, with filters of its own")
-    func epicView() async {
+    @Test("focusing on a bead is a parent chip on the view you're in, so its filters still apply")
+    func focusChip() async {
         let model = await loadedModel()
+        model.viewID = .everything
         model.toggleFilterValue("ui", in: .labels)
-        model.source = .focused("epic")
-        #expect(model.filter.isEmpty)
+        model.focus(on: "epic")
+        #expect(model.filter.rule(for: .labels)?.values == ["ui"])
         #expect(Set(model.visibleIssues.map(\.id)) == ["epic.1", "epic.2"])
-        #expect(model.viewTitle == "Issue epic")
-        model.source = .lifecycle(.inFlight)
+        #expect(model.viewTitle == "Everything", "the view keeps its name; the breadcrumb names the bead")
+        #expect(model.focusedIssue?.title == "Issue epic")
+        model.viewID = .inFlight
         #expect(model.viewTitle == "In Flight")
+        #expect(model.focusedIssue == nil, "focus belongs to the view it was pushed onto")
     }
 
     @Test("chips read like Linear's: field, operator, values")
     func chips() async {
         let model = await loadedModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.toggleFilterValue("1", in: .priority)
         #expect(chipText(model) == ["Priority | is | P1"])
         model.toggleFilterValue("0", in: .priority)
@@ -212,7 +218,7 @@ struct WorkspaceViewStateTests {
     @Test("lifecycle chips name bd's categories; ready reads 'is yes'")
     func lifecycleAndReadyChips() async {
         let model = await loadedModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.toggleFilterValue("wip", in: .lifecycle)
         model.toggleFilterValue("active", in: .lifecycle)
         #expect(chipText(model) == ["Lifecycle | is any of | Active, In Flight"])
@@ -225,7 +231,7 @@ struct WorkspaceViewStateTests {
     @Test("filter menu options have readable titles and counts")
     func optionTitles() async {
         let model = await loadedModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         #expect(model.filterOptions(for: .assignee).map { "\($0.title) \($0.count)" } == ["Unassigned 5", "Ann 1"])
         #expect(model.filterOptions(for: .parent).map { "\($0.title) \($0.count)" } == ["Issue epic 2"])
         #expect(model.filterOptions(for: .blocked).map { "\($0.title) \($0.count)" } == ["Blocked 1"])
@@ -236,18 +242,18 @@ struct WorkspaceViewStateTests {
     func clearIsPerView() async {
         let model = await loadedModel()
         model.toggleFilterValue("1", in: .priority)
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         model.toggleFilterValue("ui", in: .labels)
         model.clearFilters()
         #expect(model.filter.rules.isEmpty)
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         #expect(model.filter.rule(for: .priority) != nil)
     }
 
     @Test("groups have titles and follow the view's grouping and ordering")
     func groups() async {
         let model = await loadedModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         #expect(model.groups.map { "\($0.title) \($0.issues.count)" } == ["Open 2", "In Flight 2", "Closed 2"])
         #expect(model.groups[1].issues.map(\.id) == ["epic.2", "epic.1"])
         model.grouping = .none
@@ -260,7 +266,7 @@ struct WorkspaceViewStateTests {
     func selectionSurvives() async {
         let model = await loadedModel()
         model.selection = "todo"
-        model.source = .lifecycle(.closed)
+        model.viewID = .landed
         #expect(model.selectedIssue?.id == "todo")
     }
 }
@@ -272,7 +278,6 @@ struct DisplayTextTests {
         #expect(DisplayText.status("in_progress") == "In Progress")
         #expect(DisplayText.priority(0) == "P0")
         #expect(DisplayText.window(.month) == "30 days")
-        #expect(DisplayText.scope(.inFlight) == "In Flight")
         #expect(DisplayText.category(.frozen) == "Deferred")
         #expect(DisplayText.field(.parent) == "Parent epic")
         #expect(DisplayText.field(.lifecycle) == "Lifecycle")

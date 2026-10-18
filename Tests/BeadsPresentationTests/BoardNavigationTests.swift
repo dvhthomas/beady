@@ -15,7 +15,7 @@ struct BoardNavigationTests {
         ])
         let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
         await model.load()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.layout = .board
         model.grouping = .category
         model.ordering = .priority

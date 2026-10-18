@@ -14,20 +14,6 @@ extension StatusCategory {
     }
 }
 
-extension Scope {
-    var symbolName: String {
-        switch self {
-        case .all: "tray.full"
-        case .open: "circle"
-        case .ready: "play.circle"
-        case .inFlight: "circle.lefthalf.filled"
-        case .blocked: "pause.circle"
-        case .deferred: "snowflake"
-        case .closed: "checkmark.circle"
-        }
-    }
-}
-
 enum IssueTypeStyle {
     static func symbol(for type: String) -> String {
         switch type {

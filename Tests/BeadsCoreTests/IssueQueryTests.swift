@@ -2,43 +2,6 @@ import BeadsCore
 import Foundation
 import Testing
 
-@Suite("Scope")
-struct ScopeTests {
-    let snapshot = IssueSnapshot(issues: [
-        makeIssue("open-free"),
-        makeIssue("open-blocked", blockedBy: ["wip"]),
-        makeIssue("wip", status: "in_progress"),
-        makeIssue("frozen", status: "deferred"),
-        makeIssue("done", status: "closed", closed: t0),
-    ])
-
-    func ids(_ scope: Scope) -> Set<IssueID> {
-        Set(snapshot.issues.filter { scope.includes($0, in: snapshot, now: t0) }.map(\.id))
-    }
-
-    @Test("each scope selects its slice of the lifecycle")
-    func membership() {
-        #expect(ids(.all).count == 5)
-        #expect(ids(.open) == ["open-free", "open-blocked"])
-        #expect(ids(.ready) == ["open-free"])
-        #expect(ids(.inFlight) == ["wip"])
-        #expect(ids(.blocked) == ["open-blocked"])
-        #expect(ids(.deferred) == ["frozen"])
-        #expect(ids(.closed) == ["done"])
-    }
-
-    @Test("ready leaves out open issues deferred into the future, as bd ready does")
-    func readyRespectsDeferUntil() {
-        let deferred = IssueSnapshot(issues: [
-            makeIssue("later", deferUntil: t0 + days(1)),
-            makeIssue("lapsed", deferUntil: t0 - days(1)),
-        ])
-        let ready = deferred.issues.filter { Scope.ready.includes($0, in: deferred, now: t0) }.map(\.id)
-        #expect(ready == ["lapsed"])
-        #expect(Scope.open.includes(deferred.issue("later")!, in: deferred, now: t0))
-    }
-}
-
 @Suite("IssueSort")
 struct IssueSortTests {
     let issues = [

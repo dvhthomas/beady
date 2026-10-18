@@ -3,15 +3,13 @@ import Foundation
 import Observation
 
 /// View state for one open beads workspace, modelled on Linear: the sidebar picks a view (a
-/// lifecycle or an epic), and each view keeps its own filters, layout, grouping and ordering.
-/// Loading, change-driven refresh and every write go through one `BeadsStore`.
+/// saved filter with a saved presentation), and each view keeps its own filters, layout,
+/// grouping and ordering. Loading, change-driven refresh and every write go through one
+/// `BeadsStore`.
 @MainActor
 @Observable
 public final class WorkspaceModel {
-    public enum Layout: String, CaseIterable, Identifiable, Codable, Sendable {
-        case list, board, tree
-        public var id: String { rawValue }
-    }
+    public typealias Layout = ViewLayout
 
     public enum LoadState: Equatable, Sendable {
         case idle
@@ -29,12 +27,18 @@ public final class WorkspaceModel {
     public private(set) var isLoading = false
 
     /// The view picked in the sidebar.
-    public var source: ViewSource = .lifecycle(.open) {
-        didSet { recordPlace(source: oldValue, selection: selection) }
+    public var viewID: IssueView.ID = .frontier {
+        didSet { recordPlace(view: oldValue, selection: selection) }
+    }
+
+    /// The view picked in the sidebar, as defined. An id this Beady doesn't know falls back to
+    /// the first built-in rather than showing nothing.
+    public var view: IssueView {
+        IssueView.builtIn(viewID) ?? IssueView.builtIns[0]
     }
 
     public var selection: IssueID? {
-        didSet { recordPlace(source: source, selection: oldValue) }
+        didSet { recordPlace(view: viewID, selection: oldValue) }
     }
     /// Tree branches the user has folded; everything else is expanded.
     public private(set) var collapsed: Set<IssueID> = []
@@ -47,7 +51,7 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    private var viewStates: [ViewSource: ViewState] = [:] {
+    private var viewStates: [IssueView.ID: ViewState] = [:] {
         didSet { saveViewStates() }
     }
 
@@ -80,9 +84,6 @@ public final class WorkspaceModel {
     /// Where the journal has been read up to, when it's on.
     @ObservationIgnored private var journalFeed = JournalFeed()
     @ObservationIgnored private var journalChecked = false
-    /// Where `unfocus()` goes back to.
-    @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
-
     public init(
         title: String,
         store: any BeadsStore,
@@ -109,15 +110,15 @@ public final class WorkspaceModel {
 
     /// Saved views that can't be read — an older format, a corrupted value — are dropped rather
     /// than fought with: the app starts from its defaults and saves again on the next change.
-    private static func loadViewStates(from preferences: UserDefaults?) -> [ViewSource: ViewState] {
+    private static func loadViewStates(from preferences: UserDefaults?) -> [IssueView.ID: ViewState] {
         guard let data = preferences?.data(forKey: viewStatesKey),
               let saved = try? JSONDecoder().decode([SavedViewState].self, from: data) else { return [:] }
-        return Dictionary(saved.map { ($0.source, $0.state) }, uniquingKeysWith: { first, _ in first })
+        return Dictionary(saved.map { ($0.view, $0.state) }, uniquingKeysWith: { first, _ in first })
     }
 
     private func saveViewStates() {
         guard let preferences else { return }
-        let saved = viewStates.map { SavedViewState(source: $0.key, state: $0.value) }
+        let saved = viewStates.map { SavedViewState(view: $0.key, state: $0.value) }
         guard let data = try? JSONEncoder().encode(saved) else { return }
         preferences.set(data, forKey: Self.viewStatesKey)
     }
@@ -168,8 +169,8 @@ public final class WorkspaceModel {
     // MARK: The current view's state
 
     private var state: ViewState {
-        get { viewStates[source] ?? .defaults(for: source) }
-        set { viewStates[source] = newValue }
+        get { viewStates[viewID] ?? .defaults(for: view) }
+        set { viewStates[viewID] = newValue }
     }
 
     public var filter: ViewFilter {
@@ -197,25 +198,16 @@ public final class WorkspaceModel {
         set { state.filter.searchText = newValue }
     }
 
-    public var viewTitle: String {
-        switch source {
-        case .lifecycle(let scope): DisplayText.scope(scope)
-        case .focused(let id): snapshot?.issue(id)?.title ?? id.rawValue
-        case .label(let label): IssueMark(rawValue: label)?.title ?? label
-        }
-    }
+    public var viewTitle: String { view.name }
 
     // MARK: What the view shows
 
     public var visibleIssues: [Issue] {
         guard let snapshot else { return [] }
         let now = now()
-        let source = source
         let filter = filter
         return ordering.sorted(
-            snapshot.issues.filter {
-                source.includes($0, in: snapshot, now: now) && filter.matches($0, in: snapshot, now: now)
-            },
+            snapshot.issues.filter { filter.matches($0, in: snapshot, now: now) },
             // A pin is a request to see something first, wherever it appears.
             pinnedFirst: true
         )
@@ -247,7 +239,7 @@ public final class WorkspaceModel {
     }
 
     private func dropKeys(for grouping: IssueGrouping) -> [String] {
-        let categories = source.categories
+        let categories = filter.lifecycleCategories
         switch grouping {
         case .category:
             return StatusCategory.allCases.filter(categories.contains).map(\.rawValue)
@@ -307,13 +299,14 @@ public final class WorkspaceModel {
 
     public func filterOptions(for field: FilterField) -> [FilterMenuOption] {
         guard let snapshot else { return [] }
-        return FilterOptions.options(for: field, source: source, filter: filter, in: snapshot, now: now()).map {
+        return FilterOptions.options(for: field, filter: filter, in: snapshot, now: now()).map {
             FilterMenuOption(value: $0.value, title: valueTitle($0.value, field: field), count: $0.count, isSelected: $0.isSelected)
         }
     }
 
+    /// Every rule but the focus, which the breadcrumb shows instead.
     public var filterChips: [FilterChipModel] {
-        filter.rules.map { rule in
+        filter.rules.filter { Self.focusedID(of: $0) == nil }.map { rule in
             let titles = sortedValues(rule).map { valueTitle($0, field: rule.field) }
             let values = titles.count > 2 ? "\(titles.count) \(DisplayText.noun(rule.field))" : titles.joined(separator: ", ")
             return FilterChipModel(
@@ -363,17 +356,12 @@ public final class WorkspaceModel {
     // MARK: Sidebar
 
     public var sidebarViews: [SidebarEntry] {
-        let scopes: [Scope] = [.open, .ready, .inFlight, .blocked, .deferred, .closed, .all]
-        var entries = scopes.map { scope in
-            SidebarEntry(source: .lifecycle(scope), title: DisplayText.scope(scope), count: total(in: .lifecycle(scope)))
+        IssueView.builtIns.compactMap { view in
+            let count = total(in: view)
+            // Starred only earns a place in the sidebar once something is starred.
+            if view.id == .starred, count == 0 { return nil }
+            return SidebarEntry(id: view.id, title: view.name, symbol: view.symbol, count: count, help: "")
         }
-        // Starred only earns a place in the sidebar once something is starred.
-        let starred = ViewSource.label(IssueMark.starred.label)
-        let count = total(in: starred)
-        if count > 0 {
-            entries.append(SidebarEntry(source: starred, title: IssueMark.starred.title, count: count))
-        }
-        return entries
     }
 
     // MARK: Moving around the board
@@ -417,7 +405,7 @@ public final class WorkspaceModel {
 
     /// A view and the bead that was selected in it — one step of history.
     public struct Place: Equatable, Sendable {
-        public let source: ViewSource
+        public let view: IssueView.ID
         public let selection: IssueID?
     }
 
@@ -433,28 +421,28 @@ public final class WorkspaceModel {
     /// case this exists for.
     public func goBack() {
         guard let destination = back.popLast() else { return }
-        forward.append(Place(source: source, selection: selection))
+        forward.append(Place(view: viewID, selection: selection))
         travel(to: destination)
     }
 
     public func goForward() {
         guard let destination = forward.popLast() else { return }
-        back.append(Place(source: source, selection: selection))
+        back.append(Place(view: viewID, selection: selection))
         travel(to: destination)
     }
 
     private func travel(to place: Place) {
         isTravelling = true
-        source = place.source
+        viewID = place.view
         selection = place.selection
         isTravelling = false
     }
 
     /// Remembers where you just were, unless you were already there or we're the ones moving.
-    private func recordPlace(source: ViewSource, selection: IssueID?) {
+    private func recordPlace(view: IssueView.ID, selection: IssueID?) {
         guard !isTravelling else { return }
-        let previous = Place(source: source, selection: selection)
-        guard previous != Place(source: self.source, selection: self.selection) else { return }
+        let previous = Place(view: view, selection: selection)
+        guard previous != Place(view: viewID, selection: self.selection) else { return }
         guard back.last != previous else { return }
         back.append(previous)
         if back.count > Self.maxHistory { back.removeFirst(back.count - Self.maxHistory) }
@@ -689,30 +677,39 @@ public final class WorkspaceModel {
         snapshot?.issue(id)?.has(mark) ?? false
     }
 
-    /// Unfinished epics, each a view of everything under it.
-    private func total(in source: ViewSource) -> Int {
+    /// What a view's own filter matches, for the sidebar badge.
+    private func total(in view: IssueView) -> Int {
         guard let snapshot else { return 0 }
         let now = now()
-        return snapshot.issues.lazy.filter { source.includes($0, in: snapshot, now: now) }.count
+        return snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
     }
 
-    /// Opens the view of everything under `id`.
-    /// Points the whole view at everything under a bead — any bead, whatever its type. bd's
-    /// parent/child graph is the same relation for an epic and for a task with subtasks.
+    // MARK: Focus
+
+    /// Narrows the current view to everything under a bead — any bead, whatever its type: bd's
+    /// parent/child graph is the same relation for an epic and for a task with subtasks. Focus
+    /// is a `parent · is · X` chip on the view you're in, shown as the breadcrumb, so the view's
+    /// other rules still apply and there is one focus at a time.
     public func focus(on id: IssueID) {
-        if case .lifecycle = source { viewBeforeFocus = source }
-        source = .focused(id)
+        filter.set(FilterRule(field: .parent, op: .isAnyOf, values: [id.rawValue]))
     }
 
-    /// Back to the view you were in before focusing.
+    /// Pops the focus chip; the rest of the view's filter stays.
     public func unfocus() {
-        source = viewBeforeFocus
+        filter.remove(.parent)
     }
 
-    /// The bead the view is focused on, for the breadcrumb; nil in a lifecycle view.
+    /// The bead the view is focused on, for the breadcrumb; nil when there is no focus chip.
     public var focusedIssue: Issue? {
-        guard case .focused(let id) = source else { return nil }
+        guard let rule = filter.rule(for: .parent), let id = Self.focusedID(of: rule) else { return nil }
         return snapshot?.issue(id)
+    }
+
+    /// A parent rule naming exactly one bead to be under is a focus; several parents, or
+    /// "not under", are ordinary chips.
+    private static func focusedID(of rule: FilterRule) -> IssueID? {
+        guard rule.field == .parent, rule.op == .isAnyOf, rule.values.count == 1, let raw = rule.values.first else { return nil }
+        return IssueID(raw)
     }
 
     /// Where a bead could be moved to: anything that already holds work — an epic, or any bead

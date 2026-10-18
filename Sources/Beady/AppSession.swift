@@ -162,7 +162,7 @@ final class AppSession {
         case .displayOptions: ui.showsDisplayOptions = true
         case .toggleDetails: ui.showsInspector.toggle()
         case .showShortcuts: ui.showsShortcuts = true
-        case .showView(let source): model?.source = source
+        case .showView(let id): model?.viewID = id
         case .setLayout(let layout): model?.layout = layout
         case .setGrouping(let grouping): model?.grouping = grouping
         case .setOrdering(let sort): model?.ordering = sort

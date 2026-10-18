@@ -24,7 +24,7 @@ struct CommandPaletteTests {
         #expect(results.contains(.openWorkspace))
         #expect(results.contains(.refresh))
         #expect(results.contains(.newBead))
-        #expect(results.contains(.showView(.lifecycle(.inFlight))))
+        #expect(results.contains(.showView(.inFlight)))
         #expect(results.contains(.setLayout(.board)))
         #expect(results.allSatisfy { !$0.title.isEmpty })
         #expect(Set(results.map(\.id)).count == results.count)
@@ -33,6 +33,9 @@ struct CommandPaletteTests {
     @Test("commands that would do nothing aren't offered")
     func onlyWhatCanBeDone() async {
         let model = await makeModel()
+        // Everything has no rules of its own. A built-in's defining rule counts as a filter until
+        // bdv-jlx.3 separates what the view means from what was added to it.
+        model.viewID = .everything
         #expect(!CommandCatalog.results(for: "", model: model).contains(.editSelected), "nothing selected")
         model.selection = "epic.1"
         #expect(CommandCatalog.results(for: "", model: model).contains(.editSelected))
@@ -52,9 +55,24 @@ struct CommandPaletteTests {
         let model = await makeModel()
         #expect(CommandCatalog.results(for: "refresh", model: model).first == .refresh)
         #expect(CommandCatalog.results(for: "board", model: model).first == .setLayout(.board))
-        #expect(CommandCatalog.results(for: "in fl", model: model).first == .showView(.lifecycle(.inFlight)))
+        #expect(CommandCatalog.results(for: "in fl", model: model).first == .showView(.inFlight))
         // Words in any order, the way Linear's palette behaves.
         #expect(CommandCatalog.results(for: "workspace open", model: model).contains(.openWorkspace))
+    }
+
+    @Test("built-in views are found by their name and by bd's word for them")
+    func views() async {
+        let model = await makeModel()
+        #expect(CommandCatalog.results(for: "frontier", model: model).first == .showView(.frontier))
+        #expect(CommandCatalog.results(for: "ready", model: model).first == .showView(.frontier))
+        // A command whose title has the word ("Show Dependency Graph", "Order by Last closed")
+        // still comes first: a title match beats an alias.
+        #expect(CommandCatalog.results(for: "blocked", model: model).contains(.showView(.stuck)))
+        #expect(CommandCatalog.results(for: "closed", model: model).contains(.showView(.landed)))
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.showView(.starred)), "nothing is starred")
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.unfocus), "nothing is focused")
+        model.focus(on: "epic")
+        #expect(CommandCatalog.results(for: "", model: model).contains(.unfocus))
     }
 
     @Test("commands answer to the words people actually type")

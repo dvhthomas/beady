@@ -16,10 +16,8 @@ enum ViewFixture {
         makeIssue("d", title: "Blocked thing", priority: 1, parent: "a", blockedBy: ["b"]),
     ])
 
-    static func ids(_ filter: ViewFilter, in source: ViewSource = .lifecycle(.all)) -> Set<IssueID> {
-        Set(snapshot.issues.filter {
-            source.includes($0, in: snapshot, now: now) && filter.matches($0, in: snapshot, now: now)
-        }.map(\.id))
+    static func ids(_ filter: ViewFilter) -> Set<IssueID> {
+        Set(snapshot.issues.filter { filter.matches($0, in: snapshot, now: now) }.map(\.id))
     }
 
     static func rule(_ field: FilterField, _ op: FilterOperator, _ values: Set<String>) -> ViewFilter {
@@ -84,11 +82,10 @@ struct FilterRuleMatchingTests {
         #expect(F.ids(F.rule(.lifecycle, .isAnyOf, [StatusCategory.active.rawValue])) == ["epic", "a", "d"])
     }
 
-    @Test("ready is yes means what Scope.ready means: active, not blocked, not deferred into the future")
+    @Test("ready is yes means what bd ready means: active, not blocked, not deferred into the future")
     func ready() {
         let filter = F.rule(.ready, .isAnyOf, [FilterRule.readyValue])
         #expect(F.ids(filter) == ["epic", "a"])
-        #expect(F.ids(filter) == F.ids(ViewFilter(), in: .lifecycle(.ready)))
 
         let snapshot = IssueSnapshot(issues: [
             makeIssue("later", deferUntil: F.now + days(1)),
@@ -98,7 +95,6 @@ struct FilterRuleMatchingTests {
         ])
         let ready = snapshot.issues.filter { filter.matches($0, in: snapshot, now: F.now) }.map(\.id)
         #expect(ready == ["due"])
-        #expect(ready == snapshot.issues.filter { Scope.ready.includes($0, in: snapshot, now: F.now) }.map(\.id))
     }
 
     @Test("closed within keeps every live bead and hides done beads closed before the window")
@@ -204,6 +200,20 @@ struct ViewFilterEditingTests {
         #expect(filter.rule(for: .type)?.op == .isNoneOf)
     }
 
+    @Test("setting a rule replaces the field's rule in place, or appends a new one")
+    func setRule() {
+        var filter = ViewFilter()
+        filter.toggle("bug", in: .type)
+        filter.toggle("1", in: .priority)
+        filter.set(FilterRule(field: .type, op: .isNoneOf, values: ["epic"]))
+        #expect(filter.rules == [
+            FilterRule(field: .type, op: .isNoneOf, values: ["epic"]),
+            FilterRule(field: .priority, op: .isAnyOf, values: ["1"]),
+        ])
+        filter.set(FilterRule(field: .parent, op: .isAnyOf, values: ["epic"]))
+        #expect(filter.rules.map(\.field) == [.type, .priority, .parent])
+    }
+
     @Test("one rule per field, kept in the order they were added")
     func order() {
         var filter = ViewFilter()
@@ -229,32 +239,17 @@ struct ViewFilterEditingTests {
     }
 }
 
-@Suite("View sources")
-struct ViewSourceTests {
+@Suite("Lifecycle categories a filter allows")
+struct LifecycleCategoriesTests {
     typealias F = ViewFixture
 
-    @Test("a lifecycle source is its scope")
-    func lifecycle() {
-        #expect(F.ids(ViewFilter(), in: .lifecycle(.inFlight)) == ["b"])
-        #expect(F.ids(ViewFilter(), in: .lifecycle(.closed)) == ["c"])
-        #expect(F.ids(ViewFilter(), in: .lifecycle(.blocked)) == ["d"])
-    }
-
-    @Test("an epic source is everything under the epic, whatever its status, not the epic itself")
-    func epic() {
-        #expect(F.ids(ViewFilter(), in: .focused("epic")) == ["a", "d"])
-    }
-
-    @Test("each source knows which status categories can appear in it")
+    @Test("no Lifecycle rule allows every category; is any of allows the chosen; is none of the rest")
     func categories() {
-        #expect(ViewSource.lifecycle(.open).categories == [.active])
-        #expect(ViewSource.lifecycle(.ready).categories == [.active])
-        #expect(ViewSource.lifecycle(.inFlight).categories == [.wip])
-        #expect(ViewSource.lifecycle(.deferred).categories == [.frozen])
-        #expect(ViewSource.lifecycle(.closed).categories == [.done])
-        #expect(ViewSource.lifecycle(.blocked).categories == [.active, .wip, .frozen])
-        #expect(ViewSource.lifecycle(.all).categories == Set(StatusCategory.allCases))
-        #expect(ViewSource.focused("epic").categories == Set(StatusCategory.allCases))
+        #expect(ViewFilter().lifecycleCategories == Set(StatusCategory.allCases))
+        #expect(F.rule(.lifecycle, .isAnyOf, ["active"]).lifecycleCategories == [.active])
+        #expect(F.rule(.lifecycle, .isAnyOf, ["active", "wip", "frozen"]).lifecycleCategories == [.active, .wip, .frozen])
+        #expect(F.rule(.lifecycle, .isNoneOf, ["done"]).lifecycleCategories == [.active, .wip, .frozen])
+        #expect(F.rule(.lifecycle, .isAnyOf, []).lifecycleCategories == Set(StatusCategory.allCases), "an empty rule matches everything")
     }
 }
 
@@ -262,30 +257,23 @@ struct ViewSourceTests {
 struct FilterOptionsTests {
     typealias F = ViewFixture
 
-    func options(_ field: FilterField, in source: ViewSource = .lifecycle(.all), filter: ViewFilter = ViewFilter()) -> [String] {
-        FilterOptions.options(for: field, source: source, filter: filter, in: F.snapshot, now: F.now)
+    func options(_ field: FilterField, filter: ViewFilter = ViewFilter()) -> [String] {
+        FilterOptions.options(for: field, filter: filter, in: F.snapshot, now: F.now)
             .map { "\($0.isSelected ? "[x]" : "[ ]") \($0.value.isEmpty ? "∅" : $0.value) \($0.count)" }
     }
 
-    @Test("status options are only the statuses the view can contain, in lifecycle order")
-    func statusLimitedToView() {
-        #expect(options(.status, in: .lifecycle(.inFlight)) == ["[ ] in_progress 1"])
-        #expect(options(.status) == ["[ ] open 3", "[ ] in_progress 1", "[ ] closed 1"])
-    }
-
-    @Test("status options are limited to the categories the filter's Lifecycle rule allows")
+    @Test("status options are every status in lifecycle order, limited to the categories the filter's Lifecycle rule allows")
     func statusLimitedToLifecycleRule() {
+        #expect(options(.status) == ["[ ] open 3", "[ ] in_progress 1", "[ ] closed 1"])
         #expect(options(.status, filter: F.rule(.lifecycle, .isAnyOf, ["wip"])) == ["[ ] in_progress 1"])
         #expect(options(.status, filter: F.rule(.lifecycle, .isNoneOf, ["done"])) == ["[ ] open 3", "[ ] in_progress 1"])
-        // Until step 2 (bdv-jlx.2) removes ViewSource, the source's own categories still apply too.
-        #expect(options(.status, in: .lifecycle(.inFlight), filter: F.rule(.lifecycle, .isAnyOf, ["active"])).isEmpty)
     }
 
     @Test("lifecycle lists every category with counts; ready is a single option")
     func lifecycleAndReady() {
         #expect(options(.lifecycle) == ["[ ] active 3", "[ ] wip 1", "[ ] frozen 0", "[ ] done 1"])
         #expect(options(.ready) == ["[ ] yes 2"])
-        #expect(options(.ready, in: .lifecycle(.blocked)) == ["[ ] yes 0"])
+        #expect(options(.ready, filter: F.rule(.blocked, .isAnyOf, [FilterRule.blockedValue])) == ["[ ] yes 0"])
     }
 
     @Test("counts ignore the field's own rule but respect the others, so adding a second value is informed")
@@ -298,10 +286,10 @@ struct FilterOptionsTests {
 
     @Test("long lists hide values with nothing in the view unless ticked")
     func hidingEmptyValues() {
-        #expect(options(.type, in: .lifecycle(.inFlight)) == ["[ ] bug 1"])
-        var filter = ViewFilter()
+        var filter = F.rule(.lifecycle, .isAnyOf, ["wip"])
+        #expect(options(.type, filter: filter) == ["[ ] bug 1"])
         filter.toggle("epic", in: .type)
-        #expect(options(.type, in: .lifecycle(.inFlight), filter: filter) == ["[ ] bug 1", "[x] epic 0"])
+        #expect(options(.type, filter: filter) == ["[ ] bug 1", "[x] epic 0"])
     }
 
     @Test("assignee options put Unassigned first")

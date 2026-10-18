@@ -14,7 +14,7 @@ struct WorkspaceView: View {
     let run: (AppCommand) -> Void
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
     var persistsPreferences = true
-    @AppStorage("scope") private var storedScope = Scope.open.rawValue
+    @AppStorage("view") private var storedView = IssueView.ID.frontier.rawValue
     @AppStorage("inspectorWidth") private var inspectorWidth = 360.0
     /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var searchFocus = FocusState<Bool>()
@@ -49,7 +49,7 @@ struct WorkspaceView: View {
                         // Switching sidebar views must not leave the sidebar's own list holding the
                         // keyboard — otherwise the first arrow key after a click walks the sidebar
                         // instead of the beads.
-                        .background(FocusesOnChange(trigger: model.source))
+                        .background(FocusesOnChange(trigger: model.viewID))
                 }
                 .frame(maxWidth: .infinity)
                 if ui.showsInspector {
@@ -75,11 +75,12 @@ struct WorkspaceView: View {
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
         .onAppear {
-            guard persistsPreferences, let scope = Scope(rawValue: storedScope) else { return }
-            model.source = .lifecycle(scope)
+            let id = IssueView.ID(rawValue: storedView)
+            guard persistsPreferences, IssueView.builtIn(id) != nil else { return }
+            model.viewID = id
         }
-        .onChange(of: model.source) {
-            if persistsPreferences, case .lifecycle(let scope) = model.source { storedScope = scope.rawValue }
+        .onChange(of: model.viewID) {
+            if persistsPreferences { storedView = model.viewID.rawValue }
         }
         .onChange(of: model.selection) { if model.selection != nil { ui.showsInspector = true } }
         .onChange(of: model.activity.first?.id) {

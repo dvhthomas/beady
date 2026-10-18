@@ -21,7 +21,7 @@ struct ModelMarkTests {
     @Test("pinned beads lead every view, whatever the ordering")
     func pinnedLead() async {
         let (model, _) = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.ordering = .priority
         #expect(model.visibleIssues.map(\.id) == ["b", "d", "a", "c"], "b is pinned; the rest by priority")
         model.ordering = .issueID
@@ -31,11 +31,11 @@ struct ModelMarkTests {
     @Test("Starred is a view of the label, listed in the sidebar with its count")
     func starredView() async {
         let (model, _) = await makeModel()
-        let starred = model.sidebarViews.first { $0.source == .label(IssueMark.starred.label) }
+        let starred = model.sidebarViews.first { $0.id == .starred }
         let entry = try! #require(starred)
         #expect(entry.title == "Starred")
         #expect(entry.count == 1)
-        model.source = .label(IssueMark.starred.label)
+        model.viewID = .starred
         #expect(model.visibleIssues.map(\.id) == ["c"])
         #expect(model.viewTitle == "Starred")
     }
@@ -45,7 +45,7 @@ struct ModelMarkTests {
         let store = MemoryStore([makeIssue("a")])
         let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
         await model.load()
-        #expect(!model.sidebarViews.contains { $0.source == .label(IssueMark.starred.label) })
+        #expect(!model.sidebarViews.contains { $0.id == .starred })
     }
 
     @Test("toggling a mark writes the label through the store and needs no confirmation")
@@ -70,7 +70,7 @@ struct ModelMarkTests {
     @Test("the starred filter is an ordinary label rule, so it reads as a normal chip")
     func starredFilter() async {
         let (model, _) = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.toggleMarkFilter(.starred)
         #expect(model.filter.rules.first?.field == .labels)
         #expect(model.visibleIssues.map(\.id) == ["c"])

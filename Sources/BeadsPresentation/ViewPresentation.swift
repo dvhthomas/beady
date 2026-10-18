@@ -14,22 +14,14 @@ public struct ViewState: Equatable, Codable, Sendable {
         self.ordering = ordering
     }
 
-    /// Where each view starts: epics as a tree, All grouped by lifecycle, In Flight by status.
-    public static func defaults(for source: ViewSource) -> ViewState {
-        switch source {
-        case .lifecycle(let scope):
-            let grouping: IssueGrouping = switch scope {
-            case .all: .category
-            case .inFlight: .status
-            case .open, .ready, .blocked, .deferred, .closed: .none
-            }
-            return ViewState(filter: ViewFilter(), layout: .list, grouping: grouping, ordering: scope.defaultSort)
-        case .focused:
-            return ViewState(filter: ViewFilter(), layout: .tree, grouping: .category, ordering: .priority)
-        case .label:
-            // A label view spans every lifecycle, so lifecycle is the grouping that reads best.
-            return ViewState(filter: ViewFilter(), layout: .list, grouping: .category, ordering: .priority)
-        }
+    /// Where a view starts: its own filter and presentation.
+    public static func defaults(for view: IssueView) -> ViewState {
+        ViewState(
+            filter: view.filter,
+            layout: view.presentation.layout,
+            grouping: view.presentation.grouping,
+            ordering: view.presentation.ordering
+        )
     }
 }
 
@@ -81,27 +73,20 @@ public struct IssueGroupModel: Identifiable, Equatable, Sendable {
 
 /// A view in the sidebar.
 public struct SidebarEntry: Identifiable, Equatable, Sendable {
-    public let source: ViewSource
+    public let id: IssueView.ID
     public let title: String
-    /// The view's total, before any filter.
+    /// An SF Symbol name.
+    public let symbol: String
+    /// What the view's own filter matches, whatever has been added to it.
     public let count: Int
-
-    public var id: ViewSource { source }
+    /// What the view means in bd, for hovering the row; empty when the name says it all.
+    /// Filled in by the hover-help work (bdv-jlx.11).
+    public let help: String
 }
 
-public extension Scope {
-    var defaultSort: IssueSort {
-        switch self {
-        case .closed: .recentlyClosed
-        case .inFlight, .all: .recentlyUpdated
-        case .open, .ready, .blocked, .deferred: .priority
-        }
-    }
-}
-
-
-/// A view and its state, as one record: a dictionary keyed by an enum doesn't encode as JSON.
+/// A view's id and its state, as one record: a dictionary keyed by a struct doesn't encode as
+/// a JSON object.
 struct SavedViewState: Codable, Sendable {
-    let source: ViewSource
+    let view: IssueView.ID
     let state: ViewState
 }

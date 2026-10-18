@@ -30,12 +30,11 @@ final class ColumnLayout {
         column.isVisible(customized: choice(for: column))
     }
 
-    /// Views where a column earns its place even though it's off by default: blockers matter in
-    /// the Blocked and Ready views, and nowhere much else.
-    func isVisible(_ column: ListColumn, in source: ViewSource) -> Bool {
-        if column == .blockedBy, choice(for: column) == nil {
-            return source == .lifecycle(.blocked) || source == .lifecycle(.ready)
-        }
+    /// What the user has dragged wins; otherwise the view says which columns it shows (Stuck
+    /// turns Blocked-by on), and a view that doesn't say takes the defaults.
+    func isVisible(_ column: ListColumn, in presentation: ViewPresentation) -> Bool {
+        if let chosen = choice(for: column) { return column.isVisible(customized: chosen) }
+        if let columns = presentation.columns { return column.isAlwaysVisible || columns.contains(column.id) }
         return isVisible(column)
     }
 

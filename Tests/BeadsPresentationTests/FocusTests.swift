@@ -20,15 +20,33 @@ struct FocusTests {
         return model
     }
 
-    @Test("any bead can be focused, not just epics, and you can get back out")
+    @Test("any bead can be focused, not just epics: a parent chip on the view you're in")
     func focusAnyBead() async {
         let model = await makeModel()
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .everything
         model.focus(on: "task")
-        #expect(model.source == .focused("task"))
+        #expect(model.viewID == .everything, "focus is a chip, not a view of its own")
+        #expect(model.filter.rule(for: .parent) == FilterRule(field: .parent, op: .isAnyOf, values: ["task"]))
         #expect(model.visibleIssues.map(\.id) == ["task.1"])
         model.unfocus()
-        #expect(model.source == .lifecycle(.inFlight), "back to the view you came from")
+        #expect(model.filter.rule(for: .parent) == nil)
+        #expect(model.visibleIssues.count == 5, "back to the whole view")
+    }
+
+    @Test("focusing adds a parent rule and leaves the rest of the view's filter intact; focusing again replaces it")
+    func focusKeepsTheFilter() async {
+        let model = await makeModel()
+        model.viewID = .inFlight
+        model.toggleFilterValue("1", in: .priority)
+        model.focus(on: "task")
+        #expect(model.filter.rule(for: .lifecycle) == IssueView.builtIn(.inFlight)?.filter.rule(for: .lifecycle))
+        #expect(model.filter.rule(for: .priority)?.values == ["1"])
+        #expect(model.filter.rule(for: .parent)?.values == ["task"])
+        model.focus(on: "epic")
+        #expect(model.filter.rule(for: .parent)?.values == ["epic"], "one focus at a time")
+        #expect(model.filter.rules.count == 3)
+        model.unfocus()
+        #expect(model.filter.rules.map(\.field) == [.lifecycle, .priority])
     }
 
     @Test("the focused bead is named, so you can see where you are and leave")
@@ -37,6 +55,12 @@ struct FocusTests {
         #expect(model.focusedIssue == nil)
         model.focus(on: "epic")
         #expect(model.focusedIssue?.title == "Print furniture")
+        // The breadcrumb is the chip, so the chip row doesn't show the parent rule a second time.
+        #expect(!model.filterChips.contains { $0.field == .parent })
+        // A parent rule that isn't a focus — several parents, or "not under" — is an ordinary chip.
+        model.setFilterOperator(.isNoneOf, for: .parent)
+        #expect(model.focusedIssue == nil)
+        #expect(model.filterChips.contains { $0.field == .parent })
     }
 
     @Test("progress belongs to any bead with children")
@@ -58,7 +82,7 @@ struct FocusTests {
     @Test("grouping by parent puts the parent's progress in the header")
     func groupProgress() async {
         let model = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.grouping = .parent
         let group = try? #require(model.groups.first { $0.key == "epic" })
         #expect(group?.completion == Completion(closed: 1, total: 2))

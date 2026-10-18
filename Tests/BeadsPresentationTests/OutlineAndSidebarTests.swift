@@ -50,7 +50,7 @@ struct WorkspaceModelOutlineTests {
             makeIssue("done-epic.1", status: "closed", parent: "done-epic", closed: t0),
         ]), now: { t0 })
         await model.load()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         return model
     }
 
@@ -73,19 +73,21 @@ struct WorkspaceModelOutlineTests {
         #expect(model.outlineRows.count == 5)
     }
 
-    @Test("the sidebar is lifecycle views only; beads are reached from the main panel")
+    @Test("the sidebar is built-in views only; beads are reached from the main panel")
     func sidebarIsNavigationOnly() async {
         let model = await loadedModel()
-        #expect(model.sidebarViews.allSatisfy { if case .lifecycle = $0.source { true } else { false } })
+        #expect(model.sidebarViews.allSatisfy { IssueView.builtIn($0.id)?.isBuiltIn == true })
         // What the epics section used to provide, available for any bead that holds work:
         #expect(model.progress(of: "epic") == Completion(closed: 0, total: 2))
     }
 
-    @Test("showing a subtree opens that issue's view as a tree")
+    @Test("showing a subtree narrows the current view to what's under the bead")
     func focusOnSubtree() async {
         let model = await loadedModel()
+        model.layout = .tree
         model.focus(on: "epic.1")
-        #expect(model.source == .focused("epic.1"))
+        #expect(model.focusedIssue?.id == "epic.1")
+        // Focus is a chip on the view (bdv-jlx.2), so the layout is the view's own, not forced to a tree.
         #expect(model.layout == .tree)
         #expect(model.visibleIssues.map(\.id) == ["epic.1.1"])
     }

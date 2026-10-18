@@ -35,18 +35,6 @@ public enum DisplayText {
         }
     }
 
-    public static func scope(_ scope: Scope) -> String {
-        switch scope {
-        case .all: "All"
-        case .open: "Open"
-        case .ready: "Ready"
-        case .inFlight: "In Flight"
-        case .blocked: "Blocked"
-        case .deferred: "Deferred"
-        case .closed: "Closed"
-        }
-    }
-
     public static func category(_ category: StatusCategory) -> String {
         switch category {
         case .active: "Open"

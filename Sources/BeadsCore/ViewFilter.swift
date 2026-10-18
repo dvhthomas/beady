@@ -1,7 +1,7 @@
 import Foundation
 
-// Linear-style view filtering: a view draws issues from a source, then applies rules (one per
-// field, ANDed) and search words. Everything here is pure.
+// Linear-style view filtering: a view applies rules (one per field, ANDed) and search words to
+// every bead. Everything here is pure.
 
 // MARK: Rules
 
@@ -192,6 +192,15 @@ public struct ViewFilter: Hashable, Codable, Sendable {
         rules[index].op = op
     }
 
+    /// Replaces the rule for the field in place, or adds it at the end.
+    public mutating func set(_ rule: FilterRule) {
+        if let index = rules.firstIndex(where: { $0.field == rule.field }) {
+            rules[index] = rule
+        } else {
+            rules.append(rule)
+        }
+    }
+
     public mutating func remove(_ field: FilterField) {
         rules.removeAll { $0.field == field }
     }
@@ -205,38 +214,6 @@ public struct ViewFilter: Hashable, Codable, Sendable {
         var copy = self
         copy.remove(field)
         return copy
-    }
-}
-
-// MARK: Sources
-
-/// Where a view draws its issues from, before any filter.
-public enum ViewSource: Hashable, Codable, Sendable {
-    case lifecycle(Scope)
-    /// Everything under one bead, at any depth and in any status, not the bead itself.
-    /// Any bead can hold work, so this isn't limited to epics.
-    case focused(IssueID)
-    /// Everything carrying one bd label, whatever its lifecycle. Starred is this.
-    case label(String)
-
-    public func includes(_ issue: Issue, in snapshot: IssueSnapshot, now: Date) -> Bool {
-        switch self {
-        case .lifecycle(let scope): scope.includes(issue, in: snapshot, now: now)
-        case .focused(let id): snapshot.isDescendant(issue, of: id)
-        case .label(let label): issue.labels.contains(label)
-        }
-    }
-
-    /// The status categories that can appear in this view. Status filter options are limited to these.
-    public var categories: Set<StatusCategory> {
-        switch self {
-        case .lifecycle(.open), .lifecycle(.ready): [.active]
-        case .lifecycle(.inFlight): [.wip]
-        case .lifecycle(.deferred): [.frozen]
-        case .lifecycle(.closed): [.done]
-        case .lifecycle(.blocked): [.active, .wip, .frozen]
-        case .lifecycle(.all), .focused, .label: Set(StatusCategory.allCases)
-        }
     }
 }
 
@@ -260,19 +237,16 @@ public struct FilterValueOption: Identifiable, Hashable, Sendable {
 public enum FilterOptions {
     /// The values offered for a field in a view. Counts ignore the field's own rule, so choosing
     /// a second value is informed. Lifecycle, status, priority, blocked, ready and date options
-    /// are always listed;
-    /// the longer lists (type, assignee, labels, parent) hide values with nothing to show unless ticked.
+    /// are always listed; the longer lists (type, assignee, labels, parent) hide values with
+    /// nothing to show unless ticked.
     public static func options(
         for field: FilterField,
-        source: ViewSource,
         filter: ViewFilter,
         in snapshot: IssueSnapshot,
         now: Date
     ) -> [FilterValueOption] {
         let others = filter.without(field)
-        let base = snapshot.issues.filter {
-            source.includes($0, in: snapshot, now: now) && others.matches($0, in: snapshot, now: now)
-        }
+        let base = snapshot.issues.filter { others.matches($0, in: snapshot, now: now) }
         let selected = filter.rule(for: field)?.values ?? []
 
         func tally(_ keys: (Issue) -> [String]) -> [String: Int] {
@@ -295,8 +269,7 @@ public enum FilterOptions {
         case .lifecycle:
             return listed(StatusCategory.allCases.map(\.rawValue), tally { [snapshot.category(of: $0).rawValue] }, hidingEmpty: false)
         case .status:
-            // The source's categories stay in force until step 2 (bdv-jlx.2) removes ViewSource.
-            let allowed = source.categories.intersection(filter.lifecycleCategories)
+            let allowed = filter.lifecycleCategories
             let order = { (status: String) in StatusCategory.allCases.firstIndex(of: snapshot.catalog.category(of: status)) ?? 0 }
             let statuses = snapshot.statuses
                 .filter { allowed.contains(snapshot.catalog.category(of: $0)) }
