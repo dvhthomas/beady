@@ -16,6 +16,22 @@ final class WorkspaceUI {
     var showsDisplayOptions = false
     /// The question about turning on bd's change journal.
     var showsJournalOffer = false
+    /// The name prompt for Save as New View; the name lives here so the alert's field is observable.
+    var showsSaveAsNewView = false
+    var newViewName = ""
+    /// The user view being renamed, with the name as typed so far.
+    var renamingView: IssueView.ID?
+    var renameText = ""
+
+    func promptSaveAsNewView(suggesting name: String) {
+        newViewName = name
+        showsSaveAsNewView = true
+    }
+
+    func promptRename(_ view: IssueView) {
+        renameText = view.name
+        renamingView = view.id
+    }
     /// True while the search field has the keyboard. Single-key shortcuts stand down then, so
     /// typing "?" into a search reaches the field instead of opening the shortcut sheet.
     var isSearchFocused = false
@@ -44,7 +60,7 @@ final class WorkspaceUI {
 
     /// True while anything modal is up, so background key handling stands down.
     var isSheetOpen: Bool {
-        showsPalette || showsThemes || showsNewBead || showsShortcuts
+        showsPalette || showsThemes || showsNewBead || showsShortcuts || showsSaveAsNewView || renamingView != nil
     }
 
     /// Opens the palette empty, wherever it was left last time.

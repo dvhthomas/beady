@@ -69,6 +69,25 @@ struct FilterBar: View {
                 .popover(isPresented: binding(\.showsDisplayOptions), arrowEdge: .bottom) {
                     DisplayOptionsView(model: model, columns: ui.columns)
                 }
+
+                // Only while there is something to save or throw away. A built-in's filter is its
+                // definition, so it offers Save as new view and Reset but not Save.
+                if model.isModified {
+                    Menu {
+                        if !model.view.isBuiltIn {
+                            Button(AppCommand.saveView.title) { run(.saveView) }
+                        }
+                        Button(AppCommand.saveViewAs.title) { run(.saveViewAs) }
+                        Divider()
+                        Button(AppCommand.resetView.title) { run(.resetView) }
+                    } label: {
+                        Label("Save", systemImage: "circle.fill")
+                    }
+                    .fixedSize()
+                    .help(model.view.isBuiltIn
+                        ? "\(model.view.name) has changes it can't keep: save them as a new view, or reset"
+                        : "\(model.view.name) has unsaved changes")
+                }
             }
             .controlSize(.small)
             .fixedSize(horizontal: false, vertical: true)

@@ -49,6 +49,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case toggleDetails
     case showShortcuts
     case showView(IssueView.ID)
+    case saveView
+    case saveViewAs
+    case resetView
     case setLayout(WorkspaceModel.Layout)
     case setGrouping(IssueGrouping)
     case setOrdering(IssueSort)
@@ -85,6 +88,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleDetails: "toggle-details"
         case .showShortcuts: "show-shortcuts"
         case .showView(let id): "view-\(id.rawValue)"
+        case .saveView: "save-view"
+        case .saveViewAs: "save-view-as"
+        case .resetView: "reset-view"
         case .setLayout(let layout): "layout-\(layout.rawValue)"
         case .setGrouping(let grouping): "group-\(grouping.rawValue)"
         case .setOrdering(let sort): "sort-\(sort.rawValue)"
@@ -123,6 +129,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleDetails: "Toggle Details Panel"
         case .showShortcuts: "Keyboard Shortcuts"
         case .showView(let id): "Go to \(Self.viewName(id))"
+        case .saveView: "Save View"
+        case .saveViewAs: "Save as New View…"
+        case .resetView: "Reset View"
         case .setLayout(let layout): "Show as \(layout.rawValue.capitalized)"
         case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
         case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
@@ -163,6 +172,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleDetails: ["inspector", "side panel", "info"]
         case .showShortcuts: ["help", "keys", "keyboard", "shortcuts"]
         case .showView(let id): ["go", "switch", "view"] + Self.viewKeywords(id)
+        case .saveView: ["save", "keep", "store", "filters", "layout"]
+        case .saveViewAs: ["save as", "new view", "duplicate", "copy", "keep", "filters"]
+        case .resetView: ["reset", "revert", "discard", "undo changes", "back to saved"]
         case .setLayout(let layout): layout == .board ? ["kanban", "columns", "swimlanes"] : ["view as", layout.rawValue]
         case .setGrouping: ["group", "section", "break down"]
         case .setOrdering: ["sort", "order", "arrange"]
@@ -198,7 +210,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .focusSearch, .addFilter, .clearFilters: "Find"
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
              .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
-        case .focusSelected, .unfocus: "Views"
+        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView: "Views"
         case .openSettings, .setSidebarStyle: "Appearance"
         case .showShortcuts: "Help"
         case .showView, .goBack, .goForward: "Views"
@@ -229,6 +241,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goBack: [KeyBinding("[", .command)]
         case .goForward: [KeyBinding("]", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
+        case .saveView: [KeyBinding("s", .command)]
+        case .saveViewAs: [KeyBinding("s", [.command, .option])]
+        case .resetView: [KeyBinding("r", [.command, .option])]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
              .backUpNow, .setUpBackup, .turnOnJournal: []
@@ -294,6 +309,11 @@ public enum CommandCatalog {
             commands.append(.focusSelected)
         }
         if model.focusedIssue != nil { commands.append(.unfocus) }
+        // Only while there is something to save or throw away; Save only where it would stick.
+        if model.isModified {
+            if !model.view.isBuiltIn { commands.append(.saveView) }
+            commands += [.saveViewAs, .resetView]
+        }
         if model.layout == .tree { commands += [.expandAll, .collapseAll] }
         if model.layout == .list {
             commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }

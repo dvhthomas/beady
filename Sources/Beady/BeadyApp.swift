@@ -139,6 +139,10 @@ struct AppCommands: Commands {
                 Button(view.name) { session.run(.showView(view.id)) }
                     .disabled(session.model == nil)
             }
+            Divider()
+            item(.saveView, needsWorkspace: true)
+            item(.saveViewAs, needsWorkspace: true)
+            item(.resetView, needsWorkspace: true)
         }
         CommandMenu("Beads") {
             item(.newBead, needsWorkspace: true)

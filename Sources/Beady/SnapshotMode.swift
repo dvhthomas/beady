@@ -313,9 +313,29 @@ enum SnapshotMode {
         captureWorkspace("4b-empty-list")
         model.searchText = ""
 
-        // Back to In Flight: its own (empty) filters, not Open's.
+        // Back to In Flight: its own filters, not Frontier's.
         model.viewID = .inFlight
         captureWorkspace("5-in-flight-keeps-its-own-filters")
+
+        // Views as the sidebar (bdv-jlx.4): a user view in My Views, Frontier modified with the
+        // Save control and the dot, Pipeline as a board, and a board that has collapsed to one
+        // column saying so. Preferences are off, so none of this is kept.
+        model.viewID = .everything
+        model.toggleFilterValue("epic", in: .type)
+        model.saveAsNewView(name: "Epics")
+        model.viewID = .frontier
+        model.toggleFilterValue("1", in: .priority)
+        captureWorkspace("20-sidebar-views-and-modified-frontier")
+        model.reset()
+        model.viewID = .pipeline
+        captureWorkspace("21-pipeline-board")
+        model.viewID = .everything
+        model.toggleFilterValue(StatusCategory.active.rawValue, in: .lifecycle)
+        model.layout = .board
+        model.grouping = .none
+        captureWorkspace("22-board-nothing-to-split")
+        model.reset()
+        model.viewID = .frontier
 
         let parents = snapshot.issues.filter { !snapshot.children(of: $0.id).isEmpty }
         if let biggest = parents.max(by: { (snapshot.progress(of: $0.id)?.total ?? 0) < (snapshot.progress(of: $1.id)?.total ?? 0) }) {

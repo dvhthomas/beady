@@ -94,6 +94,48 @@ struct WorkspaceModelOutlineTests {
         #expect(model.sidebarViews.dropLast().allSatisfy { IssueView.builtIn($0.id) != nil })
     }
 
+    @Test("the sidebar is Views, then My Views with its +, then Starred only once something is starred")
+    func sections() async {
+        let model = await loadedModel()
+        #expect(model.sidebarSections.map(\.kind) == [.views, .mine])
+        #expect(model.sidebarSections.map(\.title) == ["Views", "My Views"])
+        #expect(model.sidebarSections.map(\.canAdd) == [false, true])
+        #expect(model.sidebarSections[0].entries.map(\.id) == IssueView.builtIns.map(\.id).filter { $0 != .starred })
+        #expect(model.sidebarSections[1].entries.isEmpty, "the section is there for its +")
+
+        model.saveAsNewView(name: "Mine")
+        #expect(model.sidebarSections[1].entries.map(\.title) == ["Mine"])
+
+        let starred = WorkspaceModel(title: "demo", store: StubStore([makeIssue("a", labels: [IssueMark.starred.label])]), now: { t0 })
+        await starred.load()
+        #expect(starred.sidebarSections.map(\.kind) == [.views, .mine, .starred])
+        #expect(starred.sidebarSections.last?.entries.map(\.id) == [.starred])
+        #expect(starred.sidebarSections.last?.title == "")
+        #expect(starred.sidebarViews.map(\.id) == starred.sidebarSections.flatMap { $0.entries.map(\.id) })
+    }
+
+    @Test("each row knows its layout and whether it has unsaved changes")
+    func rowGlyphs() async {
+        let model = await loadedModel()
+        func entry(_ id: IssueView.ID) -> SidebarEntry? { model.sidebarViews.first { $0.id == id } }
+        #expect(entry(.pipeline)?.layout == .board)
+        #expect(entry(.frontier)?.layout == .list)
+        #expect(entry(.frontier)?.isBuiltIn == true)
+        #expect(entry(.everything)?.isModified == false)
+        model.toggleFilterValue("epic", in: .type)
+        #expect(entry(.everything)?.isModified == true)
+        #expect(entry(.frontier)?.isModified == false, "only the view that changed")
+        model.viewID = .frontier
+        model.layout = .board
+        #expect(entry(.frontier)?.layout == .board, "the glyph follows the remembered layout")
+        #expect(entry(.frontier)?.isModified == false, "a built-in's layout is never a modification")
+        let mine = model.saveAsNewView(name: "Mine")
+        model.layout = .tree
+        #expect(entry(mine.id)?.isBuiltIn == false)
+        #expect(entry(mine.id)?.layout == .tree, "a user view's glyph shows what's live")
+        #expect(entry(mine.id)?.isModified == true)
+    }
+
     @Test("showing a subtree narrows the current view to what's under the bead")
     func focusOnSubtree() async {
         let model = await loadedModel()

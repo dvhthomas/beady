@@ -163,6 +163,9 @@ final class AppSession {
         case .toggleDetails: ui.showsInspector.toggle()
         case .showShortcuts: ui.showsShortcuts = true
         case .showView(let id): model?.viewID = id
+        case .saveView: model?.save()
+        case .saveViewAs: ui.promptSaveAsNewView(suggesting: model.map { $0.view.isBuiltIn ? "" : $0.view.name } ?? "")
+        case .resetView: model?.reset()
         case .setLayout(let layout): model?.layout = layout
         case .setGrouping(let grouping): model?.grouping = grouping
         case .setOrdering(let sort): model?.ordering = sort

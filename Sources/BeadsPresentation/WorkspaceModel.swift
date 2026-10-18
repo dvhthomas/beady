@@ -241,6 +241,31 @@ public final class WorkspaceModel {
         library.live[viewID] = nil
     }
 
+    /// Renames a user view. Refused for a built-in, and for a blank name.
+    @discardableResult
+    public func renameView(_ id: IssueView.ID, to name: String) -> Bool {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let index = library.index(of: id), !library.views[index].isBuiltIn else { return false }
+        library.views[index].name = name
+        return true
+    }
+
+    /// A user view copied from a view as saved, named after it. A user view's copy follows it; a
+    /// built-in's goes after the user's views, and is how you keep a variation of a built-in
+    /// without modifying it. Nil when there is no such view.
+    @discardableResult
+    public func duplicateView(_ id: IssueView.ID) -> IssueView? {
+        guard let index = library.index(of: id) else { return nil }
+        let source = library.views[index]
+        var copy = source
+        copy.id = IssueView.ID(UUID().uuidString)
+        copy.name = "\(source.name) copy"
+        copy.isBuiltIn = false
+        if source.isBuiltIn { copy.symbol = "bookmark" }
+        library.views.insert(copy, at: source.isBuiltIn ? library.views.count : index + 1)
+        return copy
+    }
+
     /// Removes a user view; the built-ins stay. Returns whether anything was removed.
     @discardableResult
     public func removeView(_ id: IssueView.ID) -> Bool {
@@ -455,13 +480,38 @@ public final class WorkspaceModel {
 
     // MARK: Sidebar
 
+    /// Every row, in sidebar order: the sections flattened.
     public var sidebarViews: [SidebarEntry] {
-        library.views.compactMap { view in
-            let count = total(in: view)
-            // Starred only earns a place in the sidebar once something is starred.
-            if view.id == .starred, count == 0 { return nil }
-            return SidebarEntry(id: view.id, title: view.name, symbol: view.symbol, count: count, help: DisplayText.help(forView: view.id))
+        sidebarSections.flatMap(\.entries)
+    }
+
+    /// Views (the built-ins), My Views (the user's own, with a + to add one, even when empty),
+    /// and Starred once something is starred.
+    public var sidebarSections: [SidebarSection] {
+        let builtIns = library.views.filter { $0.isBuiltIn && $0.id != .starred }
+        let mine = library.views.filter { !$0.isBuiltIn }
+        var sections = [
+            SidebarSection(kind: .views, title: "Views", entries: builtIns.map(sidebarEntry), canAdd: false),
+            SidebarSection(kind: .mine, title: "My Views", entries: mine.map(sidebarEntry), canAdd: true),
+        ]
+        if let starred = library.view(.starred), total(in: starred) > 0 {
+            sections.append(SidebarSection(kind: .starred, title: "", entries: [sidebarEntry(starred)], canAdd: false))
         }
+        return sections
+    }
+
+    private func sidebarEntry(_ view: IssueView) -> SidebarEntry {
+        let live = library.live[view.id]
+        return SidebarEntry(
+            id: view.id,
+            title: view.name,
+            symbol: view.symbol,
+            layout: (live?.presentation ?? view.presentation).layout,
+            count: total(in: view),
+            isModified: live.map { $0 != ViewState(of: view) } ?? false,
+            isBuiltIn: view.isBuiltIn,
+            help: DisplayText.help(forView: view.id)
+        )
     }
 
     // MARK: Moving around the board

@@ -38,7 +38,7 @@ struct WorkspaceView: View {
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(model: model)
+            SidebarView(model: model, ui: ui)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
             // Not `.inspector`: that grows the right pane by pushing the whole window's layout,
@@ -76,6 +76,24 @@ struct WorkspaceView: View {
         .onChange(of: searchFocus.wrappedValue) { ui.isSearchFocused = searchFocus.wrappedValue }
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
+        .alert("Save as New View", isPresented: Binding(get: { ui.showsSaveAsNewView }, set: { ui.showsSaveAsNewView = $0 })) {
+            TextField("Name", text: Binding(get: { ui.newViewName }, set: { ui.newViewName = $0 }))
+            Button("Save") {
+                let name = ui.newViewName.trimmingCharacters(in: .whitespacesAndNewlines)
+                model.saveAsNewView(name: name.isEmpty ? "\(model.view.name) copy" : name)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Keeps this view's filters, layout, grouping and ordering under a name of its own.")
+        }
+        .alert("Rename View", isPresented: Binding(get: { ui.renamingView != nil }, set: { if !$0 { ui.renamingView = nil } })) {
+            TextField("Name", text: Binding(get: { ui.renameText }, set: { ui.renameText = $0 }))
+            Button("Rename") {
+                if let id = ui.renamingView { model.renameView(id, to: ui.renameText) }
+                ui.renamingView = nil
+            }
+            Button("Cancel", role: .cancel) { ui.renamingView = nil }
+        }
         .onAppear {
             guard persistsPreferences else { return }
             if !legacyScope.isEmpty {
@@ -134,6 +152,24 @@ struct WorkspaceView: View {
                             model.clearFilters()
                             model.searchText = ""
                         }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.layout == .board, let split = model.boardNeedsSplitting {
+                // Never a one-column board again: say so, and offer the groupings that would split it.
+                ContentUnavailableView {
+                    Label("Nothing to split", systemImage: "rectangle.split.3x1")
+                } description: {
+                    Text(split.groupings.isEmpty
+                        ? "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column, and no other grouping would spread it out. Try the list."
+                        : "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column. Group by something that would spread it out:")
+                } actions: {
+                    ForEach(split.groupings) { grouping in
+                        Button(DisplayText.grouping(grouping)) { model.grouping = grouping }
+                            .help(DisplayText.help(for: grouping))
+                    }
+                    if split.groupings.isEmpty {
+                        Button("Show as List") { model.layout = .list }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -372,6 +372,40 @@ struct ViewSavingTests {
         #expect(model.views.count == IssueView.builtIns.count)
     }
 
+    @Test("a user view can be renamed; blank names and built-ins are refused")
+    func renaming() async {
+        let model = await loadedModel()
+        let mine = model.saveAsNewView(name: "Mine")
+        #expect(model.renameView(mine.id, to: "  Ours  "))
+        #expect(model.view.name == "Ours", "trimmed")
+        #expect(!model.renameView(mine.id, to: "   "))
+        #expect(model.view.name == "Ours")
+        #expect(!model.renameView(.frontier, to: "Front"))
+        #expect(IssueView.builtIn(.frontier)?.name == "Frontier")
+    }
+
+    @Test("duplicating copies the saved view as a user view named after it, right after the original")
+    func duplicating() async {
+        let model = await loadedModel()
+        let mine = model.saveAsNewView(name: "Mine")
+        model.layout = .board
+        let copy = try! #require(model.duplicateView(mine.id))
+        #expect(copy.name == "Mine copy")
+        #expect(!copy.isBuiltIn)
+        #expect(copy.presentation.layout == .list, "the saved view is copied, not what's live")
+        #expect(copy.filter == mine.filter)
+        #expect(model.views.map(\.id).suffix(2) == [mine.id, copy.id])
+        #expect(model.viewID == mine.id, "duplicating doesn't move you")
+
+        // A built-in can be duplicated too: that's how you get a variation without modifying it.
+        let frontier = try! #require(model.duplicateView(.frontier))
+        #expect(frontier.name == "Frontier copy")
+        #expect(!frontier.isBuiltIn)
+        #expect(frontier.filter == IssueView.builtIn(.frontier)?.filter)
+        #expect(model.views.last?.id == frontier.id, "user views live after the built-ins")
+        #expect(model.duplicateView(IssueView.ID("nope")) == nil)
+    }
+
     @Test("the current view carries its live filter and presentation")
     func liveView() async {
         let model = await loadedModel()

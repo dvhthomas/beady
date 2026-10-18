@@ -75,6 +75,32 @@ struct CommandPaletteTests {
         #expect(CommandCatalog.results(for: "", model: model).contains(.unfocus))
     }
 
+    @Test("Save, Save as new view and Reset are offered only while the view is modified; Save only on a user view")
+    func viewSaving() async {
+        let model = await makeModel()
+        let quiet = CommandCatalog.results(for: "", model: model)
+        #expect(!quiet.contains(.saveView) && !quiet.contains(.saveViewAs) && !quiet.contains(.resetView))
+
+        model.toggleFilterValue("1", in: .priority)
+        let modified = CommandCatalog.results(for: "", model: model)
+        #expect(!modified.contains(.saveView), "a built-in's filter is its definition")
+        #expect(modified.contains(.saveViewAs))
+        #expect(modified.contains(.resetView))
+        // "Reset Columns" ties on the title and the palette breaks ties on length, so top two.
+        #expect(CommandCatalog.results(for: "reset", model: model).prefix(2).contains(.resetView))
+        #expect(CommandCatalog.results(for: "save as", model: model).first == .saveViewAs)
+
+        model.saveAsNewView(name: "Mine")
+        model.layout = .board
+        let user = CommandCatalog.results(for: "", model: model)
+        #expect(user.contains(.saveView))
+        #expect(CommandCatalog.results(for: "save", model: model).prefix(2).contains(.saveView))
+        #expect(AppCommand.saveView.shortcut == "⌘S")
+        #expect(AppCommand.saveViewAs.shortcut == "⌥⌘S")
+        #expect(AppCommand.resetView.shortcut == "⌥⌘R")
+        #expect([AppCommand.saveView, .saveViewAs, .resetView].allSatisfy { $0.group == "Views" })
+    }
+
     @Test("commands answer to the words people actually type")
     func aliases() async {
         let model = await makeModel()

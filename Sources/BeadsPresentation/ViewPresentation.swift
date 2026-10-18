@@ -56,10 +56,31 @@ public struct IssueGroupModel: Identifiable, Equatable, Sendable {
 public struct SidebarEntry: Identifiable, Equatable, Sendable {
     public let id: IssueView.ID
     public let title: String
-    /// An SF Symbol name.
+    /// The view's own SF Symbol name; rows show the layout glyph instead, except Starred.
     public let symbol: String
+    /// How the view is laid out right now, so you know before you click what you'll get.
+    public let layout: ViewLayout
     /// What the view's own filter matches, whatever has been added to it.
     public let count: Int
+    /// Whether what's live differs from the view as saved: the modified dot.
+    public let isModified: Bool
+    public let isBuiltIn: Bool
     /// What the view means in bd, for hovering the row; empty when the name says it all.
     public let help: String
+}
+
+/// One section of the sidebar: the built-ins, the user's own views, or Starred.
+public struct SidebarSection: Identifiable, Equatable, Sendable {
+    public enum Kind: String, Sendable {
+        case views, mine, starred
+    }
+
+    public let kind: Kind
+    /// Empty for a section that is one row and needs no header.
+    public let title: String
+    public let entries: [SidebarEntry]
+    /// Whether the header carries a + that saves the current view as a new one.
+    public let canAdd: Bool
+
+    public var id: Kind { kind }
 }
