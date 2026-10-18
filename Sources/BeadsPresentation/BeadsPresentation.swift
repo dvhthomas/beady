@@ -142,3 +142,135 @@ public enum DisplayText {
         }
     }
 }
+
+// MARK: Hover help
+
+// Ready, Blocked, Deferred, Pinned, Hooked and the lifecycle categories are not plain English:
+// each means something exact in bd. These are the one-sentence definitions the UI shows on hover,
+// phrased from bd's own words (`bd statuses`, `bd ready --help`). Views read them from the
+// presentation models or call these directly; they never spell them out themselves.
+extension DisplayText {
+    /// What a built-in view shows, in bd's words; empty for a user view, whose name is its own.
+    public static func help(forView id: IssueView.ID) -> String {
+        switch id {
+        case .frontier:
+            "bd's ready work: active, with nothing open blocking it in the dependency graph, not deferred to a future date and not hooked or held by a gate; computed, not a stored status."
+        case .inFlight:
+            "Beads in bd's wip category: in_progress, blocked and hooked, plus any custom status filed under wip."
+        case .stuck:
+            "Beads with an open blocker upstream, computed from the dependency graph rather than read from the stored blocked status."
+        case .pipeline:
+            "Every live bead on a board of bd's lifecycle categories, with the done column kept to the last 7 days so it stays a working surface."
+        case .recent:
+            "Beads bd changed in the last 24 hours, whatever their status, grouped by who holds them."
+        case .landed:
+            "Beads in bd's done category (closed, plus any custom status filed under done) that were closed in the last 7 days."
+        case .deferred:
+            "Beads in bd's frozen category: deferred (put on ice until a date or forever) and pinned (stays open indefinitely)."
+        case .everything:
+            "Every bead in the database, whatever its status."
+        case .starred:
+            "Beads carrying the starred label, whatever their status."
+        default:
+            ""
+        }
+    }
+
+    public static func help(for category: StatusCategory) -> String {
+        switch category {
+        case .active:
+            "bd's active category: available to work, which is the open status unless this database adds its own."
+        case .wip:
+            "bd's wip category: being worked on, which is in_progress, blocked and hooked unless this database adds its own."
+        case .frozen:
+            "bd's frozen category: deliberately set aside, which is deferred and pinned unless this database adds its own."
+        case .done:
+            "bd's done category: completed, which is closed unless this database adds its own."
+        }
+    }
+
+    /// A built-in status in bd's words; a custom one is explained through the category this
+    /// database files it under.
+    public static func help(forStatus status: String, category: StatusCategory) -> String {
+        switch status {
+        case "open":
+            "Available to work: bd's default status, in the active category."
+        case "in_progress":
+            "Actively being worked on; in the wip category."
+        case "blocked":
+            "Blocked by a dependency as a stored status, in the wip category; the Blocked view and filter use the dependency graph instead, so a bead can be blocked without it."
+        case "hooked":
+            "Attached to an agent's hook, in the wip category, so bd ready leaves it alone."
+        case "deferred":
+            "Deliberately put on ice for later, until a defer date or indefinitely; in the frozen category."
+        case "pinned":
+            "Persistent and stays open indefinitely; in the frozen category."
+        case "closed":
+            "Completed; in the done category."
+        default:
+            "A custom status this database files under \(category.rawValue): \(lowercasedFirst(help(for: category)))"
+        }
+    }
+
+    public static func help(for field: FilterField) -> String {
+        switch field {
+        case .lifecycle:
+            "bd's lifecycle category for the bead's status: active, wip, frozen or done."
+        case .ready:
+            "Whether bd would list the bead as ready: active, nothing open blocking it, not deferred to a future date and not hooked; computed, not a stored status."
+        case .status:
+            "The bead's stored bd status: open, in_progress, blocked, hooked, deferred, pinned, closed, or one this database adds."
+        case .priority:
+            "bd's priority from P0 (critical) to P4 (backlog)."
+        case .type:
+            "The bead's type, such as task, bug, feature or epic."
+        case .assignee:
+            "Who the bead is assigned to in bd, or no one."
+        case .labels:
+            "The bead's labels; a bead can carry several."
+        case .blocked:
+            "Whether an open bead upstream blocks this one, computed from the dependency graph rather than read from the stored blocked status."
+        case .parent:
+            "The epic the bead sits under."
+        case .updated:
+            "When bd last changed the bead, counted back from now."
+        case .closed:
+            "When the bead was closed, counted back from now."
+        }
+    }
+
+    /// The definition of a fixed filter value — a status, a time window, the blocked flag — or
+    /// nil for a free-form value such as a name or a label, which has nothing to define.
+    public static func help(forValue value: String, in field: FilterField, catalog: StatusCatalog = .builtIn) -> String? {
+        switch field {
+        case .lifecycle:
+            StatusCategory(rawValue: value).map(help(for:))
+        case .status:
+            help(forStatus: value, category: catalog.category(of: value))
+        case .blocked:
+            value == FilterRule.blockedValue ? help(forView: .stuck) : nil
+        case .ready:
+            value == FilterRule.readyValue ? help(forView: .frontier) : nil
+        case .updated, .closed:
+            TimeWindow(rawValue: value).map { "Within the last \(window($0)), counted back from now." }
+        case .priority, .type, .assignee, .labels, .parent:
+            nil
+        }
+    }
+
+    public static func help(for grouping: IssueGrouping) -> String {
+        switch grouping {
+        case .none: "One flat list in the chosen order."
+        case .category: "A section for each of bd's lifecycle categories: active, wip, frozen and done."
+        case .status: "A section for each stored bd status."
+        case .priority: "A section for each priority, P0 first."
+        case .type: "A section for each bead type."
+        case .assignee: "A section for each assignee, with unassigned beads together."
+        case .parent: "A section for each parent epic, with top-level beads together."
+        }
+    }
+
+    private static func lowercasedFirst(_ text: String) -> String {
+        text.prefix(1).lowercased() + text.dropFirst()
+    }
+}

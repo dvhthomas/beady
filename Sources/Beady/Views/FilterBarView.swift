@@ -201,6 +201,7 @@ struct FilterMenu: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .help(DisplayText.help(for: candidate))
                         }
                     }
                 }
@@ -243,6 +244,7 @@ struct FilterValuesList: View {
                 ))
                 .toggleStyle(.checkbox)
                 .lineLimit(1)
+                .help(option.help ?? "")
                 Spacer(minLength: 12)
                 Text("\(option.count)")
                     .font(.callout.monospacedDigit())
@@ -271,6 +273,7 @@ struct FilterChipView: View {
         HStack(spacing: 0) {
             Text(chip.fieldTitle)
                 .padding(.horizontal, 7)
+                .help(chip.fieldHelp)
             separator
             Menu {
                 ForEach(chip.operators) { choice in
@@ -302,6 +305,7 @@ struct FilterChipView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 7)
+                .help(chip.valuesHelp ?? "")
                 .popover(isPresented: showsValues.projectedValue, arrowEdge: .bottom) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
@@ -352,7 +356,9 @@ struct DisplayOptionsView: View {
             .pickerStyle(.segmented)
             Picker("Grouping", selection: $model.grouping) {
                 ForEach(IssueGrouping.allCases) { grouping in
-                    Text(DisplayText.grouping(grouping)).tag(grouping)
+                    Text(DisplayText.grouping(grouping))
+                        .tag(grouping)
+                        .help(DisplayText.help(for: grouping))
                 }
             }
             .disabled(model.layout == .tree)

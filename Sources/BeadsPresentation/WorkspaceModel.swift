@@ -390,7 +390,13 @@ public final class WorkspaceModel {
     public func filterOptions(for field: FilterField) -> [FilterMenuOption] {
         guard let snapshot else { return [] }
         return FilterOptions.options(for: field, filter: filter, in: snapshot, now: now()).map {
-            FilterMenuOption(value: $0.value, title: valueTitle($0.value, field: field), count: $0.count, isSelected: $0.isSelected)
+            FilterMenuOption(
+                value: $0.value,
+                title: valueTitle($0.value, field: field),
+                count: $0.count,
+                isSelected: $0.isSelected,
+                help: DisplayText.help(forValue: $0.value, in: field, catalog: snapshot.catalog)
+            )
         }
     }
 
@@ -406,7 +412,11 @@ public final class WorkspaceModel {
                 valuesTitle: rule.field == .blocked ? "" : values,
                 operators: rule.field.operators.map {
                     OperatorChoice(op: $0, title: DisplayText.operatorTitle($0, valueCount: 2, field: rule.field), isSelected: $0 == rule.op)
-                }
+                },
+                fieldHelp: DisplayText.help(for: rule.field),
+                valuesHelp: rule.values.count == 1
+                    ? rule.values.first.flatMap { DisplayText.help(forValue: $0, in: rule.field, catalog: snapshot?.catalog ?? .builtIn) }
+                    : nil
             )
         }
     }
@@ -450,7 +460,7 @@ public final class WorkspaceModel {
             let count = total(in: view)
             // Starred only earns a place in the sidebar once something is starred.
             if view.id == .starred, count == 0 { return nil }
-            return SidebarEntry(id: view.id, title: view.name, symbol: view.symbol, count: count, help: "")
+            return SidebarEntry(id: view.id, title: view.name, symbol: view.symbol, count: count, help: DisplayText.help(forView: view.id))
         }
     }
 

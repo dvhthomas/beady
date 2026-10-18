@@ -16,6 +16,10 @@ public struct FilterChipModel: Identifiable, Equatable, Sendable {
     /// Empty when the operator says it all (Blocked · yes).
     public let valuesTitle: String
     public let operators: [OperatorChoice]
+    /// What the field means in bd, for hovering the field name.
+    public let fieldHelp: String
+    /// What the one chosen value means in bd, when there is one and it has a fixed meaning.
+    public let valuesHelp: String?
 
     public var id: FilterField { field }
 }
@@ -25,6 +29,8 @@ public struct FilterMenuOption: Identifiable, Equatable, Sendable {
     public let title: String
     public let count: Int
     public let isSelected: Bool
+    /// What the value means in bd, when it has a fixed meaning.
+    public let help: String?
 
     public var id: String { value }
 }
@@ -55,6 +61,5 @@ public struct SidebarEntry: Identifiable, Equatable, Sendable {
     /// What the view's own filter matches, whatever has been added to it.
     public let count: Int
     /// What the view means in bd, for hovering the row; empty when the name says it all.
-    /// Filled in by the hover-help work (bdv-jlx.11).
     public let help: String
 }

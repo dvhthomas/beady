@@ -53,6 +53,7 @@ struct StatusBadge: View {
             .font(.caption)
             .foregroundStyle(theme.color(category))
             .lineLimit(1)
+            .help(DisplayText.help(forStatus: status, category: category))
     }
 }
 
