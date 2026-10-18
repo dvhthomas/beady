@@ -1,38 +1,5 @@
 import BeadsCore
 
-/// What a view remembers while you're elsewhere: its filters and how it's displayed.
-public struct ViewState: Equatable, Codable, Sendable {
-    public var filter: ViewFilter
-    public var layout: WorkspaceModel.Layout
-    public var grouping: IssueGrouping
-    public var ordering: IssueSort
-
-    public init(filter: ViewFilter, layout: WorkspaceModel.Layout, grouping: IssueGrouping, ordering: IssueSort) {
-        self.filter = filter
-        self.layout = layout
-        self.grouping = grouping
-        self.ordering = ordering
-    }
-
-    /// Where each view starts: epics as a tree, All grouped by lifecycle, In Flight by status.
-    public static func defaults(for source: ViewSource) -> ViewState {
-        switch source {
-        case .lifecycle(let scope):
-            let grouping: IssueGrouping = switch scope {
-            case .all: .category
-            case .inFlight: .status
-            case .open, .ready, .blocked, .deferred, .closed: .none
-            }
-            return ViewState(filter: ViewFilter(), layout: .list, grouping: grouping, ordering: scope.defaultSort)
-        case .focused:
-            return ViewState(filter: ViewFilter(), layout: .tree, grouping: .category, ordering: .priority)
-        case .label:
-            // A label view spans every lifecycle, so lifecycle is the grouping that reads best.
-            return ViewState(filter: ViewFilter(), layout: .list, grouping: .category, ordering: .priority)
-        }
-    }
-}
-
 public struct OperatorChoice: Identifiable, Equatable, Sendable {
     public let op: FilterOperator
     public let title: String
@@ -49,6 +16,13 @@ public struct FilterChipModel: Identifiable, Equatable, Sendable {
     /// Empty when the operator says it all (Blocked · yes).
     public let valuesTitle: String
     public let operators: [OperatorChoice]
+    /// Part of what a built-in view means: shown with a lock, no ✕ and no operator menu, and
+    /// Clear leaves it alone. Duplicate the view to change it.
+    public let isLocked: Bool
+    /// What the field means in bd, for hovering the field name.
+    public let fieldHelp: String
+    /// What the one chosen value means in bd, when there is one and it has a fixed meaning.
+    public let valuesHelp: String?
 
     public var id: FilterField { field }
 }
@@ -58,6 +32,8 @@ public struct FilterMenuOption: Identifiable, Equatable, Sendable {
     public let title: String
     public let count: Int
     public let isSelected: Bool
+    /// What the value means in bd, when it has a fixed meaning.
+    public let help: String?
 
     public var id: String { value }
 }
@@ -81,27 +57,38 @@ public struct IssueGroupModel: Identifiable, Equatable, Sendable {
 
 /// A view in the sidebar.
 public struct SidebarEntry: Identifiable, Equatable, Sendable {
-    public let source: ViewSource
+    public let id: IssueView.ID
     public let title: String
-    /// The view's total, before any filter.
+    /// The view's own SF Symbol name, which is what the row draws: never the layout glyph.
+    public let symbol: String
+    /// How the view is laid out right now, so you know before you click what you'll get.
+    public let layout: ViewLayout
+    /// What the view's own filter matches, whatever has been added to it.
     public let count: Int
-
-    public var id: ViewSource { source }
+    /// Whether what's live differs from the view as saved: the modified dot.
+    public let isModified: Bool
+    public let isBuiltIn: Bool
+    /// What the view means in bd, for hovering the row; empty when the name says it all.
+    public let help: String
 }
 
-public extension Scope {
-    var defaultSort: IssueSort {
-        switch self {
-        case .closed: .recentlyClosed
-        case .inFlight, .all: .recentlyUpdated
-        case .open, .ready, .blocked, .deferred: .priority
-        }
+/// One section of the sidebar: the built-ins, the user's own views, or Starred.
+public struct SidebarSection: Identifiable, Equatable, Sendable {
+    public enum Kind: String, Sendable {
+        case views, mine, starred
     }
-}
 
+    public let kind: Kind
+    /// Empty for a section that is one row and needs no header.
+    public let title: String
+    public let entries: [SidebarEntry]
+    /// Whether the header carries a + that saves the current view as a new one.
+    public let canAdd: Bool
 
-/// A view and its state, as one record: a dictionary keyed by an enum doesn't encode as JSON.
-struct SavedViewState: Codable, Sendable {
-    let source: ViewSource
-    let state: ViewState
+    public var id: Kind { kind }
+
+    /// Whether collapsing the section would hide anything. The disclosure is always drawn, so the
+    /// header never changes shape under the pointer; it is merely disabled when there is nothing
+    /// to fold away.
+    public var canCollapse: Bool { !entries.isEmpty }
 }

@@ -29,13 +29,13 @@ struct MarkTests {
         #expect(plain.map(\.id) == ["starred", "plain", "pinned", "both"])
     }
 
-    @Test("a label is a view of its own, which is what Starred is")
+    @Test("a label is a filter of its own, which is what the Starred view is")
     func labelView() {
-        let source = ViewSource.label("starred")
+        let starred = ViewFilter(rules: [FilterRule(field: .labels, op: .includesAll, values: ["starred"])])
         let now = t0
-        #expect(Set(snapshot.issues.filter { source.includes($0, in: snapshot, now: now) }.map(\.id)) == ["starred", "both"])
-        #expect(source.categories == Set(StatusCategory.allCases), "a label view spans every lifecycle")
-        #expect(!ViewSource.label("starred").includes(snapshot.issue("plain")!, in: snapshot, now: now))
+        #expect(Set(snapshot.issues.filter { starred.matches($0, in: snapshot, now: now) }.map(\.id)) == ["starred", "both"])
+        #expect(starred.lifecycleCategories == Set(StatusCategory.allCases), "a label view spans every lifecycle")
+        #expect(!starred.matches(snapshot.issue("plain")!, in: snapshot, now: now))
     }
 
     @Test("grouping keeps pinned beads at the top of each group")

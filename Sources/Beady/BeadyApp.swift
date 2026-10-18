@@ -40,9 +40,30 @@ struct BeadyApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Where files opened from Finder go. Set once the session's view is up; files that arrive
+    /// first (a double-click that launched the app) wait here.
+    static var openFiles: (([URL]) -> Void)? {
+        didSet {
+            guard let openFiles, !pendingFiles.isEmpty else { return }
+            let urls = pendingFiles
+            pendingFiles = []
+            openFiles(urls)
+        }
+    }
+    private static var pendingFiles: [URL] = []
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Lets the bare SwiftPM binary behave like an app too (Dock icon, menu bar).
         NSApp.setActivationPolicy(.regular)
+    }
+
+    /// A .beadyview double-clicked or dropped on the Dock icon is imported into the Library.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if let openFiles = Self.openFiles {
+            openFiles(urls)
+        } else {
+            Self.pendingFiles += urls
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -58,6 +79,7 @@ struct RootView: View {
             .onAppear {
                 session.themes.watchAccessibility()
                 if SnapshotMode.tracesPanes { SnapshotMode.tracePanes(ui: session.ui) }
+                AppDelegate.openFiles = { [weak session] urls in session?.importViews(from: urls) }
             }
             // Only a view can open a window; commands ask through the UI state.
             .onChange(of: session.ui.graphWindowRequests) { openWindow(id: "dependencies") }
@@ -67,7 +89,7 @@ struct RootView: View {
     private var content: some View {
         Group {
             if let model = session.model {
-                WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run)
+                WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run, importFiles: session.importViews)
                     .id(ObjectIdentifier(model))
                     // Here rather than in the workspace view: saying no is remembered per
                     // workspace, which is the session's to do.
@@ -88,12 +110,24 @@ struct RootView: View {
         } message: {
             Text(session.openError ?? "")
         }
+        .alert("Couldn't Import View", isPresented: showsViewFileError) {
+            Button("OK", role: .cancel) { session.dismissViewFileError() }
+        } message: {
+            Text(session.viewFileError ?? "")
+        }
     }
 
     private var showsJournalOffer: Binding<Bool> {
         Binding(
             get: { session.ui.showsJournalOffer && session.model?.journalOffer != nil },
             set: { session.ui.showsJournalOffer = $0 }
+        )
+    }
+
+    private var showsViewFileError: Binding<Bool> {
+        Binding(
+            get: { session.viewFileError != nil },
+            set: { if !$0 { session.dismissViewFileError() } }
         )
     }
 
@@ -135,10 +169,18 @@ struct AppCommands: Commands {
             item(.goBack, needsWorkspace: true)
             item(.goForward, needsWorkspace: true)
             Divider()
-            ForEach(Scope.allCases) { scope in
-                Button(DisplayText.scope(scope)) { session.run(.showView(.lifecycle(scope))) }
+            ForEach(IssueView.builtIns) { view in
+                Button(view.name) { session.run(.showView(view.id)) }
                     .disabled(session.model == nil)
             }
+            Divider()
+            item(.saveView, needsWorkspace: true)
+            item(.saveViewAs, needsWorkspace: true)
+            item(.resetView, needsWorkspace: true)
+            Divider()
+            Button("Export View…") { if let id = session.model?.viewID { session.run(.exportView(id)) } }
+                .disabled(session.model == nil)
+            item(.importViews, needsWorkspace: true)
         }
         CommandMenu("Beads") {
             item(.newBead, needsWorkspace: true)

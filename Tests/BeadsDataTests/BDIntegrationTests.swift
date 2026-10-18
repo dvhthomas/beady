@@ -43,8 +43,8 @@ struct BDIntegrationTests {
         print("parity check compared \(after.issues.count) issues")
 
         let now = Date()
-        let ready = Set(after.issues.filter { Scope.ready.includes($0, in: after, now: now) }.map(\.id.rawValue))
-        let blocked = Set(after.issues.filter { Scope.blocked.includes($0, in: after, now: now) }.map(\.id.rawValue))
+        let ready = Set(after.issues.filter { after.isReady($0, now: now) }.map(\.id.rawValue))
+        let blocked = Set(after.issues.filter { after.isBlocked($0) }.map(\.id.rawValue))
         #expect(ready == bdReady, "only ours: \(ready.subtracting(bdReady)); only bd: \(bdReady.subtracting(ready))")
         #expect(blocked == bdBlocked, "only ours: \(blocked.subtracting(bdBlocked)); only bd: \(bdBlocked.subtracting(blocked))")
     }

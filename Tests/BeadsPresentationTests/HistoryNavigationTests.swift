@@ -45,20 +45,20 @@ struct HistoryNavigationTests {
     @Test("the view you were in comes back too, not just the bead")
     func viewsAreRemembered() async {
         let model = await makeModel()
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         model.selection = "a"
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         model.selection = "b"
 
         // One step at a time, as a browser does: first back to the bead you had selected in
         // In Flight, then back to the view you were in before that.
         model.goBack()
         #expect(model.selection == "a")
-        #expect(model.source == .lifecycle(.inFlight))
+        #expect(model.viewID == .inFlight)
 
         model.goBack()
         #expect(model.selection == "a")
-        #expect(model.source == .lifecycle(.open))
+        #expect(model.viewID == .frontier)
     }
 
     @Test("going somewhere new after stepping back drops what was ahead")

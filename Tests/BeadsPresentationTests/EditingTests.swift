@@ -246,7 +246,7 @@ struct EditingTests {
     @Test("dropping a card on a board column proposes that column's value, for whatever the board is grouped by")
     func boardDrops() async {
         let (model, _) = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.layout = .board
 
         model.grouping = .status
@@ -280,7 +280,7 @@ struct EditingTests {
     @Test("dropping a card on its own column proposes nothing")
     func dropOnSameColumn() async {
         let (model, _) = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.grouping = .status
         #expect(!model.proposeDrop("epic.1", onGroup: "open"))
         #expect(model.pendingChange == nil)
@@ -289,14 +289,14 @@ struct EditingTests {
     @Test("board columns include every value you could drop into")
     func boardColumnsWhileEditing() async {
         let (model, _) = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.layout = .board
         model.grouping = .category
         #expect(model.boardGroups.map(\.key) == ["active", "wip", "frozen", "done"])
         model.grouping = .status
         #expect(model.boardGroups.map(\.key) == ["open", "blocked", "in_progress", "deferred", "closed"])
 
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         model.grouping = .status
         #expect(model.boardGroups.map(\.key) == ["blocked", "in_progress"])
     }
@@ -304,7 +304,7 @@ struct EditingTests {
     @Test("a board with no grouping falls back to lifecycle columns")
     func boardNeedsColumns() async {
         let (model, _) = await makeModel()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.grouping = .none
         // Editing is always available now, so every column you could drop into is shown,
         // including the ones this database has nothing in yet.
@@ -438,7 +438,7 @@ struct DropTests {
         ])
         let model = WorkspaceModel(title: "demo", store: store, now: { t0 })
         await model.load()
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.layout = .board
         return model
     }

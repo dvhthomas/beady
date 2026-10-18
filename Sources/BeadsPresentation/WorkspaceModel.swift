@@ -3,15 +3,13 @@ import Foundation
 import Observation
 
 /// View state for one open beads workspace, modelled on Linear: the sidebar picks a view (a
-/// lifecycle or an epic), and each view keeps its own filters, layout, grouping and ordering.
-/// Loading, change-driven refresh and every write go through one `BeadsStore`.
+/// saved filter with a saved presentation), and each view keeps its own filters, layout,
+/// grouping and ordering. Loading, change-driven refresh and every write go through one
+/// `BeadsStore`.
 @MainActor
 @Observable
 public final class WorkspaceModel {
-    public enum Layout: String, CaseIterable, Identifiable, Codable, Sendable {
-        case list, board, tree
-        public var id: String { rawValue }
-    }
+    public typealias Layout = ViewLayout
 
     public enum LoadState: Equatable, Sendable {
         case idle
@@ -29,12 +27,30 @@ public final class WorkspaceModel {
     public private(set) var isLoading = false
 
     /// The view picked in the sidebar.
-    public var source: ViewSource = .lifecycle(.open) {
-        didSet { recordPlace(source: oldValue, selection: selection) }
+    public var viewID: IssueView.ID = .frontier {
+        didSet { recordPlace(view: oldValue, selection: selection) }
+    }
+
+    /// The view on screen: the view as saved, with what's live on top.
+    public var view: IssueView {
+        var view = savedView
+        let state = state
+        view.filter = state.filter
+        view.presentation = state.presentation
+        return view
+    }
+
+    /// Every view the sidebar offers: the built-ins, then the user's own, in order.
+    public var views: [IssueView] { library.views }
+
+    /// The current view as saved: a built-in's definition, or a user view as last saved. An id
+    /// this Beady doesn't know falls back to the first built-in rather than showing nothing.
+    private var savedView: IssueView {
+        library.view(viewID) ?? library.views[0]
     }
 
     public var selection: IssueID? {
-        didSet { recordPlace(source: source, selection: oldValue) }
+        didSet { recordPlace(view: viewID, selection: oldValue) }
     }
     /// Tree branches the user has folded; everything else is expanded.
     public private(set) var collapsed: Set<IssueID> = []
@@ -47,15 +63,18 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    private var viewStates: [ViewSource: ViewState] = [:] {
-        didSet { saveViewStates() }
+    /// The saved views and what is live on top of each, written back on every change: views to
+    /// the Library folder, what's live to preferences.
+    private var library = ViewLibrary() {
+        didSet { library.save(to: viewsDirectory, preferences: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
-    /// Where each view's filters, layout, grouping and ordering are remembered between launches.
+    /// Where what's live on each view is remembered between launches.
     /// Standard macOS preferences: ~/Library/Preferences/me.bitsby.beady.plist.
     @ObservationIgnored private let preferences: UserDefaults?
-    @ObservationIgnored private static let viewStatesKey = "viewStates"
+    /// The Library tier: one .beadyview per view. Nil keeps views in preferences.
+    @ObservationIgnored private let viewsDirectory: URL?
     @ObservationIgnored private let allowsWriting: Bool
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let staleAfter: TimeInterval
@@ -80,9 +99,6 @@ public final class WorkspaceModel {
     /// Where the journal has been read up to, when it's on.
     @ObservationIgnored private var journalFeed = JournalFeed()
     @ObservationIgnored private var journalChecked = false
-    /// Where `unfocus()` goes back to.
-    @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
-
     public init(
         title: String,
         store: any BeadsStore,
@@ -90,6 +106,8 @@ public final class WorkspaceModel {
         /// Nil keeps this model out of any saved state — which is what tests and the
         /// offscreen snapshots want. The app passes `.standard`.
         preferences: UserDefaults? = nil,
+        /// The folder of .beadyview files; nil keeps views in preferences.
+        viewsDirectory: URL? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600,
@@ -100,26 +118,34 @@ public final class WorkspaceModel {
         self.store = store
         self.allowsWriting = allowsWriting
         self.preferences = preferences
+        self.viewsDirectory = viewsDirectory
         self.now = now
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
         journalDeclined = declinedJournal
-        viewStates = Self.loadViewStates(from: preferences)
+        library = ViewLibrary.load(from: viewsDirectory, preferences: preferences)
     }
 
-    /// Saved views that can't be read — an older format, a corrupted value — are dropped rather
-    /// than fought with: the app starts from its defaults and saves again on the next change.
-    private static func loadViewStates(from preferences: UserDefaults?) -> [ViewSource: ViewState] {
-        guard let data = preferences?.data(forKey: viewStatesKey),
-              let saved = try? JSONDecoder().decode([SavedViewState].self, from: data) else { return [:] }
-        return Dictionary(saved.map { ($0.source, $0.state) }, uniquingKeysWith: { first, _ in first })
+    /// Picks up views that changed on disk — a file dropped in, a sync, a hand edit. What's live
+    /// here stays; the folder only ever says what's saved.
+    public func reloadViews() {
+        guard let viewsDirectory else { return }
+        let onDisk = ViewLibrary.load(from: viewsDirectory, preferences: nil).views
+        if onDisk != library.views { library.views = onDisk }
     }
 
-    private func saveViewStates() {
-        guard let preferences else { return }
-        let saved = viewStates.map { SavedViewState(source: $0.key, state: $0.value) }
-        guard let data = try? JSONEncoder().encode(saved) else { return }
-        preferences.set(data, forKey: Self.viewStatesKey)
+    /// Adds the views in a .beadyview or .beadyviews document under My Views and shows the last
+    /// of them. Throws a readable error for a file that isn't a view or is from a newer Beady.
+    @discardableResult
+    public func importViews(fromDocument data: Data) throws -> [IssueView] {
+        let added = library.importViews(try ViewLibrary.views(fromDocument: data))
+        if let last = added.last { viewID = last.id }
+        return added
+    }
+
+    /// A view as saved, as a .beadyview document; nil when there is no such view.
+    public func exportDocument(for id: IssueView.ID) throws -> Data? {
+        try library.view(id)?.documentData()
     }
 
     // MARK: Loading
@@ -167,9 +193,10 @@ public final class WorkspaceModel {
 
     // MARK: The current view's state
 
+    /// What's live for the current view: the saved view until something changes.
     private var state: ViewState {
-        get { viewStates[source] ?? .defaults(for: source) }
-        set { viewStates[source] = newValue }
+        get { library.live[viewID] ?? ViewState(of: savedView) }
+        set { library.live[viewID] = newValue }
     }
 
     public var filter: ViewFilter {
@@ -178,18 +205,132 @@ public final class WorkspaceModel {
     }
 
     public var layout: Layout {
-        get { state.layout }
-        set { state.layout = newValue }
+        get { state.presentation.layout }
+        set { present { $0.layout = newValue } }
     }
 
     public var grouping: IssueGrouping {
-        get { state.grouping }
-        set { state.grouping = newValue }
+        get { state.presentation.grouping }
+        set { present { $0.grouping = newValue } }
     }
 
     public var ordering: IssueSort {
-        get { state.ordering }
-        set { state.ordering = newValue }
+        get { state.presentation.ordering }
+        set { present { $0.ordering = newValue } }
+    }
+
+    /// A built-in remembers its presentation the moment it changes: flipping the layout is
+    /// cheap and never a modification, because the filter is what the view means. A user view's
+    /// presentation is part of what it saves, so the change waits for Save.
+    private func present(_ change: (inout ViewPresentation) -> Void) {
+        var presentation = state.presentation
+        change(&presentation)
+        state.presentation = presentation
+        if savedView.isBuiltIn, let index = library.index(of: viewID) {
+            library.views[index].presentation = presentation
+        }
+    }
+
+    // MARK: Saving views
+
+    /// Whether what's on screen differs from the view as saved. A built-in's presentation is
+    /// always remembered, so only its filter can be modified; a user view's layout counts too.
+    public var isModified: Bool {
+        state != ViewState(of: savedView)
+    }
+
+    /// Whether Save would do anything: a modified user view. A built-in is never saved over.
+    public var canSave: Bool {
+        !savedView.isBuiltIn && isModified
+    }
+
+    /// Saves what's on screen into the current user view. Refused for a built-in, whose filter is
+    /// its definition: Save as new view is the way to keep a variation of one.
+    @discardableResult
+    public func save() -> Bool {
+        guard !savedView.isBuiltIn, let index = library.index(of: viewID) else { return false }
+        library.views[index].filter = state.filter
+        library.views[index].presentation = state.presentation
+        library.live[viewID] = nil
+        return true
+    }
+
+    /// A new user view from what's on screen, which becomes the current view. The view you came
+    /// from goes back to how it was saved.
+    @discardableResult
+    public func saveAsNewView(name: String, symbol: String = ViewIcon.defaultUserChoice) -> IssueView {
+        let symbol = symbol.trimmingCharacters(in: .whitespaces)
+        let view = IssueView(
+            id: IssueView.ID(UUID().uuidString), name: name, symbol: symbol.isEmpty ? ViewIcon.defaultUserChoice : symbol,
+            filter: state.filter, presentation: state.presentation
+        )
+        library.live[viewID] = nil
+        library.views.append(view)
+        viewID = view.id
+        return view
+    }
+
+    /// Back to the view as saved.
+    public func reset() {
+        library.live[viewID] = nil
+    }
+
+    /// Gives a user view an icon (an SF Symbol name). Refused for a built-in, whose icon is part
+    /// of what it is, and for a blank name, which would draw nothing.
+    @discardableResult
+    public func setIcon(_ symbol: String, for id: IssueView.ID) -> Bool {
+        let symbol = symbol.trimmingCharacters(in: .whitespaces)
+        guard !symbol.isEmpty, let index = library.index(of: id), !library.views[index].isBuiltIn else { return false }
+        library.views[index].symbol = symbol
+        return true
+    }
+
+    /// Renames a user view. Refused for a built-in, and for a blank name.
+    @discardableResult
+    public func renameView(_ id: IssueView.ID, to name: String) -> Bool {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let index = library.index(of: id), !library.views[index].isBuiltIn else { return false }
+        library.views[index].name = name
+        return true
+    }
+
+    /// A user view copied from a view as saved, named after it, keeping its filter, presentation
+    /// and icon. Duplicating a built-in is the one way to change what it means: the copy is
+    /// unlocked, under My Views. Nil when there is no such view.
+    @discardableResult
+    public func duplicateView(_ id: IssueView.ID) -> IssueView? {
+        guard let source = library.view(id) else { return nil }
+        var copy = source
+        copy.id = IssueView.ID(UUID().uuidString)
+        copy.name = "\(source.name) copy"
+        copy.isBuiltIn = false
+        library.views.append(copy)
+        return copy
+    }
+
+    /// Removes a user view; the built-ins stay. Returns whether anything was removed.
+    @discardableResult
+    public func removeView(_ id: IssueView.ID) -> Bool {
+        guard let index = library.index(of: id), !library.views[index].isBuiltIn else { return false }
+        library.views.remove(at: index)
+        library.live[id] = nil
+        if viewID == id { viewID = library.views[0].id }
+        return true
+    }
+
+    /// Views an older Beady's saved state turned up that have no built-in to land on (Open),
+    /// each kept until it is accepted into the sidebar or declined.
+    public var offeredViews: [IssueView] { library.offers }
+
+    public func acceptOfferedView(_ id: IssueView.ID) {
+        guard let index = library.offers.firstIndex(where: { $0.id == id }) else { return }
+        let view = library.offers.remove(at: index)
+        library.views.append(view)
+        viewID = view.id
+    }
+
+    public func declineOfferedView(_ id: IssueView.ID) {
+        library.offers.removeAll { $0.id == id }
     }
 
     public var searchText: String {
@@ -197,25 +338,16 @@ public final class WorkspaceModel {
         set { state.filter.searchText = newValue }
     }
 
-    public var viewTitle: String {
-        switch source {
-        case .lifecycle(let scope): DisplayText.scope(scope)
-        case .focused(let id): snapshot?.issue(id)?.title ?? id.rawValue
-        case .label(let label): IssueMark(rawValue: label)?.title ?? label
-        }
-    }
+    public var viewTitle: String { view.name }
 
     // MARK: What the view shows
 
     public var visibleIssues: [Issue] {
         guard let snapshot else { return [] }
         let now = now()
-        let source = source
         let filter = filter
         return ordering.sorted(
-            snapshot.issues.filter {
-                source.includes($0, in: snapshot, now: now) && filter.matches($0, in: snapshot, now: now)
-            },
+            snapshot.issues.filter { filter.matches($0, in: snapshot, now: now) },
             // A pin is a request to see something first, wherever it appears.
             pinnedFirst: true
         )
@@ -230,6 +362,23 @@ public final class WorkspaceModel {
     public var boardGroups: [IssueGroupModel] {
         let grouping = boardGrouping
         return makeGroups(grouping, including: canEdit ? dropKeys(for: grouping) : [])
+    }
+
+    /// What would split a board that has collapsed to one column. Nil when the board already has
+    /// more than one column with cards in it, when this isn't a board, or when there is nothing
+    /// to split (one card or none). Groupings are offered only if they would actually spread the
+    /// cards out, so the board never silently shows one column again.
+    public var boardNeedsSplitting: BoardSplit? {
+        guard layout == .board, let snapshot else { return nil }
+        let issues = visibleIssues
+        guard issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 else { return nil }
+        let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
+        return BoardSplit(groupings: candidates.filter { $0 != boardGrouping && $0.groups(issues, in: snapshot).count > 1 })
+    }
+
+    public struct BoardSplit: Equatable, Sendable {
+        /// Groupings that would give the board more than one column, in the order to offer them.
+        public let groupings: [IssueGrouping]
     }
 
     public var tree: [IssueTreeNode] {
@@ -247,7 +396,7 @@ public final class WorkspaceModel {
     }
 
     private func dropKeys(for grouping: IssueGrouping) -> [String] {
-        let categories = source.categories
+        let categories = filter.lifecycleCategories
         switch grouping {
         case .category:
             return StatusCategory.allCases.filter(categories.contains).map(\.rawValue)
@@ -288,32 +437,63 @@ public final class WorkspaceModel {
 
     // MARK: Filters
 
+    /// A built-in's own rules are its definition and can't be edited in place: duplicate the view
+    /// instead. Nothing on a user view is locked. A rule that somehow differs from the
+    /// definition (an older saved state) isn't locked either, so it can be put right.
+    public var lockedFields: Set<FilterField> {
+        guard savedView.isBuiltIn else { return [] }
+        return Set(savedView.filter.rules.filter { $0 == filter.rule(for: $0.field) }.map(\.field))
+    }
+
+    public func isLocked(_ field: FilterField) -> Bool {
+        lockedFields.contains(field)
+    }
+
+    /// Whether Clear would do anything: rules added on top of what the view means.
+    public var hasClearableFilters: Bool {
+        filter.rules.contains { !isLocked($0.field) }
+    }
+
     public func toggleFilterValue(_ value: String, in field: FilterField) {
+        guard !isLocked(field) else { return }
         filter.toggle(value, in: field)
     }
 
     public func setFilterOperator(_ op: FilterOperator, for field: FilterField) {
+        guard !isLocked(field) else { return }
         filter.setOperator(op, for: field)
     }
 
     public func removeFilter(_ field: FilterField) {
+        guard !isLocked(field) else { return }
         filter.remove(field)
     }
 
-    /// Removes this view's filter rules; other views keep theirs.
+    /// Removes the rules added on top of this view; a built-in's own rules stay, and other views
+    /// keep theirs.
     public func clearFilters() {
-        filter.removeAllRules()
+        for field in filter.rules.map(\.field) where !isLocked(field) {
+            filter.remove(field)
+        }
     }
 
     public func filterOptions(for field: FilterField) -> [FilterMenuOption] {
         guard let snapshot else { return [] }
-        return FilterOptions.options(for: field, source: source, filter: filter, in: snapshot, now: now()).map {
-            FilterMenuOption(value: $0.value, title: valueTitle($0.value, field: field), count: $0.count, isSelected: $0.isSelected)
+        return FilterOptions.options(for: field, filter: filter, in: snapshot, now: now()).map {
+            FilterMenuOption(
+                value: $0.value,
+                title: valueTitle($0.value, field: field),
+                count: $0.count,
+                isSelected: $0.isSelected,
+                help: DisplayText.help(forValue: $0.value, in: field, catalog: snapshot.catalog)
+            )
         }
     }
 
+    /// Every rule but the focus, which the breadcrumb shows instead.
     public var filterChips: [FilterChipModel] {
-        filter.rules.map { rule in
+        let locked = lockedFields
+        return filter.rules.filter { Self.focusedID(of: $0) == nil }.map { rule in
             let titles = sortedValues(rule).map { valueTitle($0, field: rule.field) }
             let values = titles.count > 2 ? "\(titles.count) \(DisplayText.noun(rule.field))" : titles.joined(separator: ", ")
             return FilterChipModel(
@@ -323,17 +503,24 @@ public final class WorkspaceModel {
                 valuesTitle: rule.field == .blocked ? "" : values,
                 operators: rule.field.operators.map {
                     OperatorChoice(op: $0, title: DisplayText.operatorTitle($0, valueCount: 2, field: rule.field), isSelected: $0 == rule.op)
-                }
+                },
+                isLocked: locked.contains(rule.field),
+                fieldHelp: DisplayText.help(for: rule.field),
+                valuesHelp: rule.values.count == 1
+                    ? rule.values.first.flatMap { DisplayText.help(forValue: $0, in: rule.field, catalog: snapshot?.catalog ?? .builtIn) }
+                    : nil
             )
         }
     }
 
     private func valueTitle(_ raw: String, field: FilterField) -> String {
         switch field {
+        case .lifecycle: StatusCategory(rawValue: raw).map(DisplayText.lifecycle) ?? raw
         case .status: DisplayText.status(raw)
         case .priority: Int(raw).map(DisplayText.priority) ?? raw
         case .assignee: raw.isEmpty ? "Unassigned" : raw
         case .blocked: "Blocked"
+        case .ready: raw
         case .parent: snapshot?.issue(IssueID(raw))?.title ?? raw
         case .updated, .closed: TimeWindow(rawValue: raw).map(DisplayText.window) ?? raw
         case .type, .labels: raw
@@ -344,6 +531,9 @@ public final class WorkspaceModel {
         switch rule.field {
         case .priority:
             return rule.values.sorted { (Int($0) ?? .max) < (Int($1) ?? .max) }
+        case .lifecycle:
+            let order = { (raw: String) in StatusCategory(rawValue: raw).flatMap(StatusCategory.allCases.firstIndex) ?? .max }
+            return rule.values.sorted { order($0) < order($1) }
         case .status:
             let catalog = snapshot?.catalog ?? .builtIn
             let order = { (status: String) in StatusCategory.allCases.firstIndex(of: catalog.category(of: status)) ?? 0 }
@@ -357,18 +547,38 @@ public final class WorkspaceModel {
 
     // MARK: Sidebar
 
+    /// Every row, in sidebar order: the sections flattened.
     public var sidebarViews: [SidebarEntry] {
-        let scopes: [Scope] = [.open, .ready, .inFlight, .blocked, .deferred, .closed, .all]
-        var entries = scopes.map { scope in
-            SidebarEntry(source: .lifecycle(scope), title: DisplayText.scope(scope), count: total(in: .lifecycle(scope)))
+        sidebarSections.flatMap(\.entries)
+    }
+
+    /// Views (the built-ins), My Views (the user's own, with a + to add one, even when empty),
+    /// and Starred once something is starred.
+    public var sidebarSections: [SidebarSection] {
+        let builtIns = library.views.filter { $0.isBuiltIn && $0.id != .starred }
+        let mine = library.views.filter { !$0.isBuiltIn }
+        var sections = [
+            SidebarSection(kind: .views, title: "Views", entries: builtIns.map(sidebarEntry), canAdd: false),
+            SidebarSection(kind: .mine, title: "My Views", entries: mine.map(sidebarEntry), canAdd: true),
+        ]
+        if let starred = library.view(.starred), total(in: starred) > 0 {
+            sections.append(SidebarSection(kind: .starred, title: "", entries: [sidebarEntry(starred)], canAdd: false))
         }
-        // Starred only earns a place in the sidebar once something is starred.
-        let starred = ViewSource.label(IssueMark.starred.label)
-        let count = total(in: starred)
-        if count > 0 {
-            entries.append(SidebarEntry(source: starred, title: IssueMark.starred.title, count: count))
-        }
-        return entries
+        return sections
+    }
+
+    private func sidebarEntry(_ view: IssueView) -> SidebarEntry {
+        let live = library.live[view.id]
+        return SidebarEntry(
+            id: view.id,
+            title: view.name,
+            symbol: view.symbol,
+            layout: (live?.presentation ?? view.presentation).layout,
+            count: total(in: view),
+            isModified: live.map { $0 != ViewState(of: view) } ?? false,
+            isBuiltIn: view.isBuiltIn,
+            help: DisplayText.help(forView: view.id)
+        )
     }
 
     // MARK: Moving around the board
@@ -412,7 +622,7 @@ public final class WorkspaceModel {
 
     /// A view and the bead that was selected in it — one step of history.
     public struct Place: Equatable, Sendable {
-        public let source: ViewSource
+        public let view: IssueView.ID
         public let selection: IssueID?
     }
 
@@ -428,28 +638,28 @@ public final class WorkspaceModel {
     /// case this exists for.
     public func goBack() {
         guard let destination = back.popLast() else { return }
-        forward.append(Place(source: source, selection: selection))
+        forward.append(Place(view: viewID, selection: selection))
         travel(to: destination)
     }
 
     public func goForward() {
         guard let destination = forward.popLast() else { return }
-        back.append(Place(source: source, selection: selection))
+        back.append(Place(view: viewID, selection: selection))
         travel(to: destination)
     }
 
     private func travel(to place: Place) {
         isTravelling = true
-        source = place.source
+        viewID = place.view
         selection = place.selection
         isTravelling = false
     }
 
     /// Remembers where you just were, unless you were already there or we're the ones moving.
-    private func recordPlace(source: ViewSource, selection: IssueID?) {
+    private func recordPlace(view: IssueView.ID, selection: IssueID?) {
         guard !isTravelling else { return }
-        let previous = Place(source: source, selection: selection)
-        guard previous != Place(source: self.source, selection: self.selection) else { return }
+        let previous = Place(view: view, selection: selection)
+        guard previous != Place(view: viewID, selection: self.selection) else { return }
         guard back.last != previous else { return }
         back.append(previous)
         if back.count > Self.maxHistory { back.removeFirst(back.count - Self.maxHistory) }
@@ -684,30 +894,41 @@ public final class WorkspaceModel {
         snapshot?.issue(id)?.has(mark) ?? false
     }
 
-    /// Unfinished epics, each a view of everything under it.
-    private func total(in source: ViewSource) -> Int {
+    /// What a view's own filter matches, for the sidebar badge.
+    private func total(in view: IssueView) -> Int {
         guard let snapshot else { return 0 }
         let now = now()
-        return snapshot.issues.lazy.filter { source.includes($0, in: snapshot, now: now) }.count
+        return snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
     }
 
-    /// Opens the view of everything under `id`.
-    /// Points the whole view at everything under a bead — any bead, whatever its type. bd's
-    /// parent/child graph is the same relation for an epic and for a task with subtasks.
+    // MARK: Focus
+
+    /// Narrows the current view to everything under a bead — any bead, whatever its type: bd's
+    /// parent/child graph is the same relation for an epic and for a task with subtasks. Focus
+    /// is a `parent · is · X` chip on the view you're in, shown as the breadcrumb, so the view's
+    /// other rules still apply and there is one focus at a time.
     public func focus(on id: IssueID) {
-        if case .lifecycle = source { viewBeforeFocus = source }
-        source = .focused(id)
+        guard !isLocked(.parent) else { return }
+        filter.set(FilterRule(field: .parent, op: .isAnyOf, values: [id.rawValue]))
     }
 
-    /// Back to the view you were in before focusing.
+    /// Pops the focus chip; the rest of the view's filter stays.
     public func unfocus() {
-        source = viewBeforeFocus
+        guard !isLocked(.parent) else { return }
+        filter.remove(.parent)
     }
 
-    /// The bead the view is focused on, for the breadcrumb; nil in a lifecycle view.
+    /// The bead the view is focused on, for the breadcrumb; nil when there is no focus chip.
     public var focusedIssue: Issue? {
-        guard case .focused(let id) = source else { return nil }
+        guard let rule = filter.rule(for: .parent), let id = Self.focusedID(of: rule) else { return nil }
         return snapshot?.issue(id)
+    }
+
+    /// A parent rule naming exactly one bead to be under is a focus; several parents, or
+    /// "not under", are ordinary chips.
+    private static func focusedID(of rule: FilterRule) -> IssueID? {
+        guard rule.field == .parent, rule.op == .isAnyOf, rule.values.count == 1, let raw = rule.values.first else { return nil }
+        return IssueID(raw)
     }
 
     /// Where a bead could be moved to: anything that already holds work — an epic, or any bead

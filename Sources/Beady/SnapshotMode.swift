@@ -136,14 +136,14 @@ enum SnapshotMode {
         // first arrow key after a click walks the sidebar's own list instead of the beads.
         // (NSOutlineView, which backs both List and Table, is itself an NSTableView, so the
         // sidebar's single "Views" column and the center pane's ten columns tell them apart.)
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         pump(seconds: 0.4)
         let tables = allTables(in: window.contentView!)
         if let sidebarTable = tables.first(where: { $0.tableColumns.count < 3 }),
            let centerTable = tables.first(where: { $0.tableColumns.count >= 3 }) {
             window.makeFirstResponder(sidebarTable)
             check("the sidebar can be made first responder, as a click would leave it", window.firstResponder === sidebarTable)
-            model.source = .lifecycle(.deferred)
+            model.viewID = .deferred
             pump(seconds: 0.6)
             check(
                 "switching views hands the keyboard to the center pane",
@@ -281,19 +281,19 @@ enum SnapshotMode {
 
         // The README wants one of each: same view, both appearances.
         session.themes.appearance = .dark
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         captureWorkspace("1-open-list")
         session.themes.appearance = .light
         captureWorkspace("1b-open-list-light")
         session.themes.appearance = .dark
 
-        model.source = .lifecycle(.inFlight)
+        model.viewID = .inFlight
         captureWorkspace("2-in-flight-grouped-by-status")
 
-        model.source = .lifecycle(.blocked)
+        model.viewID = .stuck
         captureWorkspace("2b-blocked-view")
 
-        model.source = .lifecycle(.all)
+        model.viewID = .everything
         model.layout = .board
         captureWorkspace("3-all-board-by-lifecycle")
 
@@ -302,7 +302,7 @@ enum SnapshotMode {
         captureWorkspace("3b-board-narrowed-by-search")
         model.searchText = ""
 
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         model.toggleFilterValue("1", in: .priority)
         model.toggleFilterValue("2", in: .priority)
         topLabels.prefix(1).forEach { model.toggleFilterValue($0, in: .labels) }
@@ -313,17 +313,42 @@ enum SnapshotMode {
         captureWorkspace("4b-empty-list")
         model.searchText = ""
 
-        // Back to In Flight: its own (empty) filters, not Open's.
-        model.source = .lifecycle(.inFlight)
+        // Back to In Flight: its own filters, not Ready's.
+        model.viewID = .inFlight
         captureWorkspace("5-in-flight-keeps-its-own-filters")
+
+        // Views as the sidebar (bdv-jlx.4): a user view in My Views, Ready modified with the
+        // Save control and the dot, Pipeline as a board, and a board that has collapsed to one
+        // column saying so. Preferences are off, so none of this is kept.
+        model.viewID = .everything
+        model.toggleFilterValue("epic", in: .type)
+        model.saveAsNewView(name: "Epics")
+        model.viewID = .frontier
+        model.toggleFilterValue("1", in: .priority)
+        captureWorkspace("20-sidebar-views-and-modified-frontier")
+        model.reset()
+        model.viewID = .pipeline
+        captureWorkspace("21-pipeline-board")
+        model.viewID = .everything
+        model.toggleFilterValue(StatusCategory.active.rawValue, in: .lifecycle)
+        model.layout = .board
+        model.grouping = .none
+        captureWorkspace("22-board-nothing-to-split")
+        model.reset()
+        model.viewID = .frontier
 
         let parents = snapshot.issues.filter { !snapshot.children(of: $0.id).isEmpty }
         if let biggest = parents.max(by: { (snapshot.progress(of: $0.id)?.total ?? 0) < (snapshot.progress(of: $1.id)?.total ?? 0) }) {
+            // Under Everything, so the whole subtree shows, not only what Ready lets through.
+            model.viewID = .everything
             model.focus(on: biggest.id)
+            model.layout = .tree
             captureWorkspace("6-focused-bead-tree")
+            model.reset()
+            model.viewID = .frontier
         }
 
-        model.source = .lifecycle(.open)
+        model.viewID = .frontier
         capture("7-filter-menu-priority", FilterMenu(model: model, initialField: .priority).padding())
 
         // The confirmation sheet for moving a bead between epics. Only proposed, never applied:
@@ -373,10 +398,15 @@ enum SnapshotMode {
         // The detail pane after following a blocker link: the back bar has something to do.
         if let waiting = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }),
            let blocker = snapshot.openBlockers(of: waiting).first {
-            model.source = .lifecycle(.all)
+            model.viewID = .everything
             model.selection = waiting.id
             model.selection = blocker.id
             capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
+            // Nothing selected but history behind it: the bar stays at the top and the placeholder
+            // centres in what's left, at two heights, and says what the arrows do.
+            model.selection = nil
+            capture("15b-detail-empty-with-history", IssueDetailView(model: model).frame(width: 420, height: 700))
+            capture("15c-detail-empty-short", IssueDetailView(model: model).frame(width: 420, height: 340))
         }
 
         model.selection = nil
