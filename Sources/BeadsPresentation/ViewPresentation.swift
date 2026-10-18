@@ -16,6 +16,9 @@ public struct FilterChipModel: Identifiable, Equatable, Sendable {
     /// Empty when the operator says it all (Blocked · yes).
     public let valuesTitle: String
     public let operators: [OperatorChoice]
+    /// Part of what a built-in view means: shown with a lock, no ✕ and no operator menu, and
+    /// Clear leaves it alone. Duplicate the view to change it.
+    public let isLocked: Bool
     /// What the field means in bd, for hovering the field name.
     public let fieldHelp: String
     /// What the one chosen value means in bd, when there is one and it has a fixed meaning.

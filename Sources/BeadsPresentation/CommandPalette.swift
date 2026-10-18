@@ -319,7 +319,7 @@ public enum CommandCatalog {
         if model.focusedIssue != nil { commands.append(.unfocus) }
         // Only while there is something to save or throw away; Save only where it would stick.
         if model.isModified {
-            if !model.view.isBuiltIn { commands.append(.saveView) }
+            if model.canSave { commands.append(.saveView) }
             commands += [.saveViewAs, .resetView]
         }
         commands += [.exportView(model.viewID), .importViews]
@@ -330,7 +330,7 @@ public enum CommandCatalog {
         }
         commands += SidebarStyle.allCases.map { .setSidebarStyle($0) }
         commands.append(.openSettings)
-        if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
+        if model.hasClearableFilters || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
         // Still here after a "not now": the palette is where a change of mind goes.
         if model.canEdit, model.journal.canBeTurnedOn { commands.append(.turnOnJournal) }

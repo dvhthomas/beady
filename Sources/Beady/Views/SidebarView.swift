@@ -77,7 +77,10 @@ struct SidebarView: View {
         .tag(entry.id)
         .help(entry.help)
         .contextMenu {
-            if !entry.isBuiltIn, let view = model.views.first(where: { $0.id == entry.id }) {
+            if entry.isBuiltIn {
+                // A built-in is locked; a copy is how you get a variation of it.
+                Button("Duplicate") { model.duplicateView(entry.id) }
+            } else if let view = model.views.first(where: { $0.id == entry.id }) {
                 Button("Rename…") { ui.promptRename(view) }
                 Button("Duplicate") { model.duplicateView(entry.id) }
                 Divider()

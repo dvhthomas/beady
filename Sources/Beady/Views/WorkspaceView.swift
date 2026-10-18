@@ -147,11 +147,11 @@ struct WorkspaceView: View {
         case .loaded:
             if model.visibleIssues.isEmpty && model.layout != .board {
                 ContentUnavailableView {
-                    Label(model.filter.isEmpty ? "No issues" : "Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
+                    Label(model.hasClearableFilters || !model.searchText.isEmpty ? "Nothing matches" : "No issues", systemImage: "line.3.horizontal.decrease.circle")
                 } description: {
-                    Text(model.filter.isEmpty ? "\(model.viewTitle) is empty." : "No issues in \(model.viewTitle) match this view's filters.")
+                    Text(model.hasClearableFilters || !model.searchText.isEmpty ? "No issues in \(model.viewTitle) match this view's filters." : "\(model.viewTitle) is empty.")
                 } actions: {
-                    if !model.filter.isEmpty {
+                    if model.hasClearableFilters || !model.searchText.isEmpty {
                         Button("Clear Filters") {
                             model.clearFilters()
                             model.searchText = ""

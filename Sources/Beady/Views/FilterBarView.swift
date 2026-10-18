@@ -45,10 +45,10 @@ struct FilterBar: View {
                 }
                 .frame(height: 26)
 
-                if !model.filter.rules.isEmpty {
+                if model.hasClearableFilters {
                     Button("Clear") { model.clearFilters() }
                         .buttonStyle(.link)
-                        .help("Remove this view's filters")
+                        .help("Remove the filters added on top of this view")
                 }
 
                 if let error = model.refreshError {
@@ -74,7 +74,7 @@ struct FilterBar: View {
                 // definition, so it offers Save as new view and Reset but not Save.
                 if model.isModified {
                     Menu {
-                        if !model.view.isBuiltIn {
+                        if model.canSave {
                             Button(AppCommand.saveView.title) { run(.saveView) }
                         }
                         Button(AppCommand.saveViewAs.title) { run(.saveViewAs) }
@@ -210,7 +210,9 @@ struct FilterMenu: View {
                                         .foregroundStyle(.secondary)
                                     Text(DisplayText.field(candidate))
                                     Spacer()
-                                    if model.filter.rule(for: candidate) != nil {
+                                    if model.isLocked(candidate) {
+                                        Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                                    } else if model.filter.rule(for: candidate) != nil {
                                         Image(systemName: "checkmark").foregroundStyle(.tint)
                                     }
                                     Image(systemName: "chevron.right").foregroundStyle(.tertiary)
@@ -263,7 +265,8 @@ struct FilterValuesList: View {
                 ))
                 .toggleStyle(.checkbox)
                 .lineLimit(1)
-                .help(option.help ?? "")
+                .disabled(model.isLocked(field))
+                .help(model.isLocked(field) ? "Part of what \(model.view.name) means; duplicate the view to change it" : (option.help ?? ""))
                 Spacer(minLength: 12)
                 Text("\(option.count)")
                     .font(.callout.monospacedDigit())
@@ -294,27 +297,34 @@ struct FilterChipView: View {
                 .padding(.horizontal, 7)
                 .help(chip.fieldHelp)
             separator
-            Menu {
-                ForEach(chip.operators) { choice in
-                    Button {
-                        model.setFilterOperator(choice.op, for: chip.field)
-                    } label: {
-                        if choice.isSelected {
-                            Label(choice.title, systemImage: "checkmark")
-                        } else {
-                            Text(choice.title)
+            if chip.isLocked {
+                // Part of the view's definition: the operator is a fact, not a choice.
+                Text(chip.operatorTitle)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+            } else {
+                Menu {
+                    ForEach(chip.operators) { choice in
+                        Button {
+                            model.setFilterOperator(choice.op, for: chip.field)
+                        } label: {
+                            if choice.isSelected {
+                                Label(choice.title, systemImage: "checkmark")
+                            } else {
+                                Text(choice.title)
+                            }
                         }
                     }
+                } label: {
+                    Text(chip.operatorTitle).foregroundStyle(.secondary)
                 }
-            } label: {
-                Text(chip.operatorTitle).foregroundStyle(.secondary)
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .padding(.horizontal, 7)
+                .disabled(chip.operators.count < 2)
             }
-            .menuStyle(.button)
-            .buttonStyle(.borderless)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .padding(.horizontal, 7)
-            .disabled(chip.operators.count < 2)
             if !chip.valuesTitle.isEmpty {
                 separator
                 Button {
@@ -337,15 +347,23 @@ struct FilterChipView: View {
                 }
             }
             separator
-            Button {
-                model.removeFilter(chip.field)
-            } label: {
-                Image(systemName: "xmark").font(.caption2.weight(.semibold))
+            if chip.isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .help("Part of what \(model.view.name) means; duplicate the view to change it")
+            } else {
+                Button {
+                    model.removeFilter(chip.field)
+                } label: {
+                    Image(systemName: "xmark").font(.caption2.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .help("Remove this filter")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .help("Remove this filter")
         }
         .font(.callout)
         .padding(.vertical, 3)

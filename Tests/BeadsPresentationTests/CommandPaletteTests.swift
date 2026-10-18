@@ -33,13 +33,10 @@ struct CommandPaletteTests {
     @Test("commands that would do nothing aren't offered")
     func onlyWhatCanBeDone() async {
         let model = await makeModel()
-        // Everything has no rules of its own. A built-in's defining rule counts as a filter until
-        // bdv-jlx.3 separates what the view means from what was added to it.
-        model.viewID = .everything
         #expect(!CommandCatalog.results(for: "", model: model).contains(.editSelected), "nothing selected")
         model.selection = "epic.1"
         #expect(CommandCatalog.results(for: "", model: model).contains(.editSelected))
-        #expect(!CommandCatalog.results(for: "", model: model).contains(.clearFilters), "no filters to clear")
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.clearFilters), "a built-in's own rule is nothing to clear")
         model.toggleFilterValue("1", in: .priority)
         #expect(CommandCatalog.results(for: "", model: model).contains(.clearFilters))
 

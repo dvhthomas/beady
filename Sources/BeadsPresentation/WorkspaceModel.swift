@@ -239,6 +239,11 @@ public final class WorkspaceModel {
         state != ViewState(of: savedView)
     }
 
+    /// Whether Save would do anything: a modified user view. A built-in is never saved over.
+    public var canSave: Bool {
+        !savedView.isBuiltIn && isModified
+    }
+
     /// Saves what's on screen into the current user view. Refused for a built-in, whose filter is
     /// its definition: Save as new view is the way to keep a variation of one.
     @discardableResult
@@ -278,19 +283,17 @@ public final class WorkspaceModel {
         return true
     }
 
-    /// A user view copied from a view as saved, named after it. A user view's copy follows it; a
-    /// built-in's goes after the user's views, and is how you keep a variation of a built-in
-    /// without modifying it. Nil when there is no such view.
+    /// A user view copied from a view as saved, named after it, keeping its filter, presentation
+    /// and icon. Duplicating a built-in is the one way to change what it means: the copy is
+    /// unlocked, under My Views. Nil when there is no such view.
     @discardableResult
     public func duplicateView(_ id: IssueView.ID) -> IssueView? {
-        guard let index = library.index(of: id) else { return nil }
-        let source = library.views[index]
+        guard let source = library.view(id) else { return nil }
         var copy = source
         copy.id = IssueView.ID(UUID().uuidString)
         copy.name = "\(source.name) copy"
         copy.isBuiltIn = false
-        if source.isBuiltIn { copy.symbol = "bookmark" }
-        library.views.insert(copy, at: source.isBuiltIn ? library.views.count : index + 1)
+        library.views.append(copy)
         return copy
     }
 
@@ -423,21 +426,44 @@ public final class WorkspaceModel {
 
     // MARK: Filters
 
+    /// A built-in's own rules are its definition and can't be edited in place: duplicate the view
+    /// instead. Nothing on a user view is locked. A rule that somehow differs from the
+    /// definition (an older saved state) isn't locked either, so it can be put right.
+    public var lockedFields: Set<FilterField> {
+        guard savedView.isBuiltIn else { return [] }
+        return Set(savedView.filter.rules.filter { $0 == filter.rule(for: $0.field) }.map(\.field))
+    }
+
+    public func isLocked(_ field: FilterField) -> Bool {
+        lockedFields.contains(field)
+    }
+
+    /// Whether Clear would do anything: rules added on top of what the view means.
+    public var hasClearableFilters: Bool {
+        filter.rules.contains { !isLocked($0.field) }
+    }
+
     public func toggleFilterValue(_ value: String, in field: FilterField) {
+        guard !isLocked(field) else { return }
         filter.toggle(value, in: field)
     }
 
     public func setFilterOperator(_ op: FilterOperator, for field: FilterField) {
+        guard !isLocked(field) else { return }
         filter.setOperator(op, for: field)
     }
 
     public func removeFilter(_ field: FilterField) {
+        guard !isLocked(field) else { return }
         filter.remove(field)
     }
 
-    /// Removes this view's filter rules; other views keep theirs.
+    /// Removes the rules added on top of this view; a built-in's own rules stay, and other views
+    /// keep theirs.
     public func clearFilters() {
-        filter.removeAllRules()
+        for field in filter.rules.map(\.field) where !isLocked(field) {
+            filter.remove(field)
+        }
     }
 
     public func filterOptions(for field: FilterField) -> [FilterMenuOption] {
@@ -455,7 +481,8 @@ public final class WorkspaceModel {
 
     /// Every rule but the focus, which the breadcrumb shows instead.
     public var filterChips: [FilterChipModel] {
-        filter.rules.filter { Self.focusedID(of: $0) == nil }.map { rule in
+        let locked = lockedFields
+        return filter.rules.filter { Self.focusedID(of: $0) == nil }.map { rule in
             let titles = sortedValues(rule).map { valueTitle($0, field: rule.field) }
             let values = titles.count > 2 ? "\(titles.count) \(DisplayText.noun(rule.field))" : titles.joined(separator: ", ")
             return FilterChipModel(
@@ -466,6 +493,7 @@ public final class WorkspaceModel {
                 operators: rule.field.operators.map {
                     OperatorChoice(op: $0, title: DisplayText.operatorTitle($0, valueCount: 2, field: rule.field), isSelected: $0 == rule.op)
                 },
+                isLocked: locked.contains(rule.field),
                 fieldHelp: DisplayText.help(for: rule.field),
                 valuesHelp: rule.values.count == 1
                     ? rule.values.first.flatMap { DisplayText.help(forValue: $0, in: rule.field, catalog: snapshot?.catalog ?? .builtIn) }
@@ -869,11 +897,13 @@ public final class WorkspaceModel {
     /// is a `parent · is · X` chip on the view you're in, shown as the breadcrumb, so the view's
     /// other rules still apply and there is one focus at a time.
     public func focus(on id: IssueID) {
+        guard !isLocked(.parent) else { return }
         filter.set(FilterRule(field: .parent, op: .isAnyOf, values: [id.rawValue]))
     }
 
     /// Pops the focus chip; the rest of the view's filter stays.
     public func unfocus() {
+        guard !isLocked(.parent) else { return }
         filter.remove(.parent)
     }
 

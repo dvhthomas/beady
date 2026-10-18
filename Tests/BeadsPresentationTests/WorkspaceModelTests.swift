@@ -245,7 +245,8 @@ struct WorkspaceViewStateTests {
         model.viewID = .inFlight
         model.toggleFilterValue("ui", in: .labels)
         model.clearFilters()
-        #expect(model.filter.rules.isEmpty)
+        // Clear removes what was added; a built-in's own rule is locked (bdv-jlx.12).
+        #expect(model.filter == IssueView.builtIn(.inFlight)?.filter)
         model.viewID = .frontier
         #expect(model.filter.rule(for: .priority) != nil)
     }
@@ -431,6 +432,95 @@ struct ViewSavingTests {
         #expect(model.view.filter.rule(for: .priority)?.values == ["1"])
         #expect(model.view.presentation.layout == .board)
         #expect(model.view.isBuiltIn)
+    }
+}
+
+@MainActor
+@Suite("Built-in views are locked: you duplicate them, you don't edit them")
+struct LockedBuiltInTests {
+    func loadedModel() async -> WorkspaceModel {
+        let model = WorkspaceModel(title: "demo", store: StubStore([
+            makeIssue("a", priority: 1),
+            makeIssue("b", priority: 2, assignee: "Ann"),
+            makeIssue("c", status: "in_progress"),
+        ]), now: { t0 })
+        await model.load()
+        return model
+    }
+
+    @Test("a built-in's defining chip is locked: remove, operator and toggle leave the filter unchanged")
+    func lockedChip() async {
+        let model = await loadedModel()
+        #expect(model.viewID == .frontier)
+        #expect(model.filterChips.map { "\($0.field) \($0.isLocked)" } == ["ready true"])
+        #expect(model.isLocked(.ready))
+        #expect(!model.isLocked(.priority))
+        let frontier = model.filter
+        model.removeFilter(.ready)
+        #expect(model.filter == frontier)
+        model.toggleFilterValue(FilterRule.readyValue, in: .ready)
+        #expect(model.filter == frontier, "unticking the locked value is refused too")
+
+        model.viewID = .inFlight
+        let inFlight = model.filter
+        model.setFilterOperator(.isNoneOf, for: .lifecycle)
+        #expect(model.filter == inFlight)
+        model.toggleFilterValue(StatusCategory.active.rawValue, in: .lifecycle)
+        #expect(model.filter == inFlight)
+        #expect(!model.isModified)
+    }
+
+    @Test("Clear removes only what was added on top of a built-in")
+    func clearKeepsTheDefinition() async {
+        let model = await loadedModel()
+        #expect(!model.hasClearableFilters, "the defining rule alone is nothing to clear")
+        model.toggleFilterValue("1", in: .priority)
+        #expect(model.hasClearableFilters)
+        #expect(model.filterChips.map { "\($0.field) \($0.isLocked)" } == ["ready true", "priority false"])
+        model.clearFilters()
+        #expect(model.filter == IssueView.builtIn(.frontier)?.filter)
+        #expect(!model.isModified)
+        #expect(!model.hasClearableFilters)
+    }
+
+    @Test("a user view has no locked chips, even one saved from a built-in")
+    func userViewsAreUnlocked() async {
+        let model = await loadedModel()
+        model.toggleFilterValue("1", in: .priority)
+        model.saveAsNewView(name: "Urgent")
+        #expect(model.filterChips.allSatisfy { !$0.isLocked })
+        #expect(!model.isLocked(.ready))
+        model.removeFilter(.ready)
+        #expect(model.filter.rule(for: .ready) == nil)
+        #expect(model.hasClearableFilters)
+    }
+
+    @Test("duplicating a built-in gives an unlocked user view with the same filter, presentation and symbol")
+    func duplicateBuiltIn() async {
+        let model = await loadedModel()
+        let frontier = IssueView.builtIn(.frontier)!
+        let copy = try! #require(model.duplicateView(.frontier))
+        #expect(!copy.isBuiltIn)
+        #expect(copy.filter == frontier.filter)
+        #expect(copy.presentation == frontier.presentation)
+        #expect(copy.symbol == frontier.symbol)
+        model.viewID = copy.id
+        #expect(model.filterChips.allSatisfy { !$0.isLocked })
+        #expect(model.sidebarSections[1].entries.map(\.title) == ["Frontier copy"])
+    }
+
+    @Test("a modified built-in offers Save as new view and Reset, never Save; a built-in's name can't change")
+    func saveControl() async {
+        let model = await loadedModel()
+        model.toggleFilterValue("1", in: .priority)
+        #expect(model.isModified)
+        #expect(!model.canSave)
+        let commands = CommandCatalog.results(for: "", model: model)
+        #expect(commands.contains(.saveViewAs) && commands.contains(.resetView) && !commands.contains(.saveView))
+        #expect(!model.renameView(.frontier, to: "Mine"))
+        model.saveAsNewView(name: "Urgent")
+        model.layout = .board
+        #expect(model.canSave)
     }
 }
 
