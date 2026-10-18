@@ -1,6 +1,8 @@
 import BeadsCore
 
 public extension IssueView.ID {
+    /// The Ready view. The id keeps the name it shipped under, so a remembered presentation or a
+    /// .beadyview keyed by it still resolves after the rename.
     static let frontier: Self = "frontier"
     static let inFlight: Self = "inFlight"
     static let stuck: Self = "stuck"
@@ -17,7 +19,7 @@ public extension IssueView {
     /// status it is; the palette answers to both. Open and Closed are one Lifecycle chip away
     /// from Everything and Landed, so they aren't rows of their own.
     static let builtIns: [IssueView] = [
-        builtIn(.frontier, "Frontier", ViewIcon.builtIn[.frontier]!,
+        builtIn(.frontier, "Ready", ViewIcon.builtIn[.frontier]!,
                 rules: [FilterRule(field: .ready, op: .isAnyOf, values: [FilterRule.readyValue])],
                 ViewPresentation(layout: .list, grouping: .none, ordering: .priority)),
         builtIn(.inFlight, "In Flight", ViewIcon.builtIn[.inFlight]!,

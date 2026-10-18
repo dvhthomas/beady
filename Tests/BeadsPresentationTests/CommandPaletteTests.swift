@@ -60,8 +60,8 @@ struct CommandPaletteTests {
     @Test("built-in views are found by their name and by bd's word for them")
     func views() async {
         let model = await makeModel()
-        #expect(CommandCatalog.results(for: "frontier", model: model).first == .showView(.frontier))
         #expect(CommandCatalog.results(for: "ready", model: model).first == .showView(.frontier))
+        #expect(CommandCatalog.results(for: "frontier", model: model).first == .showView(.frontier), "the name it shipped under still finds it")
         // A command whose title has the word ("Show Dependency Graph", "Order by Last closed")
         // still comes first: a title match beats an alias.
         #expect(CommandCatalog.results(for: "blocked", model: model).contains(.showView(.stuck)))

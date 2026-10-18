@@ -313,11 +313,11 @@ enum SnapshotMode {
         captureWorkspace("4b-empty-list")
         model.searchText = ""
 
-        // Back to In Flight: its own filters, not Frontier's.
+        // Back to In Flight: its own filters, not Ready's.
         model.viewID = .inFlight
         captureWorkspace("5-in-flight-keeps-its-own-filters")
 
-        // Views as the sidebar (bdv-jlx.4): a user view in My Views, Frontier modified with the
+        // Views as the sidebar (bdv-jlx.4): a user view in My Views, Ready modified with the
         // Save control and the dot, Pipeline as a board, and a board that has collapsed to one
         // column saying so. Preferences are off, so none of this is kept.
         model.viewID = .everything
@@ -339,7 +339,7 @@ enum SnapshotMode {
 
         let parents = snapshot.issues.filter { !snapshot.children(of: $0.id).isEmpty }
         if let biggest = parents.max(by: { (snapshot.progress(of: $0.id)?.total ?? 0) < (snapshot.progress(of: $1.id)?.total ?? 0) }) {
-            // Under Everything, so the whole subtree shows, not only what Frontier lets through.
+            // Under Everything, so the whole subtree shows, not only what Ready lets through.
             model.viewID = .everything
             model.focus(on: biggest.id)
             model.layout = .tree

@@ -104,7 +104,7 @@ struct WorkspaceViewStateTests {
         model.filterChips.map { "\($0.fieldTitle) | \($0.operatorTitle) | \($0.valuesTitle)" }
     }
 
-    @Test("a status picked in Frontier doesn't leak into In Flight, and is still there back in Frontier")
+    @Test("a status picked in Ready doesn't leak into In Flight, and is still there back in Ready")
     func filtersArePerView() async {
         let model = await loadedModel()
         #expect(model.viewID == .frontier)
@@ -169,7 +169,7 @@ struct WorkspaceViewStateTests {
     func sidebarCounts() async {
         let model = await loadedModel()
         // Pipeline keeps everything live plus a week of done; Recent is a day of updates; nothing is starred.
-        let expected = ["Frontier 2", "In Flight 2", "Stuck 1", "Pipeline 6", "Recent 6", "Landed 2", "Deferred 0", "Everything 6"]
+        let expected = ["Ready 2", "In Flight 2", "Stuck 1", "Pipeline 6", "Recent 6", "Landed 2", "Deferred 0", "Everything 6"]
         #expect(model.sidebarViews.map { "\($0.title) \($0.count)" } == expected)
         model.toggleFilterValue("ui", in: .labels)
         #expect(model.sidebarViews.map { "\($0.title) \($0.count)" } == expected)
@@ -285,7 +285,7 @@ struct ViewSavingTests {
         return model
     }
 
-    @Test("adding a rule to Frontier marks it modified; save is refused, Save as new view keeps the filter")
+    @Test("adding a rule to Ready marks it modified; save is refused, Save as new view keeps the filter")
     func builtInFilterIsFixed() async {
         let model = await loadedModel()
         #expect(model.viewID == .frontier)
@@ -301,13 +301,13 @@ struct ViewSavingTests {
         #expect(model.view.name == "Urgent")
         #expect(!model.view.isBuiltIn)
         #expect(model.view.filter.rule(for: .priority)?.values == ["1"])
-        #expect(model.view.filter.rule(for: .ready) != nil, "it starts from everything Frontier meant")
+        #expect(model.view.filter.rule(for: .ready) != nil, "it starts from everything Ready meant")
         #expect(!model.isModified)
         #expect(model.views.map(\.id).last == urgent.id)
         #expect(model.visibleIssues.map(\.id) == ["a"])
 
         model.viewID = .frontier
-        #expect(!model.isModified, "Frontier is back to what it means")
+        #expect(!model.isModified, "Ready is back to what it means")
         #expect(model.filter == IssueView.builtIn(.frontier)?.filter)
     }
 
@@ -382,7 +382,7 @@ struct ViewSavingTests {
         #expect(!model.renameView(mine.id, to: "   "))
         #expect(model.view.name == "Ours")
         #expect(!model.renameView(.frontier, to: "Front"))
-        #expect(IssueView.builtIn(.frontier)?.name == "Frontier")
+        #expect(IssueView.builtIn(.frontier)?.name == "Ready")
     }
 
     @Test("duplicating copies the saved view as a user view named after it, right after the original")
@@ -400,10 +400,10 @@ struct ViewSavingTests {
 
         // A built-in can be duplicated too: that's how you get a variation without modifying it.
         let frontier = try! #require(model.duplicateView(.frontier))
-        #expect(frontier.name == "Frontier copy")
+        #expect(frontier.name == "Ready copy")
         #expect(!frontier.isBuiltIn)
         #expect(frontier.filter == IssueView.builtIn(.frontier)?.filter)
-        #expect(model.views.filter { !$0.isBuiltIn }.map(\.name) == ["Frontier copy", "Mine", "Mine copy"], "user views sit after the built-ins, in name order")
+        #expect(model.views.filter { !$0.isBuiltIn }.map(\.name) == ["Mine", "Mine copy", "Ready copy"], "user views sit after the built-ins, in name order")
         #expect(model.duplicateView(IssueView.ID("nope")) == nil)
     }
 
@@ -506,7 +506,7 @@ struct LockedBuiltInTests {
         #expect(copy.symbol == frontier.symbol)
         model.viewID = copy.id
         #expect(model.filterChips.allSatisfy { !$0.isLocked })
-        #expect(model.sidebarSections[1].entries.map(\.title) == ["Frontier copy"])
+        #expect(model.sidebarSections[1].entries.map(\.title) == ["Ready copy"])
     }
 
     @Test("a modified built-in offers Save as new view and Reset, never Save; a built-in's name can't change")

@@ -269,10 +269,11 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         IssueView.builtIn(id)?.name ?? id.rawValue
     }
 
-    /// bd's own word for what a built-in shows, so "ready" finds Frontier and "blocked" Stuck.
+    /// bd's own word for what a built-in shows, so "blocked" finds Stuck; Ready keeps answering
+    /// to Frontier, the name it shipped under.
     static func viewKeywords(_ id: IssueView.ID) -> [String] {
         switch id {
-        case .frontier: ["ready", "available", "unblocked", "next"]
+        case .frontier: ["ready", "frontier", "available", "unblocked", "next"]
         case .inFlight: ["wip", "in progress", "working", "started"]
         case .stuck: ["blocked", "waiting", "blockers"]
         case .pipeline: ["board", "kanban", "lifecycle", "all"]

@@ -22,8 +22,8 @@ struct BuiltInViewTests {
         return Set(snapshot.issues.filter { view.filter.matches($0, in: snapshot, now: now) }.map(\.id))
     }
 
-    @Test("Frontier shows what Ready did: active, not blocked, not deferred into the future")
-    func frontier() {
+    @Test("Ready shows what the Ready scope did: active, not blocked, not deferred into the future")
+    func ready() {
         #expect(ids(.frontier) == ["open-free"])
     }
 
@@ -88,12 +88,28 @@ struct BuiltInViewTests {
     @Test("the table: sidebar order, unique ids, every one built in, each with a symbol")
     func table() {
         let views = IssueView.builtIns
-        #expect(views.map(\.name) == ["Frontier", "In Flight", "Stuck", "Pipeline", "Recent", "Landed", "Deferred", "Everything", "Starred"])
+        #expect(views.map(\.name) == ["Ready", "In Flight", "Stuck", "Pipeline", "Recent", "Landed", "Deferred", "Everything", "Starred"])
         #expect(Set(views.map(\.id)).count == views.count)
         #expect(views.allSatisfy { $0.isBuiltIn })
         #expect(views.allSatisfy { !$0.symbol.isEmpty })
-        #expect(IssueView.builtIn(.frontier)?.name == "Frontier")
+        #expect(IssueView.builtIn(.frontier)?.name == "Ready")
         #expect(IssueView.builtIn(IssueView.ID("nope")) == nil)
+    }
+
+    @Test("Ready keeps the id it shipped under, so stored state keyed by frontier still resolves")
+    func readyKeepsItsID() throws {
+        #expect(IssueView.ID.frontier.rawValue == "frontier")
+        #expect(IssueView.builtIn(IssueView.ID("frontier"))?.name == "Ready")
+        // A remembered presentation saved as a file under the old id lands on Ready.
+        var remembered = IssueView.builtIn(.frontier)!
+        remembered.name = "Frontier"
+        remembered.presentation.layout = .board
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("beady-ready-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try remembered.documentData().write(to: directory.appendingPathComponent("frontier.beadyview"))
+        let library = ViewLibrary.load(from: directory, preferences: nil)
+        #expect(library.view(.frontier)?.name == "Ready", "the table names it")
+        #expect(library.view(.frontier)?.presentation.layout == ViewLayout.board, "the file's presentation is kept")
     }
 
     @Test("each built-in remembers how it is shown")
@@ -106,7 +122,7 @@ struct BuiltInViewTests {
         #expect(IssueView.builtIn(.landed)?.presentation.ordering == .recentlyClosed)
         #expect(IssueView.builtIn(.inFlight)?.presentation.grouping == .status)
         #expect(IssueView.builtIn(.everything)?.presentation.grouping == .category)
-        // Blockers matter in Stuck and nowhere much else: on there, off (the default) in Frontier.
+        // Blockers matter in Stuck and nowhere much else: on there, off (the default) in Ready.
         #expect(IssueView.builtIn(.stuck)?.presentation.columns?.contains(ListColumn.blockedBy.id) == true)
         #expect(IssueView.builtIn(.frontier)?.presentation.columns == nil)
         for view in IssueView.builtIns {

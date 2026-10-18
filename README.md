@@ -19,8 +19,8 @@ views, each with an icon that says what it answers; the chip that defines In Fli
 ## What it's for
 
 - **See the shape of the work.** Every entry in the sidebar is a view: a saved filter with a saved
-  layout, grouping and ordering. The built-ins answer the questions you actually ask — **Frontier**
-  (what's ready), **In Flight**, **Stuck** (what's blocked), **Pipeline** (everything live plus a
+  layout, grouping and ordering. The built-ins answer the questions you actually ask — **Ready**
+  (what can start now), **In Flight**, **Stuck** (what's blocked), **Pipeline** (everything live plus a
   week of done, as a board), **Recent**, **Landed**, **Deferred**, **Everything** and **Starred** —
   and your own views sit under them. A built-in's own rules are locked chips; add one on top and
   a dot says it's modified, to save as a new view or reset. Duplicate a built-in to change what
@@ -58,7 +58,7 @@ views, each with an icon that says what it answers; the chip that defines In Fli
 `⌘P` runs any command or jumps to a bead by id or title — and it really is any command: views,
 filters, layouts, columns, themes, text size, pins, stars, focus, back and forward, saving and
 resetting a view, settings. It answers to the words you'd actually type: `fin` finds Find,
-`kanban` finds the board, `ready` finds Frontier, `drac` finds the theme.
+`kanban` finds the board, `drac` finds the theme.
 
 ![Command palette](docs/images/palette.png)
 
@@ -162,7 +162,7 @@ workspace reopens on launch; `--workspace /path/to/project` overrides it.
 
 - **Views** (sidebar, modelled on Linear, navigation only): a view is a saved filter with a saved
   layout, grouping, ordering and columns, over every bead. The built-ins, each with its total:
-  **Frontier** — `ready is yes`, bd's ready work: active, nothing open blocking it, not deferred
+  **Ready** — `ready is yes`, bd's ready work: active, nothing open blocking it, not deferred
   to a future date; **In Flight** — bd's wip category; **Stuck** — `blocked is yes`, computed from
   the dependency graph; **Pipeline** — everything live plus the last week of done, as a board of
   lifecycle columns; **Recent** — updated in the last 24 hours, by assignee; **Landed** — done and
