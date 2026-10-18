@@ -83,8 +83,10 @@ struct CommandPaletteTests {
         #expect(!modified.contains(.saveView), "a built-in's filter is its definition")
         #expect(modified.contains(.saveViewAs))
         #expect(modified.contains(.resetView))
-        // "Reset Columns" ties on the title and the palette breaks ties on length, so top two.
-        #expect(CommandCatalog.results(for: "reset", model: model).prefix(2).contains(.resetView))
+        // "Reset Columns" and "Reset Configuration…" tie on the title and the palette breaks
+        // ties on length, so it is offered rather than first.
+        #expect(CommandCatalog.results(for: "reset", model: model).contains(.resetView))
+        #expect(CommandCatalog.results(for: "reset view", model: model).first == .resetView)
         #expect(CommandCatalog.results(for: "save as", model: model).first == .saveViewAs)
 
         model.saveAsNewView(name: "Mine")

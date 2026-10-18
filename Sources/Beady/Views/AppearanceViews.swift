@@ -265,6 +265,12 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(theme.secondaryText)
             }
+            Section("Maintenance") {
+                Button("Reset Configuration…") { session.run(.resetConfiguration) }
+                Text("Removes everything Beady keeps per user on this Mac — remembered workspaces, views, appearance, window layout, journal memories — and, if you say so, your saved views. Nothing inside a workspace is touched.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)

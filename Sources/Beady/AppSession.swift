@@ -149,6 +149,82 @@ final class AppSession {
         viewFileError = nil
     }
 
+    // MARK: Reset Configuration
+
+    /// The preferences domain a reset removes: the bundle's, or the inventory's name when running
+    /// the bare binary.
+    private static var preferencesDomain: String {
+        Bundle.main.bundleIdentifier ?? ConfigurationInventory.preferencesDomain
+    }
+
+    /// What a reset would remove, counted from what is actually stored right now.
+    func configurationInventory() -> ConfigurationInventory {
+        let stored = preferences?.persistentDomain(forName: Self.preferencesDomain) ?? [:]
+        return ConfigurationInventory(
+            presentKeys: Set(stored.keys),
+            recentWorkspaces: (stored[Self.recentsKey] as? [String])?.count ?? recentPaths.count,
+            journalWorkspaces: (stored[Self.journalsTurnedOnKey] as? [String])?.count ?? 0,
+            libraryViews: libraryViews.count
+        )
+    }
+
+    /// The user's own views in the Library folder, read from disk so this works with no
+    /// workspace open.
+    private var libraryViews: [IssueView] {
+        guard let viewsDirectory else { return [] }
+        return ViewLibrary.load(from: viewsDirectory, preferences: nil).views.filter { !$0.isBuiltIn }
+    }
+
+    /// Writes every saved view to one .beadyviews file, for before a reset that deletes them.
+    func exportLibraryViews() {
+        let views = libraryViews
+        guard !views.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.title = "Export Saved Views"
+        panel.nameFieldStringValue = "Beady views.\(ViewLibrary.bundleExtension)"
+        panel.allowedContentTypes = [.beadyViews]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ViewLibrary.documentData(for: views).write(to: url, options: .atomic)
+        } catch {
+            viewFileError = "\(url.lastPathComponent): \(error.localizedDescription)"
+        }
+    }
+
+    /// Removes Beady's own settings on this Mac — the preferences domain, and the Library when
+    /// asked — and returns to the welcome screen with defaults. In-memory state is put back first
+    /// and the stores wiped last, so nothing written on the way back survives. No relaunch: the
+    /// window and the stores reload in place.
+    func resetConfiguration(deletingLibrary: Bool) {
+        let plan = configurationInventory().plan(deletingLibrary: deletingLibrary)
+        ui.showsResetConfiguration = false
+        close()
+        recentPaths = []
+        pendingImports = []
+        themes.restoreDefaults()
+        turnsOnJournal = true
+        do {
+            try ConfigurationReset.perform(
+                plan,
+                defaults: preferences ?? .standard,
+                domain: Self.preferencesDomain,
+                libraryFolder: viewsDirectory?.deletingLastPathComponent()
+            )
+        } catch {
+            openError = "Couldn't remove the Library folder: \(error.localizedDescription)"
+        }
+        // An empty Library folder is recreated so views can be saved again, and watched again,
+        // since the watch died with the folder.
+        if plan.removesLibrary, let viewsDirectory {
+            try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
+            libraryWatcher?.stop()
+            libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
+                Task { @MainActor in self?.model?.reloadViews() }
+            }
+        }
+    }
+
     // MARK: View files
 
     /// Imports every .beadyview / .beadyviews given — from Finder, a drop on the sidebar, or
@@ -274,6 +350,9 @@ final class AppSession {
         case .resetView: model?.reset()
         case .exportView(let id): exportView(id)
         case .importViews: chooseViewsToImport()
+        case .resetConfiguration:
+            ui.showsResetConfiguration = true
+            NSApp.activate(ignoringOtherApps: true)
         case .setLayout(let layout): model?.layout = layout
         case .setGrouping(let grouping): model?.grouping = grouping
         case .setOrdering(let sort): model?.ordering = sort

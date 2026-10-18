@@ -69,6 +69,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case toggleColumn(ListColumn)
     case resetColumns
     case openSettings
+    case resetConfiguration
     case backUpNow
     case setUpBackup
     case turnOnJournal
@@ -110,6 +111,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "column-\(column.id)"
         case .resetColumns: "reset-columns"
         case .openSettings: "open-settings"
+        case .resetConfiguration: "reset-configuration"
         case .backUpNow: "back-up-now"
         case .setUpBackup: "set-up-backup"
         case .turnOnJournal: "turn-on-journal"
@@ -153,6 +155,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "Column: \(column.title)"
         case .resetColumns: "Reset Columns"
         case .openSettings: "Settings…"
+        case .resetConfiguration: "Reset Configuration…"
         case .backUpNow: "Back Up Now"
         case .setUpBackup: "Set Up Backup…"
         case .turnOnJournal: "Turn On bd's Change Journal"
@@ -195,6 +198,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn: ["column", "show", "hide", "table"]
         case .resetColumns: ["columns", "reset", "default widths"]
         case .openSettings: ["settings", "preferences", "options", "text size"]
+        case .resetConfiguration: ["reset", "configuration", "settings", "defaults", "preferences", "clean", "uninstall", "start over", "fresh install"]
         case .backUpNow: ["backup", "back up", "sync", "save", "copy", "dolt"]
         case .setUpBackup: ["backup", "back up", "configure backup", "destination", "folder"]
         case .turnOnJournal: ["journal", "events", "live", "activity", "who changed", "agents", "watch"]
@@ -219,7 +223,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
              .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
         case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews: "Views"
-        case .openSettings, .setSidebarStyle: "Appearance"
+        case .openSettings, .setSidebarStyle, .resetConfiguration: "Appearance"
         case .showShortcuts: "Help"
         case .showView, .goBack, .goForward: "Views"
         case .goToIssue: "Beads"
@@ -252,7 +256,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveView: [KeyBinding("s", .command)]
         case .saveViewAs: [KeyBinding("s", [.command, .option])]
         case .resetView: [KeyBinding("r", [.command, .option])]
-        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews,
+        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
              .backUpNow, .setUpBackup, .turnOnJournal: []
         }
@@ -330,7 +334,7 @@ public enum CommandCatalog {
             commands.append(.resetColumns)
         }
         commands += SidebarStyle.allCases.map { .setSidebarStyle($0) }
-        commands.append(.openSettings)
+        commands += [.openSettings, .resetConfiguration]
         if model.hasClearableFilters || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
         // With the setting off, or after an Undo: the palette is where a change of mind goes.

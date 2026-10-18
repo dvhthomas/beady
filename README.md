@@ -145,6 +145,12 @@ cd beady
 scripts/bundle.sh && open build/Beady.app
 ```
 
+**Starting over:** *Reset Configuration…* (in Settings, or from ⌘P) removes everything Beady keeps
+per user on this Mac — remembered workspaces, per-view filters and layouts, theme and text size,
+column layouts, change-journal memories — and, only if you tick it, the saved views in
+`~/Library/Application Support/Beady`, with an export first. Nothing inside a workspace is touched,
+and no relaunch is needed.
+
 **Or download a release.** Take the zip from
 [Releases](https://github.com/dvhthomas/beady/releases), unzip, and move Beady to /Applications.
 It's ad-hoc signed but not notarised — there's no Apple Developer ID behind it — so macOS
