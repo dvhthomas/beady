@@ -31,10 +31,22 @@ public final class WorkspaceModel {
         didSet { recordPlace(view: oldValue, selection: selection) }
     }
 
-    /// The view picked in the sidebar, as defined. An id this Beady doesn't know falls back to
-    /// the first built-in rather than showing nothing.
+    /// The view on screen: the view as saved, with what's live on top.
     public var view: IssueView {
-        IssueView.builtIn(viewID) ?? IssueView.builtIns[0]
+        var view = savedView
+        let state = state
+        view.filter = state.filter
+        view.presentation = state.presentation
+        return view
+    }
+
+    /// Every view the sidebar offers: the built-ins, then the user's own, in order.
+    public var views: [IssueView] { library.views }
+
+    /// The current view as saved: a built-in's definition, or a user view as last saved. An id
+    /// this Beady doesn't know falls back to the first built-in rather than showing nothing.
+    private var savedView: IssueView {
+        library.view(viewID) ?? library.views[0]
     }
 
     public var selection: IssueID? {
@@ -51,15 +63,15 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    private var viewStates: [IssueView.ID: ViewState] = [:] {
-        didSet { saveViewStates() }
+    /// The saved views and what is live on top of each, written back to preferences on every change.
+    private var library = ViewLibrary() {
+        didSet { library.save(to: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
-    /// Where each view's filters, layout, grouping and ordering are remembered between launches.
+    /// Where views and their live state are remembered between launches.
     /// Standard macOS preferences: ~/Library/Preferences/me.bitsby.beady.plist.
     @ObservationIgnored private let preferences: UserDefaults?
-    @ObservationIgnored private static let viewStatesKey = "viewStates"
     @ObservationIgnored private let allowsWriting: Bool
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let staleAfter: TimeInterval
@@ -105,22 +117,7 @@ public final class WorkspaceModel {
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
         journalDeclined = declinedJournal
-        viewStates = Self.loadViewStates(from: preferences)
-    }
-
-    /// Saved views that can't be read — an older format, a corrupted value — are dropped rather
-    /// than fought with: the app starts from its defaults and saves again on the next change.
-    private static func loadViewStates(from preferences: UserDefaults?) -> [IssueView.ID: ViewState] {
-        guard let data = preferences?.data(forKey: viewStatesKey),
-              let saved = try? JSONDecoder().decode([SavedViewState].self, from: data) else { return [:] }
-        return Dictionary(saved.map { ($0.view, $0.state) }, uniquingKeysWith: { first, _ in first })
-    }
-
-    private func saveViewStates() {
-        guard let preferences else { return }
-        let saved = viewStates.map { SavedViewState(view: $0.key, state: $0.value) }
-        guard let data = try? JSONEncoder().encode(saved) else { return }
-        preferences.set(data, forKey: Self.viewStatesKey)
+        library = ViewLibrary.load(from: preferences)
     }
 
     // MARK: Loading
@@ -168,9 +165,10 @@ public final class WorkspaceModel {
 
     // MARK: The current view's state
 
+    /// What's live for the current view: the saved view until something changes.
     private var state: ViewState {
-        get { viewStates[viewID] ?? .defaults(for: view) }
-        set { viewStates[viewID] = newValue }
+        get { library.live[viewID] ?? ViewState(of: savedView) }
+        set { library.live[viewID] = newValue }
     }
 
     public var filter: ViewFilter {
@@ -179,18 +177,93 @@ public final class WorkspaceModel {
     }
 
     public var layout: Layout {
-        get { state.layout }
-        set { state.layout = newValue }
+        get { state.presentation.layout }
+        set { present { $0.layout = newValue } }
     }
 
     public var grouping: IssueGrouping {
-        get { state.grouping }
-        set { state.grouping = newValue }
+        get { state.presentation.grouping }
+        set { present { $0.grouping = newValue } }
     }
 
     public var ordering: IssueSort {
-        get { state.ordering }
-        set { state.ordering = newValue }
+        get { state.presentation.ordering }
+        set { present { $0.ordering = newValue } }
+    }
+
+    /// A built-in remembers its presentation the moment it changes: flipping the layout is
+    /// cheap and never a modification, because the filter is what the view means. A user view's
+    /// presentation is part of what it saves, so the change waits for Save.
+    private func present(_ change: (inout ViewPresentation) -> Void) {
+        var presentation = state.presentation
+        change(&presentation)
+        state.presentation = presentation
+        if savedView.isBuiltIn, let index = library.index(of: viewID) {
+            library.views[index].presentation = presentation
+        }
+    }
+
+    // MARK: Saving views
+
+    /// Whether what's on screen differs from the view as saved. A built-in's presentation is
+    /// always remembered, so only its filter can be modified; a user view's layout counts too.
+    public var isModified: Bool {
+        state != ViewState(of: savedView)
+    }
+
+    /// Saves what's on screen into the current user view. Refused for a built-in, whose filter is
+    /// its definition: Save as new view is the way to keep a variation of one.
+    @discardableResult
+    public func save() -> Bool {
+        guard !savedView.isBuiltIn, let index = library.index(of: viewID) else { return false }
+        library.views[index].filter = state.filter
+        library.views[index].presentation = state.presentation
+        library.live[viewID] = nil
+        return true
+    }
+
+    /// A new user view from what's on screen, which becomes the current view. The view you came
+    /// from goes back to how it was saved.
+    @discardableResult
+    public func saveAsNewView(name: String) -> IssueView {
+        let view = IssueView(
+            id: IssueView.ID(UUID().uuidString), name: name, symbol: "bookmark",
+            filter: state.filter, presentation: state.presentation
+        )
+        library.live[viewID] = nil
+        library.views.append(view)
+        viewID = view.id
+        return view
+    }
+
+    /// Back to the view as saved.
+    public func reset() {
+        library.live[viewID] = nil
+    }
+
+    /// Removes a user view; the built-ins stay. Returns whether anything was removed.
+    @discardableResult
+    public func removeView(_ id: IssueView.ID) -> Bool {
+        guard let index = library.index(of: id), !library.views[index].isBuiltIn else { return false }
+        library.views.remove(at: index)
+        library.live[id] = nil
+        if viewID == id { viewID = library.views[0].id }
+        return true
+    }
+
+    /// Views an older Beady's saved state turned up that have no built-in to land on (Open),
+    /// each kept until it is accepted into the sidebar or declined.
+    public var offeredViews: [IssueView] { library.offers }
+
+    public func acceptOfferedView(_ id: IssueView.ID) {
+        guard let index = library.offers.firstIndex(where: { $0.id == id }) else { return }
+        let view = library.offers.remove(at: index)
+        library.views.append(view)
+        viewID = view.id
+    }
+
+    public func declineOfferedView(_ id: IssueView.ID) {
+        library.offers.removeAll { $0.id == id }
     }
 
     public var searchText: String {
@@ -222,6 +295,23 @@ public final class WorkspaceModel {
     public var boardGroups: [IssueGroupModel] {
         let grouping = boardGrouping
         return makeGroups(grouping, including: canEdit ? dropKeys(for: grouping) : [])
+    }
+
+    /// What would split a board that has collapsed to one column. Nil when the board already has
+    /// more than one column with cards in it, when this isn't a board, or when there is nothing
+    /// to split (one card or none). Groupings are offered only if they would actually spread the
+    /// cards out, so the board never silently shows one column again.
+    public var boardNeedsSplitting: BoardSplit? {
+        guard layout == .board, let snapshot else { return nil }
+        let issues = visibleIssues
+        guard issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 else { return nil }
+        let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
+        return BoardSplit(groupings: candidates.filter { $0 != boardGrouping && $0.groups(issues, in: snapshot).count > 1 })
+    }
+
+    public struct BoardSplit: Equatable, Sendable {
+        /// Groupings that would give the board more than one column, in the order to offer them.
+        public let groupings: [IssueGrouping]
     }
 
     public var tree: [IssueTreeNode] {
@@ -356,7 +446,7 @@ public final class WorkspaceModel {
     // MARK: Sidebar
 
     public var sidebarViews: [SidebarEntry] {
-        IssueView.builtIns.compactMap { view in
+        library.views.compactMap { view in
             let count = total(in: view)
             // Starred only earns a place in the sidebar once something is starred.
             if view.id == .starred, count == 0 { return nil }

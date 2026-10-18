@@ -68,3 +68,58 @@ struct BoardNavigationTests {
         #expect(model.selection == "a")
     }
 }
+
+@MainActor
+@Suite("A board that is one column says so")
+struct BoardSplittingTests {
+    /// Every active bead is "open" or a custom active status, so lifecycle columns collapse to one.
+    func makeModel() async -> WorkspaceModel {
+        let snapshot = IssueSnapshot(issues: [
+            makeIssue("a", priority: 0, assignee: "Ann", parent: "epic"),
+            makeIssue("b", status: "triage", priority: 1),
+            makeIssue("epic", type: "epic"),
+            makeIssue("done", status: "closed", closed: t0),
+        ], catalog: StatusCatalog(["triage": .active]))
+        let model = WorkspaceModel(title: "demo", store: StubStore([.success(snapshot)]), now: { t0 })
+        await model.load()
+        model.viewID = .everything
+        model.toggleFilterValue(StatusCategory.active.rawValue, in: .lifecycle)
+        model.layout = .board
+        model.grouping = .none
+        return model
+    }
+
+    @Test("a board on 'lifecycle is active' with no grouping needs splitting, and says which groupings would")
+    func oneColumn() async {
+        let model = await makeModel()
+        #expect(model.boardGroups.filter { !$0.issues.isEmpty }.count == 1)
+        #expect(model.boardNeedsSplitting?.groupings == [.status, .priority, .assignee, .parent])
+    }
+
+    @Test("a grouping that spreads the cards out is enough")
+    func split() async {
+        let model = await makeModel()
+        model.grouping = .priority
+        #expect(model.boardNeedsSplitting == nil)
+    }
+
+    @Test("only groupings that would actually split the board are offered")
+    func onlyUsefulGroupings() async {
+        let model = await makeModel()
+        model.toggleFilterValue(FilterRule.unassigned, in: .assignee)
+        // b and the epic are left: both unassigned, neither under a parent, so those two can't help.
+        #expect(model.boardNeedsSplitting?.groupings == [.status, .priority])
+        model.toggleFilterValue("Ann", in: .assignee)
+        model.toggleFilterValue(FilterRule.unassigned, in: .assignee)
+        // One card: nothing splits one card, so there is nothing to say.
+        #expect(model.visibleIssues.count == 1)
+        #expect(model.boardNeedsSplitting == nil)
+    }
+
+    @Test("a list doesn't care")
+    func listsDontCare() async {
+        let model = await makeModel()
+        model.layout = .list
+        #expect(model.boardNeedsSplitting == nil)
+    }
+}

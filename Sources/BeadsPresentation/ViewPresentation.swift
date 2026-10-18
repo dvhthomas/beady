@@ -1,30 +1,5 @@
 import BeadsCore
 
-/// What a view remembers while you're elsewhere: its filters and how it's displayed.
-public struct ViewState: Equatable, Codable, Sendable {
-    public var filter: ViewFilter
-    public var layout: WorkspaceModel.Layout
-    public var grouping: IssueGrouping
-    public var ordering: IssueSort
-
-    public init(filter: ViewFilter, layout: WorkspaceModel.Layout, grouping: IssueGrouping, ordering: IssueSort) {
-        self.filter = filter
-        self.layout = layout
-        self.grouping = grouping
-        self.ordering = ordering
-    }
-
-    /// Where a view starts: its own filter and presentation.
-    public static func defaults(for view: IssueView) -> ViewState {
-        ViewState(
-            filter: view.filter,
-            layout: view.presentation.layout,
-            grouping: view.presentation.grouping,
-            ordering: view.presentation.ordering
-        )
-    }
-}
-
 public struct OperatorChoice: Identifiable, Equatable, Sendable {
     public let op: FilterOperator
     public let title: String
@@ -82,11 +57,4 @@ public struct SidebarEntry: Identifiable, Equatable, Sendable {
     /// What the view means in bd, for hovering the row; empty when the name says it all.
     /// Filled in by the hover-help work (bdv-jlx.11).
     public let help: String
-}
-
-/// A view's id and its state, as one record: a dictionary keyed by a struct doesn't encode as
-/// a JSON object.
-struct SavedViewState: Codable, Sendable {
-    let view: IssueView.ID
-    let state: ViewState
 }

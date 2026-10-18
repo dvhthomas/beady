@@ -81,6 +81,19 @@ struct WorkspaceModelOutlineTests {
         #expect(model.progress(of: "epic") == Completion(closed: 0, total: 2))
     }
 
+    @Test("user views follow the built-ins in the sidebar, with their own counts")
+    func userViewsInSidebar() async {
+        let model = await loadedModel()
+        model.toggleFilterValue("epic", in: .type)
+        let epics = model.saveAsNewView(name: "Epics")
+        let entry = try! #require(model.sidebarViews.last)
+        #expect(entry.id == epics.id)
+        #expect(entry.title == "Epics")
+        #expect(entry.symbol == epics.symbol)
+        #expect(entry.count == 2)
+        #expect(model.sidebarViews.dropLast().allSatisfy { IssueView.builtIn($0.id) != nil })
+    }
+
     @Test("showing a subtree narrows the current view to what's under the bead")
     func focusOnSubtree() async {
         let model = await loadedModel()

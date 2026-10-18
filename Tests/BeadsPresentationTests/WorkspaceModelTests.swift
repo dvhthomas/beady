@@ -271,6 +271,119 @@ struct WorkspaceViewStateTests {
     }
 }
 
+@MainActor
+@Suite("Built-in views keep a fixed filter; user views remember everything")
+struct ViewSavingTests {
+    func loadedModel() async -> WorkspaceModel {
+        let model = WorkspaceModel(title: "demo", store: StubStore([
+            makeIssue("a", priority: 1),
+            makeIssue("b", priority: 2, assignee: "Ann"),
+            makeIssue("c", status: "in_progress"),
+        ]), now: { t0 })
+        await model.load()
+        return model
+    }
+
+    @Test("adding a rule to Frontier marks it modified; save is refused, Save as new view keeps the filter")
+    func builtInFilterIsFixed() async {
+        let model = await loadedModel()
+        #expect(model.viewID == .frontier)
+        #expect(!model.isModified)
+        model.toggleFilterValue("1", in: .priority)
+        #expect(model.isModified)
+        #expect(!model.save(), "a built-in's filter is its definition")
+        #expect(model.isModified)
+        #expect(IssueView.builtIn(.frontier)?.filter.rule(for: .priority) == nil)
+
+        let urgent = model.saveAsNewView(name: "Urgent")
+        #expect(model.viewID == urgent.id)
+        #expect(model.view.name == "Urgent")
+        #expect(!model.view.isBuiltIn)
+        #expect(model.view.filter.rule(for: .priority)?.values == ["1"])
+        #expect(model.view.filter.rule(for: .ready) != nil, "it starts from everything Frontier meant")
+        #expect(!model.isModified)
+        #expect(model.views.map(\.id).last == urgent.id)
+        #expect(model.visibleIssues.map(\.id) == ["a"])
+
+        model.viewID = .frontier
+        #expect(!model.isModified, "Frontier is back to what it means")
+        #expect(model.filter == IssueView.builtIn(.frontier)?.filter)
+    }
+
+    @Test("changing a built-in's layout is remembered, not a modification")
+    func builtInPresentationIsRemembered() async {
+        let model = await loadedModel()
+        model.layout = .board
+        model.grouping = .status
+        #expect(!model.isModified)
+        #expect(model.view.presentation.layout == .board)
+        model.viewID = .everything
+        model.viewID = .frontier
+        #expect(model.layout == .board)
+        #expect(model.grouping == .status)
+    }
+
+    @Test("a user view's layout change marks it modified, and save clears that")
+    func userViewRemembersEverything() async {
+        let model = await loadedModel()
+        let mine = model.saveAsNewView(name: "Mine")
+        #expect(!model.isModified)
+        model.layout = .board
+        #expect(model.isModified)
+        #expect(model.save())
+        #expect(!model.isModified)
+        #expect(model.views.first { $0.id == mine.id }?.presentation.layout == .board)
+        model.toggleFilterValue("Ann", in: .assignee)
+        #expect(model.isModified)
+        model.save()
+        #expect(model.views.first { $0.id == mine.id }?.filter.rule(for: .assignee)?.values == ["Ann"])
+    }
+
+    @Test("reset puts the saved view back, filter and presentation alike")
+    func reset() async {
+        let model = await loadedModel()
+        model.saveAsNewView(name: "Mine")
+        model.toggleFilterValue("Ann", in: .assignee)
+        model.layout = .tree
+        model.ordering = .issueID
+        model.searchText = "x"
+        #expect(model.isModified)
+        model.reset()
+        #expect(!model.isModified)
+        #expect(model.filter.rule(for: .assignee) == nil)
+        #expect(model.layout == .list)
+        #expect(model.ordering == .priority)
+        #expect(model.searchText == "")
+
+        model.viewID = .frontier
+        model.toggleFilterValue("1", in: .priority)
+        model.reset()
+        #expect(model.filter == IssueView.builtIn(.frontier)?.filter)
+    }
+
+    @Test("a user view can be removed; a built-in can't")
+    func removing() async {
+        let model = await loadedModel()
+        let mine = model.saveAsNewView(name: "Mine")
+        #expect(model.removeView(mine.id))
+        #expect(!model.views.contains { $0.id == mine.id })
+        #expect(model.viewID == .frontier, "back to the first built-in")
+        #expect(!model.removeView(.frontier))
+        #expect(model.views.count == IssueView.builtIns.count)
+    }
+
+    @Test("the current view carries its live filter and presentation")
+    func liveView() async {
+        let model = await loadedModel()
+        model.toggleFilterValue("1", in: .priority)
+        model.layout = .board
+        #expect(model.view.id == .frontier)
+        #expect(model.view.filter.rule(for: .priority)?.values == ["1"])
+        #expect(model.view.presentation.layout == .board)
+        #expect(model.view.isBuiltIn)
+    }
+}
+
 @Suite("Display text")
 struct DisplayTextTests {
     @Test("statuses, priorities, windows and fields read naturally")

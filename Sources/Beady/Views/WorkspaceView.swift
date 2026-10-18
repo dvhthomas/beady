@@ -15,6 +15,8 @@ struct WorkspaceView: View {
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
     var persistsPreferences = true
     @AppStorage("view") private var storedView = IssueView.ID.frontier.rawValue
+    /// Where older Beadys kept the last lifecycle view; read once and moved over.
+    @AppStorage("scope") private var legacyScope = ""
     @AppStorage("inspectorWidth") private var inspectorWidth = 360.0
     /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var searchFocus = FocusState<Bool>()
@@ -75,9 +77,13 @@ struct WorkspaceView: View {
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
         .onAppear {
+            guard persistsPreferences else { return }
+            if !legacyScope.isEmpty {
+                if let id = ViewLibrary.builtIn(forScope: legacyScope) { storedView = id.rawValue }
+                legacyScope = ""
+            }
             let id = IssueView.ID(rawValue: storedView)
-            guard persistsPreferences, IssueView.builtIn(id) != nil else { return }
-            model.viewID = id
+            if model.views.contains(where: { $0.id == id }) { model.viewID = id }
         }
         .onChange(of: model.viewID) {
             if persistsPreferences { storedView = model.viewID.rawValue }
