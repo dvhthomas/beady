@@ -24,7 +24,12 @@ struct SidebarView: View {
         // reached it. Drawing the header ourselves keeps the + and the chevron where they are.
         List(selection: selection) {
             ForEach(model.sidebarSections) { section in
-                if !section.title.isEmpty {
+                if section.title.isEmpty {
+                    // A headerless section still needs the gap a header would have given it, or
+                    // its rows read as the tail of the section above. One blank row, as in plan
+                    // 0004's mockup: the sidebar List gives every row its full height anyway.
+                    gap
+                } else {
                     header(section)
                 }
                 if isExpanded(section) {
@@ -45,11 +50,22 @@ struct SidebarView: View {
             importFiles(files)
             return true
         }
+        // The chosen view is never hidden: saving a new view, importing one or picking one from
+        // the palette lands in a folded section often enough that the section opens to show it.
+        .onChange(of: model.viewID, initial: true) { reveal(model.viewID) }
+    }
+
+    private var gap: some View {
+        Color.clear
+            .frame(height: 1)
+            .selectionDisabled()
+            .listRowSeparator(.hidden)
+            .accessibilityHidden(true)
     }
 
     /// Title, then the + where the section takes one, then the disclosure: both at a fixed size,
-    /// always drawn, so nothing moves under the pointer. The disclosure is disabled, not hidden,
-    /// when there is nothing to fold away.
+    /// always drawn, so nothing moves under the pointer. The disclosure folds an empty section
+    /// too: a control that looks live but does nothing reads as broken.
     private func header(_ section: SidebarSection) -> some View {
         HStack(spacing: 2) {
             Text(section.title)
@@ -77,8 +93,7 @@ struct SidebarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .disabled(!section.canCollapse)
-            .help(section.canCollapse ? (isExpanded(section) ? "Hide" : "Show") : "Nothing to hide")
+            .help(isExpanded(section) ? "Hide" : "Show")
         }
         .padding(.top, section.kind == .views ? 0 : 10)
         .selectionDisabled()
@@ -93,6 +108,12 @@ struct SidebarView: View {
         var kinds = collapsedKinds
         if expanded { kinds.remove(section.kind.rawValue) } else { kinds.insert(section.kind.rawValue) }
         collapsedSections = kinds.sorted().joined(separator: ",")
+    }
+
+    private func reveal(_ id: IssueView.ID) {
+        guard let section = model.sidebarSections.first(where: { $0.entries.contains { $0.id == id } }),
+              !isExpanded(section) else { return }
+        setExpanded(true, section)
     }
 
     private var collapsedKinds: Set<String> {
