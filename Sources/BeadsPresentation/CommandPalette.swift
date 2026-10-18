@@ -48,7 +48,12 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case displayOptions
     case toggleDetails
     case showShortcuts
-    case showView(ViewSource)
+    case showView(IssueView.ID)
+    case saveView
+    case saveViewAs
+    case resetView
+    case exportView(IssueView.ID)
+    case importViews
     case setLayout(WorkspaceModel.Layout)
     case setGrouping(IssueGrouping)
     case setOrdering(IssueSort)
@@ -84,7 +89,12 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .displayOptions: "display-options"
         case .toggleDetails: "toggle-details"
         case .showShortcuts: "show-shortcuts"
-        case .showView(let source): "view-\(Self.viewKey(source))"
+        case .showView(let id): "view-\(id.rawValue)"
+        case .saveView: "save-view"
+        case .saveViewAs: "save-view-as"
+        case .resetView: "reset-view"
+        case .exportView(let id): "export-\(id.rawValue)"
+        case .importViews: "import-views"
         case .setLayout(let layout): "layout-\(layout.rawValue)"
         case .setGrouping(let grouping): "group-\(grouping.rawValue)"
         case .setOrdering(let sort): "sort-\(sort.rawValue)"
@@ -122,7 +132,12 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .displayOptions: "Display Options"
         case .toggleDetails: "Toggle Details Panel"
         case .showShortcuts: "Keyboard Shortcuts"
-        case .showView(let source): "Go to \(Self.viewTitle(source))"
+        case .showView(let id): "Go to \(Self.viewName(id))"
+        case .saveView: "Save View"
+        case .saveViewAs: "Save as New View…"
+        case .resetView: "Reset View"
+        case .exportView: "Export View…"
+        case .importViews: "Import Views…"
         case .setLayout(let layout): "Show as \(layout.rawValue.capitalized)"
         case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
         case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
@@ -162,7 +177,12 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .displayOptions: ["columns", "sort", "order", "group", "layout", "show"]
         case .toggleDetails: ["inspector", "side panel", "info"]
         case .showShortcuts: ["help", "keys", "keyboard", "shortcuts"]
-        case .showView: ["go", "switch", "view"]
+        case .showView(let id): ["go", "switch", "view"] + Self.viewKeywords(id)
+        case .saveView: ["save", "keep", "store", "filters", "layout"]
+        case .saveViewAs: ["save as", "new view", "duplicate", "copy", "keep", "filters"]
+        case .resetView: ["reset", "revert", "discard", "undo changes", "back to saved"]
+        case .exportView: ["export", "share", "save as file", "beadyview", "send"]
+        case .importViews: ["import", "open view", "beadyview", "file", "receive"]
         case .setLayout(let layout): layout == .board ? ["kanban", "columns", "swimlanes"] : ["view as", layout.rawValue]
         case .setGrouping: ["group", "section", "break down"]
         case .setOrdering: ["sort", "order", "arrange"]
@@ -198,7 +218,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .focusSearch, .addFilter, .clearFilters: "Find"
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
              .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
-        case .focusSelected, .unfocus: "Views"
+        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews: "Views"
         case .openSettings, .setSidebarStyle: "Appearance"
         case .showShortcuts: "Help"
         case .showView, .goBack, .goForward: "Views"
@@ -229,7 +249,10 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goBack: [KeyBinding("[", .command)]
         case .goForward: [KeyBinding("]", .command)]
         case .chooseTheme: [KeyBinding("t", .command)]
-        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected,
+        case .saveView: [KeyBinding("s", .command)]
+        case .saveViewAs: [KeyBinding("s", [.command, .option])]
+        case .resetView: [KeyBinding("r", [.command, .option])]
+        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
              .backUpNow, .setUpBackup, .turnOnJournal: []
         }
@@ -241,20 +264,25 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         return keys.isEmpty ? nil : keys.joined(separator: " or ")
     }
 
-    static func viewKey(_ source: ViewSource) -> String {
-        switch source {
-        case .lifecycle(let scope): scope.rawValue
-        case .focused(let id): id.rawValue
-        case .label(let label): label
-        }
+    /// The palette names a view the way the sidebar does.
+    static func viewName(_ id: IssueView.ID) -> String {
+        IssueView.builtIn(id)?.name ?? id.rawValue
     }
 
-    /// The palette names a view the way the sidebar does; an epic view by its bead.
-    static func viewTitle(_ source: ViewSource) -> String {
-        switch source {
-        case .lifecycle(let scope): DisplayText.scope(scope)
-        case .focused(let id): id.rawValue
-        case .label(let label): IssueMark(rawValue: label)?.title ?? label
+    /// bd's own word for what a built-in shows, so "blocked" finds Stuck; Ready keeps answering
+    /// to Frontier, the name it shipped under.
+    static func viewKeywords(_ id: IssueView.ID) -> [String] {
+        switch id {
+        case .frontier: ["ready", "frontier", "available", "unblocked", "next"]
+        case .inFlight: ["wip", "in progress", "working", "started"]
+        case .stuck: ["blocked", "waiting", "blockers"]
+        case .pipeline: ["board", "kanban", "lifecycle", "all"]
+        case .recent: ["updated", "today", "activity", "changed"]
+        case .landed: ["closed", "done", "finished", "shipped"]
+        case .deferred: ["frozen", "later", "snoozed", "deferred"]
+        case .everything: ["all", "every bead"]
+        case .starred: ["star", "starred", "favourite", "favorite"]
+        default: []
         }
     }
 
@@ -289,7 +317,13 @@ public enum CommandCatalog {
         if let id = model.selection, model.snapshot?.children(of: id).isEmpty == false {
             commands.append(.focusSelected)
         }
-        if case .focused = model.source { commands.append(.unfocus) }
+        if model.focusedIssue != nil { commands.append(.unfocus) }
+        // Only while there is something to save or throw away; Save only where it would stick.
+        if model.isModified {
+            if model.canSave { commands.append(.saveView) }
+            commands += [.saveViewAs, .resetView]
+        }
+        commands += [.exportView(model.viewID), .importViews]
         if model.layout == .tree { commands += [.expandAll, .collapseAll] }
         if model.layout == .list {
             commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }
@@ -297,13 +331,13 @@ public enum CommandCatalog {
         }
         commands += SidebarStyle.allCases.map { .setSidebarStyle($0) }
         commands.append(.openSettings)
-        if !model.filter.isEmpty || !model.searchText.isEmpty { commands.append(.clearFilters) }
+        if model.hasClearableFilters || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
         // With the setting off, or after an Undo: the palette is where a change of mind goes.
         if model.canEdit, model.journal.canBeTurnedOn { commands.append(.turnOnJournal) }
         commands.append(.closeWorkspace)
-        commands += Scope.allCases.map { .showView(.lifecycle($0)) }
-        if model.hasStarredBeads { commands.append(.showView(.label(IssueMark.starred.label))) }
+        // The sidebar's rows, Starred included only once something is starred.
+        commands += model.sidebarViews.map { .showView($0.id) }
         commands += [.focusSearch, .addFilter]
         commands += WorkspaceModel.Layout.allCases.map { .setLayout($0) }
         commands += IssueGrouping.allCases.map { .setGrouping($0) }

@@ -218,3 +218,104 @@ extension View {
         }
     }
 }
+
+// MARK: Saving a view
+
+/// Name and icon for a new view saved from what's on screen.
+struct SaveAsNewViewSheet: View {
+    @Bindable var model: WorkspaceModel
+    @Bindable var ui: WorkspaceUI
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Save as New View")
+                .font(.headline)
+            Text("Keeps this view's filters, layout, grouping and ordering under a name of its own.")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            TextField("Name", text: $ui.newViewName)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(save)
+            IconGrid(selection: $ui.newViewSymbol)
+            HStack {
+                Spacer()
+                Button("Cancel") { ui.showsSaveAsNewView = false }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save", action: save)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
+        .background(theme.background)
+    }
+
+    private func save() {
+        let name = ui.newViewName.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.saveAsNewView(name: name.isEmpty ? "\(model.view.name) copy" : name, symbol: ui.newViewSymbol)
+        ui.showsSaveAsNewView = false
+    }
+}
+
+/// A new icon for a user view.
+struct ChangeIconSheet: View {
+    let model: WorkspaceModel
+    @Bindable var ui: WorkspaceUI
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Change Icon")
+                .font(.headline)
+            IconGrid(selection: $ui.chosenIcon)
+            HStack {
+                Spacer()
+                Button("Cancel") { ui.changingIconOf = nil }
+                    .keyboardShortcut(.cancelAction)
+                Button("Change") {
+                    if let id = ui.changingIconOf { model.setIcon(ui.chosenIcon, for: id) }
+                    ui.changingIconOf = nil
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
+        .background(theme.background)
+    }
+}
+
+/// The user's icon set, with the current choice shown even when it came from outside the set
+/// (an imported view can name any SF Symbol).
+struct IconGrid: View {
+    @Binding var selection: String
+    @Environment(\.theme) private var theme
+
+    private let columns = Array(repeating: GridItem(.fixed(40), spacing: 6), count: 7)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(ViewIcon.choices(including: selection), id: \.self) { symbol in
+                Button {
+                    selection = symbol
+                } label: {
+                    Image(systemName: symbol)
+                        .font(.title3)
+                        .frame(width: 40, height: 34)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(symbol == selection ? theme.accent.opacity(0.25) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7)
+                                .strokeBorder(symbol == selection ? theme.accent : Color.clear, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(symbol)
+            }
+        }
+    }
+}
+

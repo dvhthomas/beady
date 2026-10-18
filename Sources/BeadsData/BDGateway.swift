@@ -287,7 +287,8 @@ public struct BDGateway: Sendable {
 }
 
 
-/// An FSEvents subscription to bd's folder. Hold on to it; releasing or stopping it ends the watch.
+/// An FSEvents subscription to a folder — bd's, or the view Library's. Hold on to it; releasing
+/// or stopping it ends the watch.
 ///
 /// Events are coalesced: one bd write touches several files (the Dolt journal, `issues.jsonl`,
 /// the interaction log) and an agent often writes a batch, so the handler runs once the folder
@@ -306,7 +307,7 @@ public final class BDChangeWatcher: @unchecked Sendable {
     private var stream: FSEventStreamRef?
     private var pending: DispatchWorkItem?
 
-    init(path: String, settle: TimeInterval = 0.4, onChange: @escaping @Sendable () -> Void) {
+    public init(path: String, settle: TimeInterval = 0.4, onChange: @escaping @Sendable () -> Void) {
         self.settle = settle
         let watcherBox = Sink(onChange: onChange)
         sink = Unmanaged.passRetained(watcherBox)

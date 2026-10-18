@@ -1,33 +1,5 @@
 import Foundation
 
-/// A lifecycle slice of the database: the built-in views in the sidebar.
-public enum Scope: String, CaseIterable, Identifiable, Codable, Sendable {
-    case all
-    case open
-    case ready
-    case inFlight
-    case blocked
-    case deferred
-    case closed
-
-    public var id: String { rawValue }
-
-    public func includes(_ issue: Issue, in snapshot: IssueSnapshot, now: Date) -> Bool {
-        let category = snapshot.category(of: issue)
-        switch self {
-        case .all: return true
-        case .open: return category == .active
-        case .ready:
-            let deferred = issue.deferUntil.map { $0 > now } ?? false
-            return category == .active && !deferred && !snapshot.isBlocked(issue)
-        case .inFlight: return category == .wip
-        case .blocked: return snapshot.isBlocked(issue)
-        case .deferred: return category == .frozen
-        case .closed: return category == .done
-        }
-    }
-}
-
 public enum TimeWindow: String, CaseIterable, Identifiable, Sendable {
     case day
     case week

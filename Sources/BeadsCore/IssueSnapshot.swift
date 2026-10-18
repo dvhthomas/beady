@@ -74,6 +74,12 @@ public struct IssueSnapshot: Sendable {
 
     public func isDone(_ issue: Issue) -> Bool { category(of: issue) == .done }
 
+    /// What bd calls ready: active, not blocked, and not deferred into the future.
+    public func isReady(_ issue: Issue, now: Date) -> Bool {
+        let deferred = issue.deferUntil.map { $0 > now } ?? false
+        return category(of: issue) == .active && !deferred && !isBlocked(issue)
+    }
+
     public func children(of id: IssueID) -> [Issue] {
         (childIDs[id] ?? []).compactMap { byID[$0] }
     }

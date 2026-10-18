@@ -1,8 +1,17 @@
 import AppKit
+import BeadsCore
 import BeadsData
 import BeadsPresentation
 import Foundation
 import Observation
+import UniformTypeIdentifiers
+
+extension UTType {
+    /// Declared in the bundle's Info.plist (scripts/bundle.sh) so Finder opens the files with
+    /// Beady; the fallback keeps the bare SwiftPM binary working.
+    static let beadyView = UTType("me.bitsby.beady.view") ?? UTType(filenameExtension: ViewLibrary.fileExtension) ?? .json
+    static let beadyViews = UTType("me.bitsby.beady.views") ?? UTType(filenameExtension: ViewLibrary.bundleExtension) ?? .json
+}
 
 /// Composition root: turns a folder into a wired-up WorkspaceModel and remembers recents.
 @MainActor
@@ -24,6 +33,12 @@ final class AppSession {
 
     /// Reports bd's writes as they land, so the view refreshes without polling.
     @ObservationIgnored private var watcher: BDChangeWatcher?
+    /// Reports changes to the view Library folder: a file dropped in, a sync, a hand edit.
+    @ObservationIgnored private var libraryWatcher: BDChangeWatcher?
+    /// A view file to import that arrived before a workspace was open.
+    @ObservationIgnored private var pendingImports: [URL] = []
+    /// What went wrong importing or exporting a view, for an alert.
+    private(set) var viewFileError: String?
 
     private static let recentsKey = "recentWorkspaces"
     private static let turnsOnJournalKey = "turnsOnEventsJournal"
@@ -35,14 +50,27 @@ final class AppSession {
     /// the saved views.
     @ObservationIgnored private let preferences: UserDefaults?
 
+    /// The Library tier of views: ~/Library/Application Support/Beady/views, one .beadyview each.
+    /// Nil when preferences are off, so snapshots never touch it.
+    @ObservationIgnored private let viewsDirectory: URL?
+
     /// `--workspace <path>` on the command line wins over the most recent workspace.
     init(arguments: [String] = CommandLine.arguments, preferences: UserDefaults? = .standard) {
         self.preferences = preferences
         turnsOnJournal = preferences.map {
             $0.object(forKey: Self.turnsOnJournalKey) == nil || $0.bool(forKey: Self.turnsOnJournalKey)
         } ?? false
+        viewsDirectory = preferences == nil ? nil : FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Beady/views", isDirectory: true)
         recentPaths = (UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? [])
             .filter { FileManager.default.fileExists(atPath: $0) }
+        if let viewsDirectory {
+            try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
+            libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
+                Task { @MainActor in self?.model?.reloadViews() }
+            }
+        }
         if let path = Self.value(of: "--workspace", in: arguments) ?? recentPaths.first {
             open(URL(fileURLWithPath: path))
         }
@@ -59,6 +87,7 @@ final class AppSession {
                 title: gateway.workspace.displayName,
                 store: store,
                 preferences: preferences,
+                viewsDirectory: viewsDirectory,
                 journalPolicy: JournalPolicy(
                     turnsOnAutomatically: turnsOnJournal,
                     wasTurnedOffByHand: journalsTurnedOn.contains(path),
@@ -76,6 +105,11 @@ final class AppSession {
                 Task { @MainActor in await self?.model?.refreshIfChanged() }
             }
             remember(gateway.workspace.projectDirectory.path)
+            if !pendingImports.isEmpty {
+                let urls = pendingImports
+                pendingImports = []
+                importViews(from: urls)
+            }
         } catch {
             openError = error.localizedDescription
             if let dataError = error as? BeadsDataError, case .notAWorkspace = dataError {
@@ -109,6 +143,59 @@ final class AppSession {
 
     func dismissOpenError() {
         openError = nil
+    }
+
+    func dismissViewFileError() {
+        viewFileError = nil
+    }
+
+    // MARK: View files
+
+    /// Imports every .beadyview / .beadyviews given — from Finder, a drop on the sidebar, or
+    /// Import Views…. With no workspace open yet they wait for one: the Library is the user's,
+    /// but the model that holds it comes with a workspace.
+    func importViews(from urls: [URL]) {
+        guard let model else {
+            pendingImports += urls
+            return
+        }
+        var failures: [String] = []
+        for url in urls {
+            do {
+                try model.importViews(fromDocument: Data(contentsOf: url))
+            } catch {
+                failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        if !failures.isEmpty { viewFileError = failures.joined(separator: "\n") }
+    }
+
+    func chooseViewsToImport() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Views"
+        panel.message = "Choose .beadyview or .beadyviews files."
+        panel.prompt = "Import"
+        panel.allowedContentTypes = [.beadyView, .beadyViews]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK { importViews(from: panel.urls) }
+    }
+
+    /// Writes a view as saved to a file of the user's choosing.
+    func exportView(_ id: IssueView.ID) {
+        guard let model, let view = model.views.first(where: { $0.id == id }) else { return }
+        let panel = NSSavePanel()
+        panel.title = "Export View"
+        panel.nameFieldStringValue = view.exportFilename
+        panel.allowedContentTypes = [.beadyView]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            guard let data = try model.exportDocument(for: id) else { return }
+            try data.write(to: url, options: .atomic)
+        } catch {
+            viewFileError = "\(url.lastPathComponent): \(error.localizedDescription)"
+        }
     }
 
     func close() {
@@ -181,7 +268,12 @@ final class AppSession {
         case .displayOptions: ui.showsDisplayOptions = true
         case .toggleDetails: ui.showsInspector.toggle()
         case .showShortcuts: ui.showsShortcuts = true
-        case .showView(let source): model?.source = source
+        case .showView(let id): model?.viewID = id
+        case .saveView: model?.save()
+        case .saveViewAs: ui.promptSaveAsNewView(suggesting: model.map { $0.view.isBuiltIn ? "" : $0.view.name } ?? "")
+        case .resetView: model?.reset()
+        case .exportView(let id): exportView(id)
+        case .importViews: chooseViewsToImport()
         case .setLayout(let layout): model?.layout = layout
         case .setGrouping(let grouping): model?.grouping = grouping
         case .setOrdering(let sort): model?.ordering = sort

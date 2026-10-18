@@ -24,7 +24,7 @@ struct CommandPaletteTests {
         #expect(results.contains(.openWorkspace))
         #expect(results.contains(.refresh))
         #expect(results.contains(.newBead))
-        #expect(results.contains(.showView(.lifecycle(.inFlight))))
+        #expect(results.contains(.showView(.inFlight)))
         #expect(results.contains(.setLayout(.board)))
         #expect(results.allSatisfy { !$0.title.isEmpty })
         #expect(Set(results.map(\.id)).count == results.count)
@@ -36,7 +36,7 @@ struct CommandPaletteTests {
         #expect(!CommandCatalog.results(for: "", model: model).contains(.editSelected), "nothing selected")
         model.selection = "epic.1"
         #expect(CommandCatalog.results(for: "", model: model).contains(.editSelected))
-        #expect(!CommandCatalog.results(for: "", model: model).contains(.clearFilters), "no filters to clear")
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.clearFilters), "a built-in's own rule is nothing to clear")
         model.toggleFilterValue("1", in: .priority)
         #expect(CommandCatalog.results(for: "", model: model).contains(.clearFilters))
 
@@ -52,9 +52,50 @@ struct CommandPaletteTests {
         let model = await makeModel()
         #expect(CommandCatalog.results(for: "refresh", model: model).first == .refresh)
         #expect(CommandCatalog.results(for: "board", model: model).first == .setLayout(.board))
-        #expect(CommandCatalog.results(for: "in fl", model: model).first == .showView(.lifecycle(.inFlight)))
+        #expect(CommandCatalog.results(for: "in fl", model: model).first == .showView(.inFlight))
         // Words in any order, the way Linear's palette behaves.
         #expect(CommandCatalog.results(for: "workspace open", model: model).contains(.openWorkspace))
+    }
+
+    @Test("built-in views are found by their name and by bd's word for them")
+    func views() async {
+        let model = await makeModel()
+        #expect(CommandCatalog.results(for: "ready", model: model).first == .showView(.frontier))
+        #expect(CommandCatalog.results(for: "frontier", model: model).first == .showView(.frontier), "the name it shipped under still finds it")
+        // A command whose title has the word ("Show Dependency Graph", "Order by Last closed")
+        // still comes first: a title match beats an alias.
+        #expect(CommandCatalog.results(for: "blocked", model: model).contains(.showView(.stuck)))
+        #expect(CommandCatalog.results(for: "closed", model: model).contains(.showView(.landed)))
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.showView(.starred)), "nothing is starred")
+        #expect(!CommandCatalog.results(for: "", model: model).contains(.unfocus), "nothing is focused")
+        model.focus(on: "epic")
+        #expect(CommandCatalog.results(for: "", model: model).contains(.unfocus))
+    }
+
+    @Test("Save, Save as new view and Reset are offered only while the view is modified; Save only on a user view")
+    func viewSaving() async {
+        let model = await makeModel()
+        let quiet = CommandCatalog.results(for: "", model: model)
+        #expect(!quiet.contains(.saveView) && !quiet.contains(.saveViewAs) && !quiet.contains(.resetView))
+
+        model.toggleFilterValue("1", in: .priority)
+        let modified = CommandCatalog.results(for: "", model: model)
+        #expect(!modified.contains(.saveView), "a built-in's filter is its definition")
+        #expect(modified.contains(.saveViewAs))
+        #expect(modified.contains(.resetView))
+        // "Reset Columns" ties on the title and the palette breaks ties on length, so top two.
+        #expect(CommandCatalog.results(for: "reset", model: model).prefix(2).contains(.resetView))
+        #expect(CommandCatalog.results(for: "save as", model: model).first == .saveViewAs)
+
+        model.saveAsNewView(name: "Mine")
+        model.layout = .board
+        let user = CommandCatalog.results(for: "", model: model)
+        #expect(user.contains(.saveView))
+        #expect(CommandCatalog.results(for: "save", model: model).prefix(2).contains(.saveView))
+        #expect(AppCommand.saveView.shortcut == "⌘S")
+        #expect(AppCommand.saveViewAs.shortcut == "⌥⌘S")
+        #expect(AppCommand.resetView.shortcut == "⌥⌘R")
+        #expect([AppCommand.saveView, .saveViewAs, .resetView].allSatisfy { $0.group == "Views" })
     }
 
     @Test("commands answer to the words people actually type")

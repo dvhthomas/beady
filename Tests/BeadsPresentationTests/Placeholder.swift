@@ -3,6 +3,8 @@ import Foundation
 
 let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
+func days(_ n: Double) -> TimeInterval { n * 86_400 }
+
 func makeIssue(
     _ id: IssueID,
     title: String? = nil,
@@ -12,12 +14,15 @@ func makeIssue(
     assignee: String? = nil,
     labels: [String] = [],
     parent: IssueID? = nil,
+    blockedBy: [IssueID] = [],
     updated: Date = t0,
-    closed: Date? = nil
+    closed: Date? = nil,
+    deferUntil: Date? = nil
 ) -> Issue {
     Issue(
         id: id, title: title ?? "Issue \(id)", status: status, priority: priority, type: type, assignee: assignee,
-        labels: labels, createdAt: t0, updatedAt: updated, closedAt: closed, parentID: parent
+        labels: labels, createdAt: t0, updatedAt: updated, closedAt: closed, deferUntil: deferUntil, parentID: parent,
+        dependencies: blockedBy.map { Dependency(issueID: id, dependsOnID: $0, kind: .blocks) }
     )
 }
 

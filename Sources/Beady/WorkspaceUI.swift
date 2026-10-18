@@ -14,6 +14,32 @@ final class WorkspaceUI {
     var showsThemes = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
+    /// The Save as New View sheet: name and icon live here so the sheet's fields are observable.
+    var showsSaveAsNewView = false
+    var newViewName = ""
+    var newViewSymbol = ViewIcon.defaultUserChoice
+    /// The user view being renamed, with the name as typed so far.
+    var renamingView: IssueView.ID?
+    var renameText = ""
+    /// The user view whose icon is being changed, and the choice so far.
+    var changingIconOf: IssueView.ID?
+    var chosenIcon = ViewIcon.defaultUserChoice
+
+    func promptSaveAsNewView(suggesting name: String) {
+        newViewName = name
+        newViewSymbol = ViewIcon.defaultUserChoice
+        showsSaveAsNewView = true
+    }
+
+    func promptChangeIcon(of view: IssueView) {
+        chosenIcon = view.symbol
+        changingIconOf = view.id
+    }
+
+    func promptRename(_ view: IssueView) {
+        renameText = view.name
+        renamingView = view.id
+    }
     /// True while the search field has the keyboard. Single-key shortcuts stand down then, so
     /// typing "?" into a search reaches the field instead of opening the shortcut sheet.
     var isSearchFocused = false
@@ -42,7 +68,7 @@ final class WorkspaceUI {
 
     /// True while anything modal is up, so background key handling stands down.
     var isSheetOpen: Bool {
-        showsPalette || showsThemes || showsNewBead || showsShortcuts
+        showsPalette || showsThemes || showsNewBead || showsShortcuts || showsSaveAsNewView || renamingView != nil || changingIconOf != nil
     }
 
     /// Opens the palette empty, wherever it was left last time.

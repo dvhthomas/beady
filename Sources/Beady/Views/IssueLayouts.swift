@@ -178,7 +178,7 @@ struct IssueListView: View {
         }
         .width(min: column.minimumWidth, ideal: column.idealWidth, max: column.maximumWidth.map { CGFloat($0) })
         .customizationID(column.id)
-        .defaultVisibility(columns.isVisible(column, in: model.source) ? .visible : .hidden)
+        .defaultVisibility(columns.isVisible(column, in: model.view.presentation) ? .visible : .hidden)
         .disabledCustomizationBehavior(column.isAlwaysVisible ? .visibility : [])
     }
 }

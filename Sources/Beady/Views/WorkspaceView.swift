@@ -16,7 +16,11 @@ struct WorkspaceView: View {
     let undo: (ChangeRecord) -> Void
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
     var persistsPreferences = true
-    @AppStorage("scope") private var storedScope = Scope.open.rawValue
+    /// Imports .beadyview files dropped on the sidebar; the session does the work.
+    var importFiles: ([URL]) -> Void = { _ in }
+    @AppStorage("view") private var storedView = IssueView.ID.frontier.rawValue
+    /// Where older Beadys kept the last lifecycle view; read once and moved over.
+    @AppStorage("scope") private var legacyScope = ""
     @AppStorage("inspectorWidth") private var inspectorWidth = 360.0
     /// `FocusState` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var searchFocus = FocusState<Bool>()
@@ -28,7 +32,8 @@ struct WorkspaceView: View {
         themes: ThemeStore? = nil,
         run: @escaping (AppCommand) -> Void = { _ in },
         undo: @escaping (ChangeRecord) -> Void = { _ in },
-        persistsPreferences: Bool = true
+        persistsPreferences: Bool = true,
+        importFiles: @escaping ([URL]) -> Void = { _ in }
     ) {
         self.model = model
         self.ui = ui
@@ -36,11 +41,12 @@ struct WorkspaceView: View {
         self.run = run
         self.undo = undo
         self.persistsPreferences = persistsPreferences
+        self.importFiles = importFiles
     }
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(model: model)
+            SidebarView(model: model, ui: ui, run: run, importFiles: importFiles)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
             // Not `.inspector`: that grows the right pane by pushing the whole window's layout,
@@ -53,7 +59,7 @@ struct WorkspaceView: View {
                         // Switching sidebar views must not leave the sidebar's own list holding the
                         // keyboard — otherwise the first arrow key after a click walks the sidebar
                         // instead of the beads.
-                        .background(FocusesOnChange(trigger: model.source))
+                        .background(FocusesOnChange(trigger: model.viewID))
                 }
                 .frame(maxWidth: .infinity)
                 if ui.showsInspector {
@@ -78,12 +84,31 @@ struct WorkspaceView: View {
         .onChange(of: searchFocus.wrappedValue) { ui.isSearchFocused = searchFocus.wrappedValue }
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
-        .onAppear {
-            guard persistsPreferences, let scope = Scope(rawValue: storedScope) else { return }
-            model.source = .lifecycle(scope)
+        .sheet(isPresented: Binding(get: { ui.showsSaveAsNewView }, set: { ui.showsSaveAsNewView = $0 })) {
+            SaveAsNewViewSheet(model: model, ui: ui)
         }
-        .onChange(of: model.source) {
-            if persistsPreferences, case .lifecycle(let scope) = model.source { storedScope = scope.rawValue }
+        .sheet(isPresented: Binding(get: { ui.changingIconOf != nil }, set: { if !$0 { ui.changingIconOf = nil } })) {
+            ChangeIconSheet(model: model, ui: ui)
+        }
+        .alert("Rename View", isPresented: Binding(get: { ui.renamingView != nil }, set: { if !$0 { ui.renamingView = nil } })) {
+            TextField("Name", text: Binding(get: { ui.renameText }, set: { ui.renameText = $0 }))
+            Button("Rename") {
+                if let id = ui.renamingView { model.renameView(id, to: ui.renameText) }
+                ui.renamingView = nil
+            }
+            Button("Cancel", role: .cancel) { ui.renamingView = nil }
+        }
+        .onAppear {
+            guard persistsPreferences else { return }
+            if !legacyScope.isEmpty {
+                if let id = ViewLibrary.builtIn(forScope: legacyScope) { storedView = id.rawValue }
+                legacyScope = ""
+            }
+            let id = IssueView.ID(rawValue: storedView)
+            if model.views.contains(where: { $0.id == id }) { model.viewID = id }
+        }
+        .onChange(of: model.viewID) {
+            if persistsPreferences { storedView = model.viewID.rawValue }
         }
         .onChange(of: model.selection) { if model.selection != nil { ui.showsInspector = true } }
         .onChange(of: model.activity.first?.id) {
@@ -122,15 +147,33 @@ struct WorkspaceView: View {
         case .loaded:
             if model.visibleIssues.isEmpty && model.layout != .board {
                 ContentUnavailableView {
-                    Label(model.filter.isEmpty ? "No issues" : "Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
+                    Label(model.hasClearableFilters || !model.searchText.isEmpty ? "Nothing matches" : "No issues", systemImage: "line.3.horizontal.decrease.circle")
                 } description: {
-                    Text(model.filter.isEmpty ? "\(model.viewTitle) is empty." : "No issues in \(model.viewTitle) match this view's filters.")
+                    Text(model.hasClearableFilters || !model.searchText.isEmpty ? "No issues in \(model.viewTitle) match this view's filters." : "\(model.viewTitle) is empty.")
                 } actions: {
-                    if !model.filter.isEmpty {
+                    if model.hasClearableFilters || !model.searchText.isEmpty {
                         Button("Clear Filters") {
                             model.clearFilters()
                             model.searchText = ""
                         }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.layout == .board, let split = model.boardNeedsSplitting {
+                // Never a one-column board again: say so, and offer the groupings that would split it.
+                ContentUnavailableView {
+                    Label("Nothing to split", systemImage: "rectangle.split.3x1")
+                } description: {
+                    Text(split.groupings.isEmpty
+                        ? "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column, and no other grouping would spread it out. Try the list."
+                        : "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column. Group by something that would spread it out:")
+                } actions: {
+                    ForEach(split.groupings) { grouping in
+                        Button(DisplayText.grouping(grouping)) { model.grouping = grouping }
+                            .help(DisplayText.help(for: grouping))
+                    }
+                    if split.groupings.isEmpty {
+                        Button("Show as List") { model.layout = .list }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
