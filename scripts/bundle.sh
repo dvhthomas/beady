@@ -36,6 +36,38 @@ cat > "$STAGING/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key><string>me.bitsby.beady.view</string>
+      <key>UTTypeDescription</key><string>Beady View</string>
+      <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict><key>public.filename-extension</key><array><string>beadyview</string></array></dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key><string>me.bitsby.beady.views</string>
+      <key>UTTypeDescription</key><string>Beady Views</string>
+      <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict><key>public.filename-extension</key><array><string>beadyviews</string></array></dict>
+    </dict>
+  </array>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key><string>Beady View</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>LSItemContentTypes</key><array><string>me.bitsby.beady.view</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>Beady Views</string>
+      <key>CFBundleTypeRole</key><string>Editor</string>
+      <key>LSHandlerRank</key><string>Owner</string>
+      <key>LSItemContentTypes</key><array><string>me.bitsby.beady.views</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>
 PLIST

@@ -9,6 +9,8 @@ import SwiftUI
 struct SidebarView: View {
     let model: WorkspaceModel
     let ui: WorkspaceUI
+    var run: (AppCommand) -> Void = { _ in }
+    var importFiles: ([URL]) -> Void = { _ in }
     @Environment(\.theme) private var theme
     @Environment(\.sidebarStyle) private var style
 
@@ -28,6 +30,13 @@ struct SidebarView: View {
         // reproduce because it samples what's behind the window.
         .scrollContentBackground(style == .themed ? .hidden : .automatic)
         .background(style == .themed ? AnyShapeStyle(theme.surface) : AnyShapeStyle(.clear))
+        // A .beadyview dropped anywhere on the sidebar lands under My Views.
+        .dropDestination(for: URL.self) { urls, _ in
+            let files = urls.filter { [ViewLibrary.fileExtension, ViewLibrary.bundleExtension].contains($0.pathExtension.lowercased()) }
+            guard !files.isEmpty else { return false }
+            importFiles(files)
+            return true
+        }
     }
 
     @ViewBuilder
@@ -72,8 +81,28 @@ struct SidebarView: View {
                 Button("Rename…") { ui.promptRename(view) }
                 Button("Duplicate") { model.duplicateView(entry.id) }
                 Divider()
+                Button("Export…") { run(.exportView(entry.id)) }
+                if let file = exportFile(for: view) {
+                    ShareLink(item: file) { Label("Share…", systemImage: "square.and.arrow.up") }
+                }
+                Divider()
                 Button("Delete", role: .destructive) { model.removeView(entry.id) }
             }
+        }
+    }
+
+    /// The view as a file in a scratch folder, for the share sheet, which wants a URL. Written
+    /// when the menu opens; a share that never happens costs one tiny file.
+    private func exportFile(for view: IssueView) -> URL? {
+        guard let data = try? view.documentData() else { return nil }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Beady views", isDirectory: true)
+        let url = folder.appendingPathComponent(view.exportFilename)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            return nil
         }
     }
 

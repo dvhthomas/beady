@@ -63,15 +63,18 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    /// The saved views and what is live on top of each, written back to preferences on every change.
+    /// The saved views and what is live on top of each, written back on every change: views to
+    /// the Library folder, what's live to preferences.
     private var library = ViewLibrary() {
-        didSet { library.save(to: preferences) }
+        didSet { library.save(to: viewsDirectory, preferences: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
-    /// Where views and their live state are remembered between launches.
+    /// Where what's live on each view is remembered between launches.
     /// Standard macOS preferences: ~/Library/Preferences/me.bitsby.beady.plist.
     @ObservationIgnored private let preferences: UserDefaults?
+    /// The Library tier: one .beadyview per view. Nil keeps views in preferences.
+    @ObservationIgnored private let viewsDirectory: URL?
     @ObservationIgnored private let allowsWriting: Bool
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let staleAfter: TimeInterval
@@ -103,6 +106,8 @@ public final class WorkspaceModel {
         /// Nil keeps this model out of any saved state — which is what tests and the
         /// offscreen snapshots want. The app passes `.standard`.
         preferences: UserDefaults? = nil,
+        /// The folder of .beadyview files; nil keeps views in preferences.
+        viewsDirectory: URL? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600,
@@ -113,11 +118,34 @@ public final class WorkspaceModel {
         self.store = store
         self.allowsWriting = allowsWriting
         self.preferences = preferences
+        self.viewsDirectory = viewsDirectory
         self.now = now
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
         journalDeclined = declinedJournal
-        library = ViewLibrary.load(from: preferences)
+        library = ViewLibrary.load(from: viewsDirectory, preferences: preferences)
+    }
+
+    /// Picks up views that changed on disk — a file dropped in, a sync, a hand edit. What's live
+    /// here stays; the folder only ever says what's saved.
+    public func reloadViews() {
+        guard let viewsDirectory else { return }
+        let onDisk = ViewLibrary.load(from: viewsDirectory, preferences: nil).views
+        if onDisk != library.views { library.views = onDisk }
+    }
+
+    /// Adds the views in a .beadyview or .beadyviews document under My Views and shows the last
+    /// of them. Throws a readable error for a file that isn't a view or is from a newer Beady.
+    @discardableResult
+    public func importViews(fromDocument data: Data) throws -> [IssueView] {
+        let added = library.importViews(try ViewLibrary.views(fromDocument: data))
+        if let last = added.last { viewID = last.id }
+        return added
+    }
+
+    /// A view as saved, as a .beadyview document; nil when there is no such view.
+    public func exportDocument(for id: IssueView.ID) throws -> Data? {
+        try library.view(id)?.documentData()
     }
 
     // MARK: Loading

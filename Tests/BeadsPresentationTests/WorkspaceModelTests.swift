@@ -402,8 +402,24 @@ struct ViewSavingTests {
         #expect(frontier.name == "Frontier copy")
         #expect(!frontier.isBuiltIn)
         #expect(frontier.filter == IssueView.builtIn(.frontier)?.filter)
-        #expect(model.views.last?.id == frontier.id, "user views live after the built-ins")
+        #expect(model.views.filter { !$0.isBuiltIn }.map(\.name) == ["Frontier copy", "Mine", "Mine copy"], "user views sit after the built-ins, in name order")
         #expect(model.duplicateView(IssueView.ID("nope")) == nil)
+    }
+
+    @Test("importing a document adds the views under My Views and shows the last one; export writes the saved view")
+    func importAndExport() async throws {
+        let model = await loadedModel()
+        let mine = model.saveAsNewView(name: "Mine")
+        model.layout = .board
+        let data = try #require(try model.exportDocument(for: mine.id))
+        let exported = try #require(try ViewLibrary.views(fromDocument: data).first)
+        #expect(exported.presentation.layout == .list, "what's saved, not what's live")
+
+        let imported = try model.importViews(fromDocument: data)
+        #expect(imported.map(\.name) == ["Mine (imported)"])
+        #expect(model.viewID == imported[0].id)
+        #expect(model.sidebarSections[1].entries.map(\.title) == ["Mine", "Mine (imported)"])
+        #expect(try model.exportDocument(for: IssueView.ID("nope")) == nil)
     }
 
     @Test("the current view carries its live filter and presentation")

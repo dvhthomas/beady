@@ -14,6 +14,8 @@ struct WorkspaceView: View {
     let run: (AppCommand) -> Void
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
     var persistsPreferences = true
+    /// Imports .beadyview files dropped on the sidebar; the session does the work.
+    var importFiles: ([URL]) -> Void = { _ in }
     @AppStorage("view") private var storedView = IssueView.ID.frontier.rawValue
     /// Where older Beadys kept the last lifecycle view; read once and moved over.
     @AppStorage("scope") private var legacyScope = ""
@@ -27,18 +29,20 @@ struct WorkspaceView: View {
         ui: WorkspaceUI,
         themes: ThemeStore? = nil,
         run: @escaping (AppCommand) -> Void = { _ in },
-        persistsPreferences: Bool = true
+        persistsPreferences: Bool = true,
+        importFiles: @escaping ([URL]) -> Void = { _ in }
     ) {
         self.model = model
         self.ui = ui
         self.themes = themes
         self.run = run
         self.persistsPreferences = persistsPreferences
+        self.importFiles = importFiles
     }
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(model: model, ui: ui)
+            SidebarView(model: model, ui: ui, run: run, importFiles: importFiles)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
             // Not `.inspector`: that grows the right pane by pushing the whole window's layout,
