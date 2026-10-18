@@ -172,7 +172,7 @@ struct BDStoreJournalTests {
         let runner = FakeRunner { _ in ok("") }
         let settings = [ConfigSetting(key: "events-journal", value: "true")]
         let store = store(runner)
-        try await store.enableJournal(settings)
+        try await store.writeJournalSettings(settings)
         #expect(commands(runner) == [["config", "set-many", "events-journal=true"]])
         #expect(store.journalCommandPreview(settings) == ["bd -C /tmp/project config set-many events-journal=true"])
     }

@@ -228,6 +228,7 @@ private struct ThemeSwatch: View {
 struct SettingsView: View {
     @Environment(\.theme) private var theme
     let themes: ThemeStore
+    let session: AppSession
 
     var body: some View {
         Form {
@@ -258,6 +259,12 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(theme.secondaryText)
             }
+            Section("Workspaces") {
+                Toggle("Turn on bd's change journal in workspaces that don't have it", isOn: turnsOnJournal)
+                Text("bd 1.3 and later can record who made each change, so Beady can say which agent is working on a bead. It's a workspace setting every bd command follows. Beady turns it on when a writable workspace opens, lists that under Changes with an Undo, and leaves alone a workspace where it was turned off afterwards.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
@@ -267,6 +274,10 @@ struct SettingsView: View {
 
     private func binding<Value>(_ keyPath: ReferenceWritableKeyPath<ThemeStore, Value>) -> Binding<Value> {
         Binding(get: { themes[keyPath: keyPath] }, set: { themes[keyPath: keyPath] = $0 })
+    }
+
+    private var turnsOnJournal: Binding<Bool> {
+        Binding(get: { session.turnsOnJournal }, set: { session.turnsOnJournal = $0 })
     }
 }
 

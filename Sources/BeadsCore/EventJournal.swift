@@ -104,6 +104,19 @@ public enum JournalRetention {
         }
         return settings
     }
+
+    /// What takes a `settings(toEnable:)` write back: the journal off, and bd's own default
+    /// restored wherever that write lowered it. A retention it left alone stays alone.
+    public static func settings(toUndo written: [ConfigSetting]) -> [ConfigSetting] {
+        written.map { setting in
+            switch setting.key {
+            case "events-journal": ConfigSetting(key: setting.key, value: "false")
+            case "events-journal-retain-days": ConfigSetting(key: setting.key, value: String(bdDefaultDays))
+            case "events-journal-retain-rows": ConfigSetting(key: setting.key, value: String(bdDefaultRows))
+            default: setting
+            }
+        }
+    }
 }
 
 /// One journal record: a write that committed, in commit order.

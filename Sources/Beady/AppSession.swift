@@ -21,6 +21,11 @@ final class AppSession {
     private(set) var workspace: BeadsWorkspace?
     private(set) var openError: String?
     private(set) var recentPaths: [String]
+    /// The setting: turn bd's change journal on in workspaces that don't have it. On by default;
+    /// nil preferences (the offscreen snapshots) mean nothing is ever written.
+    var turnsOnJournal: Bool {
+        didSet { preferences?.set(turnsOnJournal, forKey: Self.turnsOnJournalKey) }
+    }
     /// Panels, sheets and column layout, shared with the menu bar.
     let ui = WorkspaceUI()
     /// Appearance, themes and text size.
@@ -36,8 +41,10 @@ final class AppSession {
     private(set) var viewFileError: String?
 
     private static let recentsKey = "recentWorkspaces"
-    /// Workspaces whose owner said no to bd's change journal, so it isn't asked again.
-    private static let declinedJournalsKey = "declinedEventsJournal"
+    private static let turnsOnJournalKey = "turnsOnEventsJournal"
+    /// Workspaces where Beady turned bd's change journal on. One found off again later was
+    /// turned off by hand (an Undo here, or `bd config` elsewhere), and is left that way.
+    private static let journalsTurnedOnKey = "eventsJournalTurnedOn"
 
     /// Where view state is remembered; nil for the offscreen snapshots, which must not disturb
     /// the saved views.
@@ -50,6 +57,9 @@ final class AppSession {
     /// `--workspace <path>` on the command line wins over the most recent workspace.
     init(arguments: [String] = CommandLine.arguments, preferences: UserDefaults? = .standard) {
         self.preferences = preferences
+        turnsOnJournal = preferences.map {
+            $0.object(forKey: Self.turnsOnJournalKey) == nil || $0.bool(forKey: Self.turnsOnJournalKey)
+        } ?? false
         viewsDirectory = preferences == nil ? nil : FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("Beady/views", isDirectory: true)
@@ -78,7 +88,11 @@ final class AppSession {
                 store: store,
                 preferences: preferences,
                 viewsDirectory: viewsDirectory,
-                declinedJournal: declinedJournals.contains(path)
+                journalPolicy: JournalPolicy(
+                    turnsOnAutomatically: turnsOnJournal,
+                    wasTurnedOffByHand: journalsTurnedOn.contains(path),
+                    noteTurnedOn: { [weak self] in self?.rememberJournalTurnedOn(at: path) }
+                )
             )
             openError = nil
             watcher?.stop()
@@ -104,22 +118,27 @@ final class AppSession {
         }
     }
 
-    /// Workspace-level: remembered by path, because the offer is about this database, not this
-    /// window.
-    private var declinedJournals: [String] {
-        UserDefaults.standard.stringArray(forKey: Self.declinedJournalsKey) ?? []
+    /// Workspace-level: remembered by path, because the journal is this database's setting,
+    /// not this window's.
+    private var journalsTurnedOn: [String] {
+        preferences?.stringArray(forKey: Self.journalsTurnedOnKey) ?? []
     }
 
+    private func rememberJournalTurnedOn(at path: String) {
+        guard let preferences, !journalsTurnedOn.contains(path) else { return }
+        preferences.set(journalsTurnedOn + [path], forKey: Self.journalsTurnedOnKey)
+    }
+
+    /// ⌘P, for a workspace the setting left alone: the same write, listed under Changes with
+    /// its Undo.
     func turnOnJournal() {
         guard let model else { return }
         Task { await report(await model.enableJournal()) }
     }
 
-    func declineJournal() {
-        guard let model, let path = workspace?.projectDirectory.path else { return }
-        model.declineJournal()
-        guard !declinedJournals.contains(path) else { return }
-        UserDefaults.standard.set(declinedJournals + [path], forKey: Self.declinedJournalsKey)
+    func undo(_ entry: ChangeRecord) {
+        guard let model else { return }
+        Task { await report(await model.undo(entry)) }
     }
 
     func dismissOpenError() {
@@ -278,7 +297,7 @@ final class AppSession {
         case .backUpNow:
             if let model { Task { await report(await model.backUpNow()) } }
         case .setUpBackup: chooseBackupFolder()
-        case .turnOnJournal: ui.showsJournalOffer = true
+        case .turnOnJournal: turnOnJournal()
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size

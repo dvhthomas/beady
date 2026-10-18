@@ -155,7 +155,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .openSettings: "Settings…"
         case .backUpNow: "Back Up Now"
         case .setUpBackup: "Set Up Backup…"
-        case .turnOnJournal: "Turn On bd's Change Journal…"
+        case .turnOnJournal: "Turn On bd's Change Journal"
         case .setSidebarStyle(let style): "Sidebar: \(style.title)"
         case .chooseTheme: "Theme…"
         case .setTextSize(let size): "Text Size: \(size.title)"
@@ -333,7 +333,7 @@ public enum CommandCatalog {
         commands.append(.openSettings)
         if model.hasClearableFilters || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
-        // Still here after a "not now": the palette is where a change of mind goes.
+        // With the setting off, or after an Undo: the palette is where a change of mind goes.
         if model.canEdit, model.journal.canBeTurnedOn { commands.append(.turnOnJournal) }
         commands.append(.closeWorkspace)
         // The sidebar's rows, Starred included only once something is starred.

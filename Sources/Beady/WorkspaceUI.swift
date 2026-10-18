@@ -14,8 +14,6 @@ final class WorkspaceUI {
     var showsThemes = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
-    /// The question about turning on bd's change journal.
-    var showsJournalOffer = false
     /// The Save as New View sheet: name and icon live here so the sheet's fields are observable.
     var showsSaveAsNewView = false
     var newViewName = ""

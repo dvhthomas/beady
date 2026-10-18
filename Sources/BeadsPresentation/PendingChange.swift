@@ -25,12 +25,21 @@ public struct PendingChange: Identifiable, Sendable {
 
 /// One entry in the session's change history.
 public struct ChangeRecord: Identifiable, Sendable {
+    /// How to take a change back. Only the writes Beady makes on its own behalf offer one:
+    /// a bead's change is confirmed first and reversed by another change.
+    public enum Undo: Equatable, Sendable {
+        /// Writes these settings to the workspace's bd config.
+        case journalSettings([ConfigSetting])
+    }
+
     public let id = UUID()
     public let date: Date
     public let summary: String
     public let issueID: IssueID?
     public let succeeded: Bool
     public let message: String?
+    /// Nil once used, or when there's nothing to take back.
+    public internal(set) var undo: Undo? = nil
 }
 
 /// What a dragged bead carries. The private prefix means text dragged in from another app (an id

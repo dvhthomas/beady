@@ -84,6 +84,19 @@ struct JournalRetentionTests {
         #expect(JournalRetention.settings(toEnable: unknown) == [ConfigSetting(key: "events-journal", value: "true")])
     }
 
+    @Test("undoing writes the reverse: the journal off, and bd's defaults back where Beady lowered them")
+    func undo() {
+        let written = JournalRetention.settings(toEnable: JournalSettings(isEnabled: false, retainDays: 7, retainRows: 100_000))
+        #expect(JournalRetention.settings(toUndo: written) == [
+            ConfigSetting(key: "events-journal", value: "false"),
+            ConfigSetting(key: "events-journal-retain-days", value: "7"),
+            ConfigSetting(key: "events-journal-retain-rows", value: "100000"),
+        ])
+        let kept = [ConfigSetting(key: "events-journal", value: "true")]
+        #expect(JournalRetention.settings(toUndo: kept) == [ConfigSetting(key: "events-journal", value: "false")],
+                "a retention that was left alone stays alone")
+    }
+
     @Test("the retained day covers the window Beady warns about, with room to spare")
     func coversActivityWindow() {
         #expect(TimeInterval(JournalRetention.days) * 86_400 > 600)
