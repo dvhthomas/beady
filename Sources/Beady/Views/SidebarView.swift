@@ -17,6 +17,7 @@ struct SidebarView: View {
                     Label(entry.title, systemImage: symbol(for: entry.source))
                         .badge(entry.count)
                         .tag(entry.source)
+                        .help(entry.help)
                 }
             }
         }

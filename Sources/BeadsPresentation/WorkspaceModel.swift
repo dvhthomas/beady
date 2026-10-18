@@ -308,7 +308,13 @@ public final class WorkspaceModel {
     public func filterOptions(for field: FilterField) -> [FilterMenuOption] {
         guard let snapshot else { return [] }
         return FilterOptions.options(for: field, source: source, filter: filter, in: snapshot, now: now()).map {
-            FilterMenuOption(value: $0.value, title: valueTitle($0.value, field: field), count: $0.count, isSelected: $0.isSelected)
+            FilterMenuOption(
+                value: $0.value,
+                title: valueTitle($0.value, field: field),
+                count: $0.count,
+                isSelected: $0.isSelected,
+                help: DisplayText.help(forValue: $0.value, in: field, catalog: snapshot.catalog)
+            )
         }
     }
 
@@ -323,7 +329,11 @@ public final class WorkspaceModel {
                 valuesTitle: rule.field == .blocked ? "" : values,
                 operators: rule.field.operators.map {
                     OperatorChoice(op: $0, title: DisplayText.operatorTitle($0, valueCount: 2, field: rule.field), isSelected: $0 == rule.op)
-                }
+                },
+                fieldHelp: DisplayText.help(for: rule.field),
+                valuesHelp: rule.values.count == 1
+                    ? rule.values.first.flatMap { DisplayText.help(forValue: $0, in: rule.field, catalog: snapshot?.catalog ?? .builtIn) }
+                    : nil
             )
         }
     }
@@ -360,13 +370,13 @@ public final class WorkspaceModel {
     public var sidebarViews: [SidebarEntry] {
         let scopes: [Scope] = [.open, .ready, .inFlight, .blocked, .deferred, .closed, .all]
         var entries = scopes.map { scope in
-            SidebarEntry(source: .lifecycle(scope), title: DisplayText.scope(scope), count: total(in: .lifecycle(scope)))
+            SidebarEntry(source: .lifecycle(scope), title: DisplayText.scope(scope), count: total(in: .lifecycle(scope)), help: DisplayText.help(for: scope))
         }
         // Starred only earns a place in the sidebar once something is starred.
         let starred = ViewSource.label(IssueMark.starred.label)
         let count = total(in: starred)
         if count > 0 {
-            entries.append(SidebarEntry(source: starred, title: IssueMark.starred.title, count: count))
+            entries.append(SidebarEntry(source: starred, title: IssueMark.starred.title, count: count, help: ""))
         }
         return entries
     }
