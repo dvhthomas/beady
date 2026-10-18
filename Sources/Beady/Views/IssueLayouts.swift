@@ -334,7 +334,7 @@ struct IssueBoardView: View {
         let model = model
         let ui = ui
         monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
-            guard model.layout == .board, !ui.isSheetOpen, !ui.isSearchFocused,
+            guard model.presentedLayout == .board, !ui.isSheetOpen, !ui.isSearchFocused,
                   !(NSApp.keyWindow?.firstResponder is NSTextView) else { return event }
             switch event.keyCode {
             case 126: model.moveSelection(.up)

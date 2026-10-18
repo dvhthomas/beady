@@ -101,7 +101,7 @@ struct FilterBar: View {
     /// The layout is the one display choice worth a click rather than a menu; the Display
     /// popover keeps the same picker for people who go looking there.
     private var layoutSwitcher: some View {
-        Picker("Layout", selection: $model.layout) {
+        Picker("Layout", selection: presentedLayout) {
             ForEach(WorkspaceModel.Layout.allCases) { layout in
                 Image(systemName: DisplayText.layoutSymbol(layout))
                     .help(DisplayText.layout(layout))
@@ -111,7 +111,12 @@ struct FilterBar: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .fixedSize()
-        .help("List, Tree or Board (⌘1, ⌘2, ⌘3)")
+        .help(model.isBoardShownAsList ? "Shown as a list: the board has nothing to split" : "List, Tree or Board (⌘1, ⌘2, ⌘3)")
+    }
+
+    /// The switcher shows what is drawn; picking a segment is an explicit choice.
+    private var presentedLayout: Binding<WorkspaceModel.Layout> {
+        Binding(get: { model.presentedLayout }, set: { model.chooseLayout($0) })
     }
 
     /// Single-key shortcuts live on real (invisible) buttons rather than menu items, so they
@@ -385,7 +390,7 @@ struct DisplayOptionsView: View {
 
     var body: some View {
         Form {
-            Picker("Layout", selection: $model.layout) {
+            Picker("Layout", selection: Binding(get: { model.presentedLayout }, set: { model.chooseLayout($0) })) {
                 ForEach(WorkspaceModel.Layout.allCases) { layout in
                     Label(DisplayText.layout(layout), systemImage: DisplayText.layoutSymbol(layout)).tag(layout)
                 }
@@ -398,13 +403,13 @@ struct DisplayOptionsView: View {
                         .help(DisplayText.help(for: grouping))
                 }
             }
-            .disabled(model.layout == .tree)
+            .disabled(model.presentedLayout == .tree)
             Picker("Ordering", selection: $model.ordering) {
                 ForEach(IssueSort.allCases) { sort in
                     Text(DisplayText.sort(sort)).tag(sort)
                 }
             }
-            if model.layout == .list {
+            if model.presentedLayout == .list {
                 Section("Columns") {
                     ForEach(ListColumn.allCases) { column in
                         Toggle(column.title(for: model.ordering), isOn: Binding(

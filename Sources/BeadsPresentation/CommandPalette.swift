@@ -324,8 +324,8 @@ public enum CommandCatalog {
             commands += [.saveViewAs, .resetView]
         }
         commands += [.exportView(model.viewID), .importViews]
-        if model.layout == .tree { commands += [.expandAll, .collapseAll] }
-        if model.layout == .list {
+        if model.presentedLayout == .tree { commands += [.expandAll, .collapseAll] }
+        if model.presentedLayout == .list {
             commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }
             commands.append(.resetColumns)
         }

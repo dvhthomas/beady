@@ -329,6 +329,11 @@ enum SnapshotMode {
         model.reset()
         model.viewID = .pipeline
         captureWorkspace("21-pipeline-board")
+        // On a workspace whose live beads sit in one lifecycle column, 21 is a list; asking for
+        // the board anyway shows what there is to split.
+        model.chooseLayout(.board)
+        captureWorkspace("21b-pipeline-board-asked-for")
+        model.showBoardAsList()
         model.viewID = .everything
         model.toggleFilterValue(StatusCategory.active.rawValue, in: .lifecycle)
         model.layout = .board

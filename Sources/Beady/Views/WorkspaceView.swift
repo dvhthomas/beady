@@ -145,7 +145,7 @@ struct WorkspaceView: View {
                 Button("Try Again") { Task { await model.load() } }
             }
         case .loaded:
-            if model.visibleIssues.isEmpty && model.layout != .board {
+            if model.visibleIssues.isEmpty && model.presentedLayout != .board {
                 ContentUnavailableView {
                     Label(model.hasClearableFilters || !model.searchText.isEmpty ? "Nothing matches" : "No issues", systemImage: "line.3.horizontal.decrease.circle")
                 } description: {
@@ -159,26 +159,25 @@ struct WorkspaceView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.layout == .board, let split = model.boardNeedsSplitting {
-                // Never a one-column board again: say so, and offer the groupings that would split it.
+            } else if model.presentedLayout == .board, let split = model.boardNeedsSplitting {
+                // Only reached by asking for the board: a view never opens here on its own. Say
+                // so, and offer the groupings that would split it, or the list.
                 ContentUnavailableView {
                     Label("Nothing to split", systemImage: "rectangle.split.3x1")
                 } description: {
                     Text(split.groupings.isEmpty
-                        ? "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column, and no other grouping would spread it out. Try the list."
-                        : "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column. Group by something that would spread it out:")
+                        ? "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column, and no other grouping would spread it out."
+                        : "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column. Group by something that would spread it out, or show the list:")
                 } actions: {
                     ForEach(split.groupings) { grouping in
                         Button(DisplayText.grouping(grouping)) { model.grouping = grouping }
                             .help(DisplayText.help(for: grouping))
                     }
-                    if split.groupings.isEmpty {
-                        Button("Show as List") { model.layout = .list }
-                    }
+                    Button("Show as List") { model.showBoardAsList() }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                switch model.layout {
+                switch model.presentedLayout {
                 case .list: IssueListView(model: model, columns: ui.columns)
                 case .board: IssueBoardView(model: model, ui: ui)
                 case .tree: IssueOutlineView(model: model)
