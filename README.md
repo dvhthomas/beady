@@ -14,7 +14,7 @@ behind validation, a preview of the exact `bd` commands, and a read-back check.
 
 The screenshot above is the In Flight view: work grouped by status, the pinned P0 bug on top, and
 the details of the selected bead — including what it's holding up — alongside. The sidebar is
-views: each row says with its glyph whether it opens as a list, a board or a tree.
+views, each with an icon that says what it answers; the chip that defines In Flight is locked.
 
 ## What it's for
 
@@ -22,8 +22,9 @@ views: each row says with its glyph whether it opens as a list, a board or a tre
   layout, grouping and ordering. The built-ins answer the questions you actually ask — **Frontier**
   (what's ready), **In Flight**, **Stuck** (what's blocked), **Pipeline** (everything live plus a
   week of done, as a board), **Recent**, **Landed**, **Deferred**, **Everything** and **Starred** —
-  and your own views sit under them. Add a chip to a built-in and a dot says it's modified; save it
-  as a new view, or reset.
+  and your own views sit under them. A built-in's own rules are locked chips; add one on top and
+  a dot says it's modified, to save as a new view or reset. Duplicate a built-in to change what
+  it means.
 - **Filter the way you think.** Pick a property, tick values; rules read as chips —
   `Priority · is any of · P1, P2 · ✕` — and combine with AND.
 - **Three ways to look.** A resizable table, a tree that keeps ancestors visible, and a board you
@@ -169,10 +170,14 @@ workspace reopens on launch; `--workspace /path/to/project` overrides it.
   once something is starred. Open and Closed are one Lifecycle chip away. Categories come from
   `bd statuses`, so custom statuses land in the right place. Each view keeps its own filters,
   search, layout, grouping and ordering, so switching views never carries filters along.
-- **Saving views**: a built-in's filter is its definition, so adding a chip to Frontier shows a
+- **Saving views**: a built-in's filter is its definition, so its chips are locked — a lock
+  instead of ✕, no operator menu, and *Clear* leaves them — while adding a chip on top shows a
   dot and a **Save** control with *Save as new view…* and *Reset*; its layout, grouping and
-  ordering are simply remembered. Your own views, under **My Views**, remember everything and
-  offer *Save* too (⌘S). Right-click one to rename, duplicate, export, share or delete it; the
+  ordering are simply remembered. Right-click a built-in to *Duplicate* it: the copy is yours to
+  edit. Your own views, under **My Views**, remember everything and offer *Save* too (⌘S). Each
+  has an icon of its own, picked from a small set (bookmark by default) when it's saved or from
+  *Change Icon…*; the built-ins ship with theirs, and no row ever shows the layout glyph.
+  Right-click a user view to rename, change its icon, duplicate, export, share or delete it; the
   `+` on the section saves the current view under a name. Views are `.beadyview` files (JSON with
   a `beadyView: 1` header) in `~/Library/Application Support/Beady/views`, read at launch and
   watched; a `.beadyviews` file is an array of them. Double-click one in Finder, drop it on the
