@@ -94,6 +94,21 @@ public enum DisplayText {
         }
     }
 
+    /// The details pane with nothing selected. When there is history behind it, the Back and
+    /// Forward arrows are the only other thing in the pane, so the text says what they do.
+    public static func noSelection(canGoBack: Bool, canGoForward: Bool) -> String {
+        switch (canGoBack, canGoForward) {
+        case (true, true):
+            "Select a bead to see its details, or step back (⌘[) or forward (⌘]) through the ones you looked at."
+        case (true, false):
+            "Select a bead to see its details, or go back to the last one you looked at (⌘[)."
+        case (false, true):
+            "Select a bead to see its details, or go forward to the one you came back from (⌘])."
+        case (false, false):
+            "Select a bead to see its details."
+        }
+    }
+
     public static func field(_ field: FilterField) -> String {
         switch field {
         case .lifecycle: "Lifecycle"

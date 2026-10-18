@@ -10,12 +10,17 @@ struct IssueDetailView: View {
     }
 
     var body: some View {
+        // The history bar is pinned to the top in both states, where it sits when a bead is
+        // selected; what's below takes the rest of the height, so the empty state centres in
+        // the pane rather than hanging just under the arrows.
         VStack(alignment: .leading, spacing: 0) {
             if model.canGoBack || model.canGoForward {
                 historyBar
             }
             content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: model.selection) { model.endEditing() }
         .onChange(of: model.editRequests) {
             if let id = model.selection { model.beginEditing(id) }
@@ -78,7 +83,7 @@ struct IssueDetailView: View {
                 ContentUnavailableView(
                     "No Selection",
                     systemImage: "doc.text.magnifyingglass",
-                    description: Text("Select an issue to see its details.")
+                    description: Text(DisplayText.noSelection(canGoBack: model.canGoBack, canGoForward: model.canGoForward))
                 )
             }
         }

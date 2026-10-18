@@ -526,6 +526,21 @@ struct LockedBuiltInTests {
 
 @Suite("Display text")
 struct DisplayTextTests {
+    @Test("the empty details pane says what the arrows do, only when they do something")
+    func noSelection() {
+        let plain = DisplayText.noSelection(canGoBack: false, canGoForward: false)
+        #expect(plain == "Select a bead to see its details.")
+        let back = DisplayText.noSelection(canGoBack: true, canGoForward: false)
+        #expect(back.contains("go back") && back.contains("⌘[") && !back.contains("⌘]"))
+        let forward = DisplayText.noSelection(canGoBack: false, canGoForward: true)
+        #expect(forward.contains("forward") && forward.contains("⌘]") && !forward.contains("⌘["))
+        let both = DisplayText.noSelection(canGoBack: true, canGoForward: true)
+        #expect(both.contains("⌘[") && both.contains("⌘]"))
+        for text in [plain, back, forward, both] {
+            #expect(text.hasPrefix("Select a bead") && text.hasSuffix("."), Comment(rawValue: text))
+        }
+    }
+
     @Test("statuses, priorities, windows and fields read naturally")
     func text() {
         #expect(DisplayText.status("in_progress") == "In Progress")

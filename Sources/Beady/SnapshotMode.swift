@@ -402,6 +402,11 @@ enum SnapshotMode {
             model.selection = waiting.id
             model.selection = blocker.id
             capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
+            // Nothing selected but history behind it: the bar stays at the top and the placeholder
+            // centres in what's left, at two heights, and says what the arrows do.
+            model.selection = nil
+            capture("15b-detail-empty-with-history", IssueDetailView(model: model).frame(width: 420, height: 700))
+            capture("15c-detail-empty-short", IssueDetailView(model: model).frame(width: 420, height: 340))
         }
 
         model.selection = nil
