@@ -395,6 +395,15 @@ enum SnapshotMode {
         session.ui.paletteQuery = ""
         session.themes.preview(Theme.dark(named: "Dracula"))
         capture("11-themes", ThemePickerView(themes: session.themes, onClose: {}))
+        // The Reset Configuration sheet, over a made-up but typical inventory: snapshot runs keep
+        // preferences off, so there is nothing real to count.
+        capture("19-reset-configuration", ResetConfigurationSheet(
+            inventory: ConfigurationInventory(
+                presentKeys: ["recentWorkspaces", "views", "liveViews", "view", "appearance", "textSize", "issueListColumns", "inspectorWidth", "eventsJournalTurnedOn", "NSNavPanelExpandedSizeForOpenMode"],
+                recentWorkspaces: 3, journalWorkspaces: 2, libraryViews: 4
+            ),
+            onExport: {}, onReset: { _ in }, onCancel: {}
+        ))
         // Previewing a light theme from a dark setting: the case where the controls went grey.
         session.themes.preview(Theme.light(named: "Solarized Light"))
         capture("11b-themes-light-preview", ThemePickerView(themes: session.themes, onClose: {}))

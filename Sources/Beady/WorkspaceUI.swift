@@ -12,6 +12,8 @@ final class WorkspaceUI {
     var showsPalette = false
     var showsShortcuts = false
     var showsThemes = false
+    /// The Reset Configuration sheet, from ⌘P or Settings.
+    var showsResetConfiguration = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
     /// The Save as New View sheet: name and icon live here so the sheet's fields are observable.
@@ -68,7 +70,7 @@ final class WorkspaceUI {
 
     /// True while anything modal is up, so background key handling stands down.
     var isSheetOpen: Bool {
-        showsPalette || showsThemes || showsNewBead || showsShortcuts || showsSaveAsNewView || renamingView != nil || changingIconOf != nil
+        showsPalette || showsThemes || showsNewBead || showsShortcuts || showsSaveAsNewView || renamingView != nil || changingIconOf != nil || showsResetConfiguration
     }
 
     /// Opens the palette empty, wherever it was left last time.

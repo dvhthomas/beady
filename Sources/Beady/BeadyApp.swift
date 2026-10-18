@@ -105,11 +105,27 @@ struct RootView: View {
         } message: {
             Text(session.openError ?? "")
         }
+        .sheet(isPresented: showsResetConfiguration) {
+            ResetConfigurationSheet(
+                inventory: session.configurationInventory(),
+                onExport: { session.exportLibraryViews() },
+                onReset: { session.resetConfiguration(deletingLibrary: $0) },
+                onCancel: { session.ui.showsResetConfiguration = false }
+            )
+            .themed(session.themes)
+        }
         .alert("Couldn't Import View", isPresented: showsViewFileError) {
             Button("OK", role: .cancel) { session.dismissViewFileError() }
         } message: {
             Text(session.viewFileError ?? "")
         }
+    }
+
+    private var showsResetConfiguration: Binding<Bool> {
+        Binding(
+            get: { session.ui.showsResetConfiguration },
+            set: { session.ui.showsResetConfiguration = $0 }
+        )
     }
 
     private var showsViewFileError: Binding<Bool> {

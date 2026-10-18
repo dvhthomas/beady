@@ -97,6 +97,14 @@ final class ThemeStore {
         }
     }
 
+    /// Back to how a fresh install looks: the system appearance, the default themes, text size
+    /// and sidebar. Used by Reset Configuration, which wipes the saved keys straight after.
+    func restoreDefaults() {
+        selection = ThemeSelection()
+        textSize = .default
+        sidebarStyle = .themed
+    }
+
     /// Light/dark applies to the window chrome too, not just our own drawing.
     private func applyToApp() {
         NSApp?.appearance = switch selection.effectiveAppearance {
