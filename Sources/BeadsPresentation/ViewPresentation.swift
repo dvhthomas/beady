@@ -86,4 +86,9 @@ public struct SidebarSection: Identifiable, Equatable, Sendable {
     public let canAdd: Bool
 
     public var id: Kind { kind }
+
+    /// Whether collapsing the section would hide anything. The disclosure is always drawn, so the
+    /// header never changes shape under the pointer; it is merely disabled when there is nothing
+    /// to fold away.
+    public var canCollapse: Bool { !entries.isEmpty }
 }

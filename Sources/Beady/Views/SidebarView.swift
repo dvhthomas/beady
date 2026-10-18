@@ -14,15 +14,23 @@ struct SidebarView: View {
     @Environment(\.theme) private var theme
     @Environment(\.sidebarStyle) private var style
 
+    /// Sections the user has folded, by kind; the rest are open. Remembered like the rest of the
+    /// sidebar's state.
+    @AppStorage("collapsedSidebarSections") private var collapsedSections = ""
+
     var body: some View {
+        // Plain rows rather than List sections: a sidebar Section's header grows a hover-only
+        // disclosure control at its trailing edge, which shoved the + aside just as the pointer
+        // reached it. Drawing the header ourselves keeps the + and the chevron where they are.
         List(selection: selection) {
             ForEach(model.sidebarSections) { section in
-                Section {
+                if !section.title.isEmpty {
+                    header(section)
+                }
+                if isExpanded(section) {
                     ForEach(section.entries) { entry in
                         row(entry)
                     }
-                } header: {
-                    header(section)
                 }
             }
         }
@@ -39,23 +47,56 @@ struct SidebarView: View {
         }
     }
 
-    @ViewBuilder
+    /// Title, then the + where the section takes one, then the disclosure: both at a fixed size,
+    /// always drawn, so nothing moves under the pointer. The disclosure is disabled, not hidden,
+    /// when there is nothing to fold away.
     private func header(_ section: SidebarSection) -> some View {
-        if section.canAdd {
-            HStack {
-                Text(section.title)
-                Spacer()
+        HStack(spacing: 2) {
+            Text(section.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            if section.canAdd {
                 Button {
                     ui.promptSaveAsNewView(suggesting: model.view.isBuiltIn ? "" : model.view.name)
                 } label: {
                     Image(systemName: "plus")
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderless)
                 .help("Save the current view as a new view")
             }
-        } else if !section.title.isEmpty {
-            Text(section.title)
+            Button {
+                setExpanded(!isExpanded(section), section)
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .rotationEffect(.degrees(isExpanded(section) ? 0 : -90))
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .disabled(!section.canCollapse)
+            .help(section.canCollapse ? (isExpanded(section) ? "Hide" : "Show") : "Nothing to hide")
         }
+        .padding(.top, section.kind == .views ? 0 : 10)
+        .selectionDisabled()
+        .listRowSeparator(.hidden)
+    }
+
+    private func isExpanded(_ section: SidebarSection) -> Bool {
+        !collapsedKinds.contains(section.kind.rawValue)
+    }
+
+    private func setExpanded(_ expanded: Bool, _ section: SidebarSection) {
+        var kinds = collapsedKinds
+        if expanded { kinds.remove(section.kind.rawValue) } else { kinds.insert(section.kind.rawValue) }
+        collapsedSections = kinds.sorted().joined(separator: ",")
+    }
+
+    private var collapsedKinds: Set<String> {
+        Set(collapsedSections.split(separator: ",").map(String.init))
     }
 
     private func row(_ entry: SidebarEntry) -> some View {

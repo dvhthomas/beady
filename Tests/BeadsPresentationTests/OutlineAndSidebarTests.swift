@@ -102,9 +102,12 @@ struct WorkspaceModelOutlineTests {
         #expect(model.sidebarSections.map(\.canAdd) == [false, true])
         #expect(model.sidebarSections[0].entries.map(\.id) == IssueView.builtIns.map(\.id).filter { $0 != .starred })
         #expect(model.sidebarSections[1].entries.isEmpty, "the section is there for its +")
+        // The disclosure is always drawn, so a section says whether it has anything to collapse.
+        #expect(model.sidebarSections.map(\.canCollapse) == [true, false])
 
         model.saveAsNewView(name: "Mine")
         #expect(model.sidebarSections[1].entries.map(\.title) == ["Mine"])
+        #expect(model.sidebarSections[1].canCollapse)
 
         let starred = WorkspaceModel(title: "demo", store: StubStore([makeIssue("a", labels: [IssueMark.starred.label])]), now: { t0 })
         await starred.load()
