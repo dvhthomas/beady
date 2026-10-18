@@ -67,3 +67,28 @@ which field changed, so only creation ("created") is attributed from the journal
   ([issue #19](https://github.com/dvhthomas/beady/issues/19)).
 - The checkpoint isn't persisted between launches. Each open reads what the journal retains, which
   the one-day retention keeps small.
+
+## Amendment, 2026-10-18: on by default
+
+Owner decision: "turn on the bd change journal by default — this is a design decision I want to
+make." Point 2 above ("an offer, never an assumption") is reversed. The reasoning: the warnings
+and the actor names are the point of Beady on a shared database, and asking every owner of every
+workspace to say yes meant most workspaces never had them.
+
+What it becomes:
+
+- **On open**, with bd 1.3.0 or newer, the journal off and the workspace writable, Beady turns the
+  journal on itself with the same `bd config set-many` and the same small retention as the offer
+  used, still leaving alone any retention someone chose. The toolbar's "Who's working?" button and
+  the alert go away.
+- **Visible and undoable.** The command appears in the Changes menu like any other write, with the
+  workspace named, and an **Undo** that runs the matching `set-many` back to off. No confirmation
+  sheet first: the sheet guards changes to beads, and this is Beady's own setting of the
+  workspace, made once.
+- **A switch, not a prompt.** Settings gets "Turn on bd's change journal in workspaces that don't
+  have it", on by default. Off, Beady behaves as before this amendment minus the toolbar offer:
+  ⌘P → "Turn On bd's Change Journal…" remains. The per-workspace "Not Now" list is retired; a
+  workspace where the owner turned the journal off by hand after Beady turned it on is left off
+  (remembered by path, as the declined list was).
+- **Read-only workspaces and old bd** are unchanged: nothing is written, FSEvents and the
+  interaction log carry on.
