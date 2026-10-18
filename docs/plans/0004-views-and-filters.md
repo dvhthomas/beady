@@ -86,7 +86,7 @@ sidebar shows today becomes a View over *all beads*:
 | Today's source | Becomes | Filter |
 | --- | --- | --- |
 | Open | built-in view | `lifecycle · is · active` |
-| Ready | built-in view **Frontier** | `ready · is · yes` |
+| Ready | built-in view **Ready** | `ready · is · yes` |
 | In Flight | built-in view | `lifecycle · is · wip` |
 | Blocked | built-in view **Stuck** | `blocked · is · yes` |
 | Deferred | built-in view | `lifecycle · is · frozen` |
@@ -110,9 +110,9 @@ categories the view's Lifecycle rule allows*; with no Lifecycle rule, all of the
   do on a built-in is temporary: add rules on top, flip the layout, grouping, ordering or columns.
   Those show the modified dot and the Save control offers only **Save as new view…** and
   **Reset**. **Duplicate** in a built-in's context menu makes a user view with the same filter and
-  presentation, unlocked, under MY VIEWS, which is the one way to get "Frontier, but only P0/P1"
+  presentation, unlocked, under MY VIEWS, which is the one way to get "Ready, but only P0/P1"
   as a permanent thing. The presentation flip on a built-in is still remembered per view across
-  launches, as today, so Frontier stays a priority-sorted list and Pipeline stays a board.
+  launches, as today, so Ready stays a priority-sorted list and Pipeline stays a board.
 - **User views own everything.** Filter and presentation are both saved; changing either shows the
   modified dot with **Save**, **Save as new view**, **Reset**.
 - **Layout is part of a view, and flipping it is cheap.** ⌘1/2/3 and the header switcher keep
@@ -150,7 +150,7 @@ Ready, Blocked, Deferred, Pinned, Hooked, In Flight, Frozen, Done are not plain 
 Ready is *active, no open `blocks` upstream, not deferred into the future, not held by a gate*;
 Deferred is *the `deferred` status, frozen on purpose until a date or forever*; Blocked is
 *computed from the dependency graph, not the stored `blocked` status*. Someone reading the sidebar
-for the first time can't know that, and the names of the built-in views (Frontier, Stuck, Landed)
+for the first time can't know that, and the names of the built-in views (Stuck, Landed)
 lean on it.
 
 One pure glossary in BeadsPresentation, `DisplayText.help(for:)`, keyed by the thing being
@@ -168,7 +168,7 @@ status it is; the bd name is in the help text and ⌘P matches both.
 
 | View | Filter | Layout · grouping · order |
 | --- | --- | --- |
-| **Frontier** (Ready) | ready is yes | List · none · priority; Blocked-by off |
+| **Ready** | ready is yes | List · none · priority; Blocked-by off |
 | **In Flight** | lifecycle is wip | List · status · recently updated |
 | **Stuck** (Blocked) | blocked is yes | List · none · priority; Blocked-by column on |
 | **Pipeline** | closed within 7d (new semantics) | **Board** · lifecycle · priority |
@@ -192,7 +192,7 @@ from **Change Icon…** in its context menu. A duplicate keeps its source's icon
 
 | Built-in | Symbol | Why |
 | --- | --- | --- |
-| Frontier | `play.circle` | what can start now |
+| Ready | `play.circle` | what can start now, bd's own word |
 | In Flight | `circle.lefthalf.filled` | bd's own in-progress glyph |
 | Stuck | `hourglass` | waiting on something upstream; quiet, not an alarm |
 | Pipeline | `flowchart` | work flowing through stages |
@@ -286,7 +286,7 @@ stops being a sidebar concept; it's a chip.
 │ ▾ mapshop · demo         │  ← workspace switcher: recents, Open Other…
 │──────────────────────────│
 │ VIEWS                    │
-│ ▷ Frontier            3  │
+│ ▷ Ready               3  │
 │ ◐ In Flight           5  │
 │ ⧗ Stuck               6  │
 │ ⇶ Pipeline           18  │  ← the board you actually use
@@ -327,7 +327,7 @@ base, not views of their own. Views come last.
 │                          │
 │ SHOW                     │
 │ ● Everything         18  │
-│ ○ Frontier            3  │  single-click: sets the chip
+│ ○ Ready            3  │  single-click: sets the chip
 │ ○ Active              8  │  ⌘-click: adds to it
 │ ○ In Flight           5  │
 │ ○ Stuck               6  │
@@ -343,8 +343,8 @@ base, not views of their own. Views come last.
 
 - **Most literal reading of "layout primary, lifecycle is a filter."** You pick how to look, then
   what to look at.
-- Problem: a global layout fights the per-view memory that makes Frontier-as-list and
-  Pipeline-as-board both work. Clicking Board while on Frontier gives a one-column board, which is
+- Problem: a global layout fights the per-view memory that makes Ready-as-list and
+  Pipeline-as-board both work. Clicking Board while on Ready gives a one-column board, which is
   the exact complaint we started with, now one click more likely.
 - Problem: the SHOW rows are the checkbox wall from before plan 0001 wearing radio buttons. Two
   selection models in one List (view rows vs. shortcut rows) was what broke then.
