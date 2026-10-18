@@ -97,7 +97,7 @@ struct BDWriteIntegrationTests {
             print("journal check skipped: this bd is older than 1.3")
             return
         }
-        try await store.enableJournal(JournalRetention.settings(toEnable: settings))
+        try await store.writeJournalSettings(JournalRetention.settings(toEnable: settings))
         #expect(await store.journalStatus().isOn)
 
         // Catch up first, so only this test's write is new.

@@ -12,6 +12,8 @@ struct WorkspaceView: View {
     var themes: ThemeStore?
     /// Runs a command; the session decides what each one means.
     let run: (AppCommand) -> Void
+    /// Takes back a change listed under Changes that offers it; the session reports a failure.
+    let undo: (ChangeRecord) -> Void
     /// Off for offscreen snapshots, so they neither pick up nor overwrite the saved view.
     var persistsPreferences = true
     @AppStorage("scope") private var storedScope = Scope.open.rawValue
@@ -25,12 +27,14 @@ struct WorkspaceView: View {
         ui: WorkspaceUI,
         themes: ThemeStore? = nil,
         run: @escaping (AppCommand) -> Void = { _ in },
+        undo: @escaping (ChangeRecord) -> Void = { _ in },
         persistsPreferences: Bool = true
     ) {
         self.model = model
         self.ui = ui
         self.themes = themes
         self.run = run
+        self.undo = undo
         self.persistsPreferences = persistsPreferences
     }
 
@@ -185,22 +189,6 @@ struct WorkspaceView: View {
         }
     }
 
-    /// Shown only while there's a choice to make: bd is new enough to keep a change journal,
-    /// it's off, and nobody has said no. Once it's on, or declined, it gets out of the way.
-    @ViewBuilder
-    private var journalIndicator: some View {
-        if model.offersJournal {
-            Button {
-                run(.turnOnJournal)
-            } label: {
-                Label("Who's working?", systemImage: "person.2.badge.gearshape")
-            }
-            .labelStyle(.titleAndIcon)
-            .controlSize(.small)
-            .help("bd can record who made each change, so Beady can say which agent is working on a bead. Click to see what turning it on changes.")
-        }
-    }
-
     private var symbol: String {
         if model.isBackingUp { return "arrow.triangle.2.circlepath" }
         return model.backup.lastSync == nil ? "externaldrive.badge.exclamationmark" : "externaldrive.badge.checkmark"
@@ -263,7 +251,6 @@ struct WorkspaceView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            journalIndicator
             backupIndicator
 
             Button {
@@ -288,6 +275,14 @@ struct WorkspaceView: View {
                         )
                     }
                     .help(record.message ?? "Applied and verified")
+                    if record.undo != nil {
+                        Button {
+                            undo(record)
+                        } label: {
+                            Label("Undo: turn the journal back off", systemImage: "arrow.uturn.backward")
+                        }
+                        .help("Writes the journal settings back to off, in this workspace's bd config")
+                    }
                 }
             } label: {
                 Label("Changes", systemImage: "clock.arrow.circlepath")

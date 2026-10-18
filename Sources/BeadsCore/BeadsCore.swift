@@ -30,9 +30,9 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
     func journalStatus() async -> JournalStatus
     /// Journal records after a checkpoint, oldest first.
     func journalRecords(after checkpoint: Int64) async throws -> JournalRead
-    /// Writes the journal's settings to the workspace's bd config.
-    func enableJournal(_ settings: [ConfigSetting]) async throws
-    /// The exact commands `enableJournal` would run, for the user to see first.
+    /// Writes the journal's settings to the workspace's bd config: on, or back off.
+    func writeJournalSettings(_ settings: [ConfigSetting]) async throws
+    /// The exact commands `writeJournalSettings` would run.
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String]
 }
 
@@ -40,6 +40,6 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
 public extension BeadsStore {
     func journalStatus() async -> JournalStatus { .unsupported(nil) }
     func journalRecords(after checkpoint: Int64) async throws -> JournalRead { .records([]) }
-    func enableJournal(_ settings: [ConfigSetting]) async throws {}
+    func writeJournalSettings(_ settings: [ConfigSetting]) async throws {}
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] { [] }
 }

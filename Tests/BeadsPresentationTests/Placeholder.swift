@@ -66,7 +66,10 @@ final class StubStore: BeadsStore, @unchecked Sendable {
     var journalReads: [Result<JournalRead, Error>] = []
     private(set) var journalStatusChecks = 0
     private(set) var journalCheckpoints: [Int64] = []
-    private(set) var enabledJournal: [[ConfigSetting]] = []
+    /// Every settings write, in order: Beady's retention when turning it on, the reverse on Undo.
+    private(set) var journalWrites: [[ConfigSetting]] = []
+    /// Thrown by the next settings write, when a test wants bd to refuse.
+    var journalWriteFailure: Error?
 
     func journalStatus() async -> JournalStatus {
         lock.withLock {
@@ -82,11 +85,19 @@ final class StubStore: BeadsStore, @unchecked Sendable {
         }.get()
     }
 
-    func enableJournal(_ settings: [ConfigSetting]) async throws {
+    func writeJournalSettings(_ settings: [ConfigSetting]) async throws {
+        if let journalWriteFailure { throw journalWriteFailure }
         lock.withLock {
-            enabledJournal.append(settings)
+            journalWrites.append(settings)
             if case .supported(let version, var current) = journal {
-                current.isEnabled = true
+                for setting in settings {
+                    switch setting.key {
+                    case "events-journal": current.isEnabled = setting.value == "true"
+                    case "events-journal-retain-days": current.retainDays = Int(setting.value)
+                    case "events-journal-retain-rows": current.retainRows = Int(setting.value)
+                    default: break
+                    }
+                }
                 journal = .supported(version, current)
             }
         }

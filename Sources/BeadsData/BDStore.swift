@@ -113,7 +113,7 @@ public struct BDStore: BeadsStore {
         }
     }
 
-    public func enableJournal(_ settings: [ConfigSetting]) async throws {
+    public func writeJournalSettings(_ settings: [ConfigSetting]) async throws {
         _ = try await gateway.run(.configSet(settings))
     }
 

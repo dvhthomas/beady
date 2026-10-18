@@ -80,6 +80,9 @@ public final class WorkspaceModel {
     /// Where the journal has been read up to, when it's on.
     @ObservationIgnored private var journalFeed = JournalFeed()
     @ObservationIgnored private var journalChecked = false
+    /// Whether this open has had its chance to turn the journal on; it gets one.
+    @ObservationIgnored private var journalDecided = false
+    @ObservationIgnored private let journalPolicy: JournalPolicy
     /// Where `unfocus()` goes back to.
     @ObservationIgnored private var viewBeforeFocus: ViewSource = .lifecycle(.open)
 
@@ -93,8 +96,8 @@ public final class WorkspaceModel {
         now: @escaping @Sendable () -> Date = { Date() },
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600,
-        /// The user already said no to the journal for this workspace; the app remembers it.
-        declinedJournal: Bool = false
+        /// Whether to turn bd's change journal on when this workspace opens.
+        journalPolicy: JournalPolicy = .manual
     ) {
         self.title = title
         self.store = store
@@ -103,7 +106,7 @@ public final class WorkspaceModel {
         self.now = now
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
-        journalDeclined = declinedJournal
+        self.journalPolicy = journalPolicy
         viewStates = Self.loadViewStates(from: preferences)
     }
 
@@ -154,6 +157,11 @@ public final class WorkspaceModel {
             } else {
                 refreshError = error.localizedDescription
             }
+        }
+        // After the snapshot: whether this window can write is only known once there is one.
+        if !journalDecided, snapshot != nil {
+            journalDecided = true
+            if journalPolicy.shouldTurnOn(journal: journal, canEdit: canEdit) { await enableJournal() }
         }
     }
 
@@ -817,62 +825,56 @@ public final class WorkspaceModel {
     // MARK: The events journal
 
     /// Whether bd keeps its events journal here. With it on, the journal says who made each
-    /// write; without it (bd older than 1.3, or the user said no) the interaction log does, as
-    /// before. The file watcher wakes the app either way.
+    /// write; without it (bd older than 1.3, or the journal left off) the interaction log does,
+    /// as before. The file watcher wakes the app either way.
     public private(set) var journal: JournalStatus = .unsupported(nil)
-    public private(set) var journalDeclined: Bool
-
-    /// Whether to ask. It's a workspace setting every bd command (agents' included) will follow,
-    /// so it is only ever offered, never assumed, and a no is remembered.
-    public var offersJournal: Bool {
-        canEdit && journal.canBeTurnedOn && !journalDeclined
-    }
-
-    /// Exactly what turning it on will run.
-    public var journalCommands: [String] {
-        guard case .supported(_, let settings) = journal else { return [] }
-        return store.journalCommandPreview(JournalRetention.settings(toEnable: settings))
-    }
-
-    /// What the offer says: what the journal is for, what it changes beyond Beady, and the
-    /// command that does it. Nil when there's nothing to turn on.
-    public var journalOffer: String? {
-        guard case .supported(let version, let settings) = journal, !settings.isEnabled else { return nil }
-        let lowersRetention = JournalRetention.settings(toEnable: settings).count > 1
-        let retention = lowersRetention
-            ? "Beady only needs recent records, so records older than a day are pruned (bd's default is a week)."
-            : "Your retention settings are kept."
-        return """
-            bd \(version) can keep a journal of every change made through bd, with who made it, so \
-            Beady can tell which agent is working on which bead.
-
-            It's a workspace setting in .beads/config.yaml: every bd command in this workspace, \
-            agents' included, records to it from then on. \(retention)
-
-            \(journalCommands.joined(separator: "\n"))
-            """
-    }
-
-    public func declineJournal() {
-        journalDeclined = true
-    }
 
     /// Writes the journal setting, with Beady's shorter retention where bd's defaults still
-    /// stand, then starts following it. Returns the failure, if any, for the caller to show.
+    /// stand, then starts following it. No confirmation sheet first: the sheet guards changes
+    /// to beads, and this is Beady's own setting of the workspace, listed under Changes with an
+    /// Undo instead. Returns the failure, if any, for the caller to show.
     @discardableResult
     public func enableJournal() async -> String? {
         guard canEdit, case .supported(_, let settings) = journal, !settings.isEnabled else { return nil }
+        let written = JournalRetention.settings(toEnable: settings)
         do {
-            try await store.enableJournal(JournalRetention.settings(toEnable: settings))
+            try await store.writeJournalSettings(written)
         } catch {
+            record(summary: "Turn on bd's change journal in \(title)", error: error)
             return error.localizedDescription
         }
+        journalPolicy.noteTurnedOn()
+        record(summary: "Turned on bd's change journal in \(title)", undo: .journalSettings(JournalRetention.settings(toUndo: written)))
+        await followJournal()
+        return nil
+    }
+
+    /// Takes back a change that offered it. Returns the failure, if any, for the caller to show.
+    @discardableResult
+    public func undo(_ entry: ChangeRecord) async -> String? {
+        guard let undo = entry.undo, let index = activity.firstIndex(where: { $0.id == entry.id }) else { return nil }
+        switch undo {
+        case .journalSettings(let settings):
+            do {
+                try await store.writeJournalSettings(settings)
+            } catch {
+                return error.localizedDescription
+            }
+            activity[index].undo = nil
+            record(summary: "Turned bd's change journal off in \(title)")
+            await followJournal()
+        }
+        return nil
+    }
+
+    /// Re-reads the journal's settings after writing them, and starts over from whichever
+    /// source of activity now applies.
+    private func followJournal() async {
         journal = await store.journalStatus()
         journalFeed = JournalFeed()
         if let log = await readActivity(since: now().addingTimeInterval(-activityWindow)) {
             noteActivity(log)
         }
-        return nil
     }
 
     /// Who has been working where: from the journal when it's on, else bd's interaction log.
@@ -1092,9 +1094,13 @@ public final class WorkspaceModel {
     }
 
     private func record(_ pending: PendingChange, issueID: IssueID?, error: Error?) {
+        record(summary: pending.summary, issueID: issueID, error: error)
+    }
+
+    private func record(summary: String, issueID: IssueID? = nil, error: Error? = nil, undo: ChangeRecord.Undo? = nil) {
         let entry = ChangeRecord(
-            date: now(), summary: pending.summary, issueID: issueID,
-            succeeded: error == nil, message: error?.localizedDescription
+            date: now(), summary: summary, issueID: issueID,
+            succeeded: error == nil, message: error?.localizedDescription, undo: undo
         )
         activity.insert(entry, at: 0)
         if activity.count > 50 { activity.removeLast() }
