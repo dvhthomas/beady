@@ -103,13 +103,16 @@ categories the view's Lifecycle rule allows*; with no Lifecycle rule, all of the
 
 ### Rules the model needs to state plainly
 
-- **Built-in views have a fixed filter and a remembered presentation.** Frontier always means
-  `ready is yes`; if you add `priority is P0` to it, the view shows a modified dot and the header
-  offers **Save as new view** or **Reset**. You cannot overwrite what Frontier means, because
-  it's the definition. Layout, grouping, ordering and columns on a built-in *are* remembered per
-  view, exactly as today, so your Frontier stays a priority-sorted list and your Everything stays a
-  board. (Today Beady persists all four per source; this only narrows which one of them a built-in
-  will keep.)
+- **Built-in views are locked; you duplicate them, you don't edit them** (owner, 2026-10-18:
+  "shouldn't be possible to adjust the definition of baked-in default views, maybe just duplicate
+  them"). A built-in's defining rules are shown as locked chips: a lock glyph, no ✕, no operator
+  menu, and **Clear** leaves them alone. Its name and icon can't be changed either. What you *can*
+  do on a built-in is temporary: add rules on top, flip the layout, grouping, ordering or columns.
+  Those show the modified dot and the Save control offers only **Save as new view…** and
+  **Reset**. **Duplicate** in a built-in's context menu makes a user view with the same filter and
+  presentation, unlocked, under MY VIEWS, which is the one way to get "Frontier, but only P0/P1"
+  as a permanent thing. The presentation flip on a built-in is still remembered per view across
+  launches, as today, so Frontier stays a priority-sorted list and Pipeline stays a board.
 - **User views own everything.** Filter and presentation are both saved; changing either shows the
   modified dot with **Save**, **Save as new view**, **Reset**.
 - **Layout is part of a view, and flipping it is cheap.** ⌘1/2/3 and the header switcher keep
@@ -180,6 +183,33 @@ without the window, and both are one chip away. If the owner wants them back the
 views. Pipeline is the Board the owner already uses on All, with the Done column kept to a week so
 it stays a working surface rather than an archive.
 
+### Icons
+
+Every view has an icon, and it is never the List / Board / Tree glyph (owner: the layout switcher
+in the header already owns those; a sidebar row should say what the view *answers*). The built-ins
+ship with theirs; a user view picks from a small set, with a default, when it is saved or later
+from **Change Icon…** in its context menu. A duplicate keeps its source's icon until changed.
+
+| Built-in | Symbol | Why |
+| --- | --- | --- |
+| Frontier | `play.circle` | what can start now |
+| In Flight | `circle.lefthalf.filled` | bd's own in-progress glyph |
+| Stuck | `hourglass` | waiting on something upstream; quiet, not an alarm |
+| Pipeline | `flowchart` | work flowing through stages |
+| Recent | `clock` | what moved lately |
+| Landed | `checkmark.circle` | done |
+| Deferred | `snowflake` | bd's frozen category |
+| Everything | `tray.full` | the whole database |
+| Starred | `star.fill` | the star mark |
+
+User set, default first: `bookmark`, `tag`, `flag`, `bolt`, `target`, `ladybug`,
+`wrench.and.screwdriver`, `person`, `person.2`, `shippingbox`, `calendar`, `folder`, `lightbulb`,
+`map`. Fourteen is enough to tell views apart and few enough to pick from a grid without
+searching. Both sets live in one pure `ViewIcon` catalogue in BeadsPresentation; a test asserts
+the symbols are non-empty, distinct from each other and from the three layout symbols. The
+`symbol` field in the `.beadyview` file is the SF Symbol name, so an imported view that names a
+symbol outside the set still renders, and the picker shows it as the current choice.
+
 ## 5. Saving, storing and sharing views (the mac-app part)
 
 **Format.** One JSON document per view, the `Codable` shapes Beady already has plus a header:
@@ -247,41 +277,41 @@ gains a **Save** control that only appears when the view is modified:
 
 ### Proposal A — Views are the sidebar (recommended)
 
-The sidebar lists views and nothing else. Each row carries its layout glyph, so you know before
-you click whether you're getting a list, a board or a tree. Lifecycle stops being a sidebar
-concept; it's a chip.
+The sidebar lists views and nothing else. Each row carries the view's own icon (see Icons in
+§4), its count, and a modified dot when the live state differs from the saved view. Lifecycle
+stops being a sidebar concept; it's a chip.
 
 ```
 ┌──────────────────────────┐
 │ ▾ mapshop · demo         │  ← workspace switcher: recents, Open Other…
 │──────────────────────────│
 │ VIEWS                    │
-│ ▤ Frontier            3  │
-│ ▤ In Flight           5  │
-│ ▤ Stuck               6  │
-│ ▥ Pipeline           18  │  ← the board you actually use
-│ ▤ Recent              4  │
-│ ▤ Landed              4  │
-│ ▤ Everything         18  │
+│ ▷ Frontier            3  │
+│ ◐ In Flight           5  │
+│ ⧗ Stuck               6  │
+│ ⇶ Pipeline           18  │  ← the board you actually use
+│ ◷ Recent              4  │
+│ ✓ Landed              4  │
+│ ❄ Deferred            1  │
+│ ▣ Everything         18  │
 │                          │
 │ MY VIEWS               + │
-│ ▥ Agent tiles         7  │
-│ ⌲ Offline maps        6  │  ← a saved focus, as a tree
-│ ▤ P0/P1 bugs •        2  │  ← modified since saved
+│ ⚑ Agent tiles         7  │
+│ ⌖ Offline maps        6  │  ← a saved focus
+│ ⚐ P0/P1 bugs •        2  │  ← modified since saved
 │                          │
 │ THIS WORKSPACE           │
-│ ▥ Release board      11  │  ← from .beads/beady/views, via git
+│ ▭ Release board      11  │  ← from .beads/beady/views, via git
 │                          │
 │ ★ Starred             2  │
 └──────────────────────────┘
 ```
 
-- **Closest to today.** It is the current sidebar with the glyph added, three entries renamed,
-  two dropped, two sections and the workspace switcher added. Plan 0001's "navigation only" rule holds.
+- **Closest to today.** It is the current sidebar with three entries renamed, two dropped, two
+  sections and the workspace switcher added. Plan 0001's "navigation only" rule holds.
 - **Answers the Board complaint directly:** Pipeline is a built-in board on everything, one click.
-- **Layout is visible but not primary.** You read it from the glyph; you change it in the header.
-  If "make Board/List/Tree primary" means *present*, this is enough. If it means *the first choice
-  you make*, see C.
+- **Layout is one click away, not in the sidebar.** The header switcher changes it and a built-in
+  remembers the flip. If "make Board/List/Tree primary" means *the first choice you make*, see C.
 - Cost: a long sidebar once a person saves many views. Sections collapse; ⌘P already finds any
   view by name.
 
@@ -372,9 +402,11 @@ BeadsCore or BeadsPresentation with tests; the app layer only wires them to AppK
    from §4; `ViewSource` removed, focus becomes a parent chip.
 3. **Presentation:** `WorkspaceModel.view` replaces `source`; modified state; Save / Save as /
    Reset; migration of `viewStates`; one-column-board detection.
-4. **UI:** sidebar sections and glyphs; header Save control; board "nothing to split" state.
+4. **UI:** sidebar sections and icons; header Save control; board "nothing to split" state.
 5. **App:** `.beadyview` document type, Library and this-workspace stores, Share, drop-to-import,
    iCloud KVS behind a setting, Copy as bd command.
 6. **App:** the workspace switcher at the top of the sidebar, once step 4's sidebar is in.
-7. **Presentation + UI:** the hover-help glossary; independent of the rest and can land now,
+7. **Presentation + UI:** locked chips for a built-in's defining rules, Duplicate on built-ins;
+   the `ViewIcon` catalogue, built-in icons, the user icon picker on save and in the context menu.
+8. **Presentation + UI:** the hover-help glossary; independent of the rest and can land now,
    on today's sidebar, chips and badges; step 4 keeps it.
