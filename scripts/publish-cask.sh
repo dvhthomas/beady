@@ -6,7 +6,7 @@
 #     VERSION=0.2.0 scripts/publish-cask.sh build/Beady-0.2.0.zip <tap git url>
 #
 # The tap defaults to https://github.com/dvhthomas/homebrew-beady.git; the Release
-# workflow passes a URL carrying a token. An empty tap (no commits yet) is
+# workflow passes its SSH URL and pushes with a deploy key. An empty tap (no commits yet) is
 # started from scratch, so the repo only has to exist. Nothing is pushed when
 # the cask is already up to date.
 set -euo pipefail

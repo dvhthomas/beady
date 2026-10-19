@@ -363,10 +363,10 @@ git tag v0.1.0 && git push origin v0.1.0
 The Release workflow runs the tests, builds `build/Beady-<version>.zip` with `scripts/release.sh`,
 attaches it to a GitHub Release, and publishes the Homebrew cask: `scripts/publish-cask.sh`
 renders `Casks/beady.rb` (through `scripts/cask.sh`, which fills in the zip's sha256) and pushes
-it to [dvhthomas/homebrew-beady](https://github.com/dvhthomas/homebrew-beady). That last step needs a
-`HOMEBREW_TAP_TOKEN` repository secret — a fine-grained personal access token with read and write
-access to the tap's contents — and is skipped without one, in which case run the script yourself
-against the zip from the release.
+it to [dvhthomas/homebrew-beady](https://github.com/dvhthomas/homebrew-beady). That last step pushes with a
+write deploy key on the tap, whose private half is the `HOMEBREW_TAP_DEPLOY_KEY` repository
+secret, and is skipped without one, in which case run the script yourself against the zip from
+the release.
 
 This app's own work is tracked in beads — `bd list` in a clone of your own. The backlog
 itself stays on the machine it's worked on; only bd's configuration is committed.

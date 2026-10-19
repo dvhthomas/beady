@@ -13,10 +13,10 @@ permissions:
   contents: write
 
 env:
-  # A fine-grained personal access token with contents: read and write on
-  # dvhthomas/homebrew-beady. GITHUB_TOKEN can't push to another repo. Without it
-  # the release is still made; only the cask step is skipped.
-  HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+  # The private half of a write deploy key on dvhthomas/homebrew-beady, since
+  # GITHUB_TOKEN can't push to another repo. Without it the release is still
+  # made; only the cask step is skipped.
+  HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
 
 jobs:
   build:
@@ -56,8 +56,16 @@ jobs:
             Requires macOS 15 or later and `bd` on your PATH.
 
       - name: Publish Homebrew cask
-        if: startsWith(github.ref, 'refs/tags/v') && env.HOMEBREW_TAP_TOKEN != ''
+        if: startsWith(github.ref, 'refs/tags/v') && env.HOMEBREW_TAP_DEPLOY_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > ~/.ssh/homebrew-beady
+          chmod 600 ~/.ssh/homebrew-beady
+          # GitHub's SSH host keys, from its API rather than trusting first contact.
+          gh api meta --jq '.ssh_keys[]' | sed 's/^/github.com /' >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/homebrew-beady -o IdentitiesOnly=yes"
           VERSION="${GITHUB_REF_NAME#v}" scripts/publish-cask.sh \
             "build/Beady-${GITHUB_REF_NAME#v}.zip" \
-            "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/dvhthomas/homebrew-beady.git"
+            git@github.com:dvhthomas/homebrew-beady.git
