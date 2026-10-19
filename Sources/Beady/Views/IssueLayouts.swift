@@ -300,8 +300,11 @@ private struct TreeIssueRow: View {
 struct IssueBoardView: View {
     let model: WorkspaceModel
     let ui: WorkspaceUI
+    static let columnWidth: CGFloat = 290
+    static let columnSpacing: CGFloat = 12
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var monitor = State<Any?>(initialValue: nil)
+    private var wheel = State(initialValue: BoardWheelScroller(columnStride: columnWidth + columnSpacing))
 
     init(model: WorkspaceModel, ui: WorkspaceUI) {
         self.model = model
@@ -312,18 +315,21 @@ struct IssueBoardView: View {
         // Horizontal only: each column scrolls its own cards, and a vertical axis here just let
         // the whole board float away from the top when a filter left it shorter than the pane.
         ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: Self.columnSpacing) {
                 ForEach(model.boardGroups) { group in
                     BoardColumnView(group: group, model: model)
-                        .frame(width: 290)
+                        .frame(width: Self.columnWidth)
                 }
             }
             .padding(12)
             .frame(maxHeight: .infinity, alignment: .top)
+            .background(BoardScrollViewFinder(scroller: wheel.wrappedValue))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: startWatchingKeys)
         .onDisappear(perform: stopWatchingKeys)
+        .onAppear(perform: wheel.wrappedValue.start)
+        .onDisappear(perform: wheel.wrappedValue.stop)
     }
 
     /// The board is a grid we drew ourselves, so the arrow keys have to be caught here — left to
@@ -350,6 +356,88 @@ struct IssueBoardView: View {
     private func stopWatchingKeys() {
         if let monitor = monitor.wrappedValue { NSEvent.removeMonitor(monitor) }
         monitor.wrappedValue = nil
+    }
+}
+
+/// Glides the board sideways on a mouse wheel's tilt (BoardWheelScroll says how far). A
+/// trackpad's precise deltas pass straight through to the scroll view, and so does anything that
+/// isn't over the board or isn't sideways, so a wheel turned over a column still scrolls its
+/// cards. Events are caught before AppKit hands them to the column under the pointer, which would
+/// otherwise swallow the tilt.
+@MainActor
+private final class BoardWheelScroller {
+    weak var scrollView: NSScrollView?
+    private let columnStride: CGFloat
+    private var monitor: Any?
+    /// Where the glide under way ends, while one is; a notch during the glide moves on from here.
+    private var pending: CGFloat?
+
+    init(columnStride: CGFloat) {
+        self.columnStride = columnStride
+    }
+
+    func start() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { @MainActor [weak self] event in
+            self?.handle(event) ?? event
+        }
+    }
+
+    func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    private func handle(_ event: NSEvent) -> NSEvent? {
+        guard let scrollView, event.window === scrollView.window,
+              scrollView.bounds.contains(scrollView.convert(event.locationInWindow, from: nil)),
+              let step = BoardWheelScroll.step(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY,
+                                               precise: event.hasPreciseScrollingDeltas, columnStride: columnStride)
+        else { return event }
+        let clip = scrollView.contentView
+        let target = BoardWheelScroll.target(
+            from: clip.bounds.origin.x, pending: pending, step: step,
+            contentWidth: scrollView.documentView?.frame.width ?? 0, visibleWidth: clip.bounds.width
+        )
+        pending = target
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.15
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            clip.animator().setBoundsOrigin(NSPoint(x: target, y: clip.bounds.origin.y))
+        }, completionHandler: { [weak self] in
+            if self?.pending == target { self?.pending = nil }
+            scrollView.reflectScrolledClipView(clip)
+        })
+        return nil
+    }
+}
+
+/// Hands the board's own NSScrollView to the scroller. Planted behind the board's content, so
+/// the enclosing scroll view is the board's, not a column's.
+private struct BoardScrollViewFinder: NSViewRepresentable {
+    let scroller: BoardWheelScroller
+
+    func makeNSView(context: Context) -> FinderView {
+        FinderView(scroller: scroller)
+    }
+
+    func updateNSView(_ view: FinderView, context: Context) {}
+
+    final class FinderView: NSView {
+        let scroller: BoardWheelScroller
+
+        init(scroller: BoardWheelScroller) {
+            self.scroller = scroller
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("not used") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            scroller.scrollView = enclosingScrollView
+        }
     }
 }
 
