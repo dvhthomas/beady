@@ -26,6 +26,14 @@ jobs:
         with:
           fetch-depth: 0 # the build number is the commit count
 
+      - name: Check the tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::VERSION says $(cat VERSION) but the tag is $GITHUB_REF_NAME. Bump VERSION on master first; see RELEASE.md."
+            exit 1
+          fi
+
       - name: Test
         run: scripts/test.sh
 

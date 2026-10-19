@@ -360,19 +360,9 @@ into a real window and reports whether the single-key shortcuts and the keyboard
 
 ### Releasing
 
-Bump `VERSION`, commit, and push a tag carrying the same number:
-
-```bash
-git tag v0.1.0 && git push origin v0.1.0
-```
-
-The Release workflow runs the tests, builds `build/Beady-<version>.zip` with `scripts/release.sh`,
-attaches it to a GitHub Release, and publishes the Homebrew cask: `scripts/publish-cask.sh`
-renders `Casks/beady.rb` (through `scripts/cask.sh`, which fills in the zip's sha256) and pushes
-it to [dvhthomas/homebrew-beady](https://github.com/dvhthomas/homebrew-beady). That last step pushes with a
-write deploy key on the tap, whose private half is the `HOMEBREW_TAP_DEPLOY_KEY` repository
-secret, and is skipped without one, in which case run the script yourself against the zip from
-the release.
+Every release is a new tag on master, and the number in `VERSION` has to match it. The Release
+workflow builds the app, attaches the zip to a GitHub Release, and rewrites the Homebrew cask.
+[RELEASE.md](RELEASE.md) has the steps and what to check afterwards.
 
 This app's own work is tracked in beads — `bd list` in a clone of your own. The backlog
 itself stays on the machine it's worked on; only bd's configuration is committed.
