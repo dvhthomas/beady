@@ -134,10 +134,26 @@ bd backup restore /path/to/backup --force
 
 ## Install
 
-Requirements: macOS 15 or later, and `bd` on your PATH.
+Requirements: macOS 15 or later, and `bd` on your PATH (`brew install beads`). The Homebrew cask
+and the release zips are built for Apple silicon; on an Intel Mac, build it yourself.
 
-**Build it yourself** — recommended, because an app you build is never quarantined. You also need
-a Swift 6 toolchain, from Xcode or the Command Line Tools:
+**Homebrew:**
+
+```bash
+brew install --cask dvhthomas/beady/beady
+```
+
+The app is ad-hoc signed but not notarised — there's no Apple Developer ID behind it — so macOS
+quarantines it the first time: open it, then choose **Open Anyway** in System Settings → Privacy
+& Security. That's once; Homebrew keeps the approval across upgrades. (Homebrew used to offer
+`--no-quarantine`, but no longer does. To clear the flag yourself,
+`xattr -dr com.apple.quarantine /Applications/Beady.app`.)
+
+`brew upgrade` picks up new releases, and `brew uninstall --zap beady` removes the app along with
+its views and settings.
+
+**Build it yourself** — an app you build is never quarantined, and this is the route on an Intel
+Mac. You need a Swift 6 toolchain, from Xcode or the Command Line Tools:
 
 ```bash
 git clone https://github.com/dvhthomas/beady.git
@@ -153,9 +169,7 @@ and no relaunch is needed.
 
 **Or download a release.** Take the zip from
 [Releases](https://github.com/dvhthomas/beady/releases), unzip, and move Beady to /Applications.
-It's ad-hoc signed but not notarised — there's no Apple Developer ID behind it — so macOS
-quarantines it the first time. Either open it and choose **Open Anyway** in System Settings →
-Privacy & Security, or clear the flag yourself:
+It's quarantined the same way: either choose **Open Anyway**, or clear the flag yourself:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Beady.app
@@ -343,6 +357,22 @@ screenshots above were made that way, from a small demo database. `BEADY_VERIFY_
 into a real window and reports whether the single-key shortcuts and the keyboard focus behave.
 
 `swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.
+
+### Releasing
+
+Bump `VERSION`, commit, and push a tag carrying the same number:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The Release workflow runs the tests, builds `build/Beady-<version>.zip` with `scripts/release.sh`,
+attaches it to a GitHub Release, and publishes the Homebrew cask: `scripts/publish-cask.sh`
+renders `Casks/beady.rb` (through `scripts/cask.sh`, which fills in the zip's sha256) and pushes
+it to [dvhthomas/homebrew-beady](https://github.com/dvhthomas/homebrew-beady). That last step pushes with a
+write deploy key on the tap, whose private half is the `HOMEBREW_TAP_DEPLOY_KEY` repository
+secret, and is skipped without one, in which case run the script yourself against the zip from
+the release.
 
 This app's own work is tracked in beads — `bd list` in a clone of your own. The backlog
 itself stays on the machine it's worked on; only bd's configuration is committed.
