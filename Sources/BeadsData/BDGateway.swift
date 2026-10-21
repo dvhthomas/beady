@@ -138,7 +138,11 @@ public enum BDCommand: Equatable, Sendable {
         case .removeBlocker(let id, let blocker):
             return ["dep", "remove", id.rawValue, blocker.rawValue]
         case .close(let id, let reason):
-            return ["close"] + Self.reasonFlag(reason) + ["--json", "--", id.rawValue]
+            // --force: bd refuses a plain close when the bead's assignee isn't its actor, and the
+            // actor is whatever the environment supplies ($USER under Finder, git user.name in a
+            // terminal), so the person at the keyboard can't close their own beads without it. The
+            // other thing it overrides, closing a pinned bead, the validator refuses before bd runs.
+            return ["close"] + Self.reasonFlag(reason) + ["--force", "--json", "--", id.rawValue]
         case .reopen(let id, let reason):
             return ["reopen"] + Self.reasonFlag(reason) + ["--json", "--", id.rawValue]
         case .create(let new, let dryRun):

@@ -89,6 +89,25 @@ struct BDWriteIntegrationTests {
         _ = try await runner.run(.setStatus(id, from: "open", to: "closed", reason: "integration test tidy-up"), seenIn: snapshot)
     }
 
+    @Test("a bead assigned to someone else still closes: bd's actor is whatever the environment says, not the person at the keyboard")
+    func closesAnotherAssigneesBead() async throws {
+        let path = try #require(writableWorkspace)
+        let store = BDStore(gateway: try BDGateway.open(URL(fileURLWithPath: path)))
+        let runner = ChangeRunner(writer: store)
+        let stamp = UUID().uuidString.prefix(6)
+
+        var snapshot = try await store.loadSnapshot()
+        let id = try await runner.run(.create(NewIssue(title: "IT assigned \(stamp)")), seenIn: snapshot)
+        snapshot = try await store.loadSnapshot()
+        try await runner.run(.edit(id, IssueEdit(assignee: "Somebody Else \(stamp)")), seenIn: snapshot)
+
+        snapshot = try await store.loadSnapshot()
+        try await runner.run(.setStatus(id, from: "open", to: "closed", reason: "closed by someone who isn't the assignee"), seenIn: snapshot)
+        let closed = try #require(try await store.currentIssue(id))
+        #expect(closed.status == "closed")
+        #expect(closed.closeReason == "closed by someone who isn't the assignee")
+    }
+
     @Test("with bd 1.3, the journal can be turned on and names who made each write")
     func journalThroughRealBD() async throws {
         let path = try #require(writableWorkspace)
