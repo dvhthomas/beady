@@ -88,6 +88,14 @@ Every colour in the app is a design token, and the contrast of every theme is ch
 body text clears WCAG AA (4.5:1) on both the background and a row, status and priority colours
 clear 3:1, and the high-contrast themes clear AAA (7:1).
 
+## Languages
+
+English, German, Spanish, French, Japanese, Korean and Brazilian Portuguese. Beady follows the
+Mac's language; **Settings › Language** (⌘,) picks one for Beady alone, the same per-app choice
+System Settings offers under Language & Region, and takes effect at the next launch. Every string
+lives in a String Catalog next to its code, so a better translation is a one-file pull request:
+[docs/LOCALIZATION.md](docs/LOCALIZATION.md) says how.
+
 ## The dependency graph
 
 ![Dependency graph focused on one bead](docs/images/graph.png)

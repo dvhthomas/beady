@@ -23,7 +23,7 @@ struct ChangeConfirmationView: View {
                 }
             }
 
-            box("Change") {
+            box("What changes", comment: "Heading on the confirmation sheet: the change, line by line") {
                 ForEach(Array(pending.details.enumerated()), id: \.offset) { _, line in
                     Text(line)
                         .textSelection(.enabled)
@@ -47,7 +47,7 @@ struct ChangeConfirmationView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            box("bd will run") {
+            box("bd will run", comment: "Heading on the confirmation sheet: the exact bd commands") {
                 ForEach(Array(model.pendingCommands.enumerated()), id: \.offset) { _, command in
                     Text(command)
                         .font(.callout.monospaced())
@@ -80,9 +80,15 @@ struct ChangeConfirmationView: View {
                     Text("Writing and verifying…").foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(pending.failure == nil ? "Cancel" : "Close", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(pending.isApplying)
+                Group {
+                    if pending.failure == nil {
+                        Button("Cancel", action: onCancel)
+                    } else {
+                        Button("Close", action: onCancel)
+                    }
+                }
+                .keyboardShortcut(.cancelAction)
+                .disabled(pending.isApplying)
                 Button("Apply Change") {
                     Task { await model.confirmPendingChange() }
                 }
@@ -96,9 +102,9 @@ struct ChangeConfirmationView: View {
         .interactiveDismissDisabled(pending.isApplying)
     }
 
-    private func box<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func box<Content: View>(_ title: LocalizedStringKey, comment: StaticString, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
+            Text(title, comment: comment).font(.headline)
             VStack(alignment: .leading, spacing: 4, content: content)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -253,7 +259,7 @@ struct SaveAsNewViewSheet: View {
 
     private func save() {
         let name = ui.newViewName.trimmingCharacters(in: .whitespacesAndNewlines)
-        model.saveAsNewView(name: name.isEmpty ? "\(model.view.name) copy" : name, symbol: ui.newViewSymbol)
+        model.saveAsNewView(name: name.isEmpty ? String(localized: "\(model.view.name) copy", comment: "Default name for a view saved from another") : name, symbol: ui.newViewSymbol)
         ui.showsSaveAsNewView = false
     }
 }
@@ -273,9 +279,11 @@ struct ChangeIconSheet: View {
                 Spacer()
                 Button("Cancel") { ui.changingIconOf = nil }
                     .keyboardShortcut(.cancelAction)
-                Button("Change") {
+                Button {
                     if let id = ui.changingIconOf { model.setIcon(ui.chosenIcon, for: id) }
                     ui.changingIconOf = nil
+                } label: {
+                    Text("Change", comment: "Button that applies the chosen icon")
                 }
                 .keyboardShortcut(.defaultAction)
             }

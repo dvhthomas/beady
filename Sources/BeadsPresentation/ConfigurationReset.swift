@@ -8,7 +8,7 @@ public struct ConfigurationInventory: Equatable, Sendable {
     public static let libraryFolder = "~/Library/Application Support/Beady"
 
     public enum Group: CaseIterable, Sendable {
-        case workspaces, views, appearance, window, journal
+        case workspaces, views, appearance, language, window, journal
     }
 
     /// Every preferences key Beady writes, by what it is for. Legacy keys stay listed as long as
@@ -17,6 +17,8 @@ public struct ConfigurationInventory: Equatable, Sendable {
         .workspaces: ["recentWorkspaces"],
         .views: ["views", "liveViews", "offeredViews", "viewStates", "view", "scope", "collapsedSidebarSections"],
         .appearance: ["appearance", "darkTheme", "lightTheme", "textSize", "sidebarStyle"],
+        // The per-app language, under the key macOS itself uses (System Settings writes the same one).
+        .language: [LanguageSetting.key],
         .window: ["issueListColumns", "inspectorWidth"],
         .journal: ["turnsOnEventsJournal", "eventsJournalTurnedOn"],
     ]
@@ -26,7 +28,9 @@ public struct ConfigurationInventory: Equatable, Sendable {
     }
 
     /// What is not touched, in the sheet's own words.
-    public static let leavesAlone = "Nothing Beady wrote into a workspace is touched: bd's change-journal setting lives in that workspace's .beads/config.yaml and stays as it is."
+    public static var leavesAlone: String {
+        String(localized: "Nothing Beady wrote into a workspace is touched: bd's change-journal setting lives in that workspace's .beads/config.yaml and stays as it is.", bundle: .module)
+    }
 
     public struct Line: Equatable, Sendable, Identifiable {
         public let title: String
@@ -46,19 +50,20 @@ public struct ConfigurationInventory: Equatable, Sendable {
     public init(presentKeys: Set<String>, recentWorkspaces: Int, journalWorkspaces: Int, libraryViews: Int) {
         func has(_ group: Group) -> Bool { !presentKeys.isDisjoint(with: Self.knownKeys[group] ?? []) }
         var lines: [Line] = []
-        if has(.workspaces) { lines.append(Line(title: "Remembered workspaces", detail: "\(recentWorkspaces)")) }
-        if has(.views) { lines.append(Line(title: "Views", detail: "filters, layouts and which view was open")) }
-        lines.append(Line(title: "Saved views in the Library", detail: libraryViews == 0 ? "none" : "\(libraryViews)"))
-        if has(.appearance) { lines.append(Line(title: "Appearance", detail: "theme, text size and sidebar style")) }
-        if has(.window) { lines.append(Line(title: "Window layout", detail: "columns and the details pane width")) }
+        if has(.workspaces) { lines.append(Line(title: String(localized: "Remembered workspaces", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: "\(recentWorkspaces)")) }
+        if has(.views) { lines.append(Line(title: String(localized: "Views", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: String(localized: "filters, layouts and which view was open", bundle: .module, comment: "Reset Configuration: detail of the Views line"))) }
+        lines.append(Line(title: String(localized: "Saved views in the Library", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: libraryViews == 0 ? String(localized: "none", bundle: .module, comment: "Reset Configuration: no saved views") : "\(libraryViews)"))
+        if has(.appearance) { lines.append(Line(title: String(localized: "Appearance", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: String(localized: "theme, text size and sidebar style", bundle: .module, comment: "Reset Configuration: detail of the Appearance line"))) }
+        if has(.language) { lines.append(Line(title: String(localized: "Language", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: String(localized: "back to the system language", bundle: .module, comment: "Reset Configuration: detail of the Language line"))) }
+        if has(.window) { lines.append(Line(title: String(localized: "Window layout", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: String(localized: "columns and the details pane width", bundle: .module, comment: "Reset Configuration: detail of the Window layout line"))) }
         if has(.journal) {
-            let workspaces = journalWorkspaces == 1 ? "1 workspace" : "\(journalWorkspaces) workspaces"
-            lines.append(Line(title: "Change journal", detail: "the setting, and \(workspaces) it was turned on in"))
+            let workspaces = String(localized: "\(journalWorkspaces) workspaces", bundle: .module, comment: "Plural: how many workspaces the journal was turned on in")
+            lines.append(Line(title: String(localized: "Change journal", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: String(localized: "the setting, and \(workspaces) it was turned on in", bundle: .module, comment: "Reset Configuration: detail of the Change journal line; the value is ‘N workspaces’")))
         }
         // Anything else in the domain, such as what AppKit remembers about open panels, goes
         // with it: a clean install has none of it either.
         let other = presentKeys.subtracting(Self.allKnownKeys).count
-        if other > 0 { lines.append(Line(title: "Other settings", detail: "\(other)")) }
+        if other > 0 { lines.append(Line(title: String(localized: "Other settings", bundle: .module, comment: "Reset Configuration: a line of what goes"), detail: "\(other)")) }
         self.lines = lines
         self.libraryViews = libraryViews
     }

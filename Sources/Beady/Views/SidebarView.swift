@@ -78,11 +78,18 @@ struct SidebarView: View {
             }
             .buttonStyle(.borderless)
             .disabled(!section.canCollapse)
-            .help(section.canCollapse ? (isExpanded(section) ? "Hide" : "Show") : "Nothing to hide")
+            .help(disclosureHelp(section))
         }
         .padding(.top, section.kind == .views ? 0 : 10)
         .selectionDisabled()
         .listRowSeparator(.hidden)
+    }
+
+    private func disclosureHelp(_ section: SidebarSection) -> String {
+        guard section.canCollapse else { return String(localized: "Nothing to hide", comment: "Tooltip on a sidebar section's disclosure") }
+        return isExpanded(section)
+            ? String(localized: "Hide", comment: "Tooltip on a sidebar section's disclosure")
+            : String(localized: "Show", comment: "Tooltip on a sidebar section's disclosure")
     }
 
     private func isExpanded(_ section: SidebarSection) -> Bool {

@@ -119,6 +119,19 @@ struct RootView: View {
         } message: {
             Text(session.viewFileError ?? "")
         }
+        .alert("Relaunch Beady?", isPresented: showsRelaunchPrompt) {
+            Button("Relaunch Now") { session.relaunch() }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text("The language setting takes effect when Beady next launches.")
+        }
+    }
+
+    private var showsRelaunchPrompt: Binding<Bool> {
+        Binding(
+            get: { session.ui.showsRelaunchPrompt },
+            set: { session.ui.showsRelaunchPrompt = $0 }
+        )
     }
 
     private var showsResetConfiguration: Binding<Bool> {

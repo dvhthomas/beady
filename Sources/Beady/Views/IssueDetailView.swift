@@ -168,8 +168,8 @@ private struct IssueDetailContent: View {
                 }
                 .accessibilityLabel(MarkStyle.action(mark, isOn: issue.has(mark)))
                 .help(mark == .pinned
-                    ? "Pinned beads lead every list, tree and board column (bd label “pinned”)"
-                    : "Starred beads collect in the Starred view (bd label “starred”)")
+                    ? String(localized: "Pinned beads lead every list, tree and board column (bd label “pinned”)", comment: "Tooltip")
+                    : String(localized: "Starred beads collect in the Starred view (bd label “starred”)", comment: "Tooltip"))
             }
 
             Menu {
@@ -206,7 +206,7 @@ private struct IssueDetailContent: View {
 
     private var metadata: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-            row("Assignee", issue.assignee ?? "Unassigned")
+            row("Assignee", issue.assignee ?? String(localized: "Unassigned", comment: "Shown for a bead with no assignee"))
             if let owner = issue.owner { row("Owner", owner) }
             if !issue.labels.isEmpty { row("Labels", issue.labels.joined(separator: ", ")) }
             row("Created", formatted(issue.createdAt))
@@ -220,7 +220,7 @@ private struct IssueDetailContent: View {
         .font(.callout)
     }
 
-    private func row(_ title: String, _ value: String) -> some View {
+    private func row(_ title: LocalizedStringKey, _ value: String) -> some View {
         GridRow {
             Text(title)
                 .foregroundStyle(.secondary)
@@ -245,7 +245,7 @@ private struct IssueDetailContent: View {
         if !children.isEmpty { relationGroup("Children", children) }
     }
 
-    private func relationGroup(_ title: String, _ issues: [Issue]) -> some View {
+    private func relationGroup(_ title: LocalizedStringKey, _ issues: [Issue]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.headline)
             ForEach(issues) { related in
@@ -285,7 +285,7 @@ private struct IssueDetailContent: View {
     }
 
     @ViewBuilder
-    private func textSection(_ title: String, _ text: String) -> some View {
+    private func textSection(_ title: LocalizedStringKey, _ text: String) -> some View {
         if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title).font(.headline)
@@ -302,7 +302,7 @@ private struct IssueDetailContent: View {
     }
 
     private func formatted(_ date: Date) -> String {
-        "\(date.formatted(date: .abbreviated, time: .shortened)) (\(date.formatted(.relative(presentation: .named))))"
+        String(localized: "\(date.formatted(date: .abbreviated, time: .shortened)) (\(date.formatted(.relative(presentation: .named))))", comment: "A date, then how long ago it was")
     }
 }
 
@@ -339,7 +339,9 @@ struct HistorySection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(isExpanded.wrappedValue ? "Hide this bead's history" : "Every change bd has recorded for this bead")
+            .help(isExpanded.wrappedValue
+                ? String(localized: "Hide this bead's history", comment: "Tooltip")
+                : String(localized: "Every change bd has recorded for this bead", comment: "Tooltip"))
 
             if isExpanded.wrappedValue {
                 content
@@ -387,7 +389,7 @@ private struct HistoryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text(event.field)
+                Text(fieldTitle)
                     .font(.caption.weight(.semibold))
                 Text(event.date.formatted(.relative(presentation: .named)))
                     .font(.caption)
@@ -408,9 +410,33 @@ private struct HistoryRow: View {
         .help(event.date.formatted(date: .abbreviated, time: .standard))
     }
 
+    /// bd's field names, as the history reports them, in the reader's language.
+    private var fieldTitle: String {
+        switch event.field {
+        case "created": String(localized: "created", comment: "History: the bead was created")
+        case "title": String(localized: "title", comment: "History: a field name")
+        case "status": String(localized: "status", comment: "History: a field name")
+        case "priority": String(localized: "priority", comment: "History: a field name")
+        case "type": String(localized: "type", comment: "History: a field name")
+        case "assignee": String(localized: "assignee", comment: "History: a field name")
+        case "labels": String(localized: "labels", comment: "History: a field name")
+        case "parent": String(localized: "parent", comment: "History: a field name")
+        case "description": String(localized: "description", comment: "History: a field name")
+        case "notes": String(localized: "notes", comment: "History: a field name")
+        case "close reason": String(localized: "close reason", comment: "History: a field name")
+        default: event.field
+        }
+    }
+
     private var change: String {
         if event.field == "created" { return event.to }
-        if event.from.isEmpty { return event.to.isEmpty ? "cleared" : "set to \(event.to)" }
-        return event.to.isEmpty ? "cleared (was \(event.from))" : "\(event.from) → \(event.to)"
+        if event.from.isEmpty {
+            return event.to.isEmpty
+                ? String(localized: "cleared", comment: "History: the field was emptied")
+                : String(localized: "set to \(event.to)", comment: "History: the field got its first value")
+        }
+        return event.to.isEmpty
+            ? String(localized: "cleared (was \(event.from))", comment: "History: the field was emptied; the value is what it held")
+            : String(localized: "\(event.from) → \(event.to)", comment: "History: old value, new value")
     }
 }

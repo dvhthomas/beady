@@ -79,7 +79,7 @@ struct ResetConfigurationSheet: View {
         .background(theme.background)
     }
 
-    private func box<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func box<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.headline)
             VStack(alignment: .leading, spacing: 4, content: content)

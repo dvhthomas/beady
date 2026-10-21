@@ -25,13 +25,15 @@ struct DependencyGraphView: View {
             toolbar(graph)
             Divider()
             if graph.nodes.isEmpty {
-                ContentUnavailableView(
-                    "No Dependencies",
-                    systemImage: "point.3.connected.trianglepath.dotted",
-                    description: Text(ui.graphIncludesFinished
-                        ? "Nothing in this database waits on anything else."
-                        : "Nothing unfinished waits on anything else. Show finished work to see the rest.")
-                )
+                ContentUnavailableView {
+                    Label("No Dependencies", systemImage: "point.3.connected.trianglepath.dotted")
+                } description: {
+                    if ui.graphIncludesFinished {
+                        Text("Nothing in this database waits on anything else.")
+                    } else {
+                        Text("Nothing unfinished waits on anything else. Show finished work to see the rest.")
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 canvas(graph, positions)
@@ -46,7 +48,7 @@ struct DependencyGraphView: View {
         HStack(spacing: 12) {
             if let focus = ui.graphFocus, let issue = model.snapshot?.issue(focus) {
                 Label {
-                    Text("\(issue.id.rawValue)  \(issue.title)")
+                    Text(verbatim: "\(issue.id.rawValue)  \(issue.title)")
                         .lineLimit(1)
                 } icon: {
                     Image(systemName: "scope")
@@ -68,7 +70,7 @@ struct DependencyGraphView: View {
             HStack(spacing: 2) {
                 Button { zoom(by: -0.15) } label: { Image(systemName: "minus.magnifyingglass") }
                     .keyboardShortcut("-", modifiers: .command)
-                Button { ui.graphZoom = 1 } label: { Text("\(Int(ui.graphZoom * 100))%").monospacedDigit() }
+                Button { ui.graphZoom = 1 } label: { Text(ui.graphZoom, format: .percent.precision(.fractionLength(0))).monospacedDigit() }
                     .keyboardShortcut("0", modifiers: .command)
                 Button { zoom(by: 0.15) } label: { Image(systemName: "plus.magnifyingglass") }
                     .keyboardShortcut("=", modifiers: .command)
@@ -94,7 +96,7 @@ struct DependencyGraphView: View {
         .opacity(ui.graphFocus == nil ? 0 : 1)
     }
 
-    private func legendItem(width: CGFloat, color: Color, _ title: String) -> some View {
+    private func legendItem(width: CGFloat, color: Color, _ title: LocalizedStringKey) -> some View {
         HStack(spacing: 4) {
             Capsule().fill(color).frame(width: 16, height: width)
             Text(title)
