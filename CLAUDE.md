@@ -58,6 +58,21 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 <!-- END BEADS INTEGRATION -->
 
 
+## Releases and the version number
+
+Every merge to master is a release: CI works out the next version from the pull request's
+labels, writes `VERSION`, tags `vX.Y.Z` and publishes the Homebrew cask. The one decision is how
+big the change is, said with at most one label on the pull request:
+
+- no label, or `release:patch`: a bug fix or a minor tweak (0.1.1 → 0.1.2). The default.
+- `release:minor`: a new feature or a visible change in behaviour (0.1.1 → 0.2.0).
+- `release:major`: rare; it breaks how people use Beady or its files (0.1.1 → 1.0.0).
+- `release:none`: rare; nothing worth shipping, such as a typo in the README.
+
+Add it with `gh pr create --label release:minor` or `gh pr edit <number> --add-label release:minor`.
+Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
+[RELEASE.md](RELEASE.md).
+
 ## Build & Test
 
 _Add your build and test commands here_
