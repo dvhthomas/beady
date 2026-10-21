@@ -1,4 +1,5 @@
 import BeadsCore
+import Foundation
 
 public extension IssueView.ID {
     /// The Ready view. The id keeps the name it shipped under, so a remembered presentation or a
@@ -19,37 +20,37 @@ public extension IssueView {
     /// status it is; the palette answers to both. Open and Closed are one Lifecycle chip away
     /// from Everything and Landed, so they aren't rows of their own.
     static let builtIns: [IssueView] = [
-        builtIn(.frontier, "Ready", ViewIcon.builtIn[.frontier]!,
+        builtIn(.frontier, String(localized: "Ready", bundle: .module, comment: "Built-in view: bd's ready work"), ViewIcon.builtIn[.frontier]!,
                 rules: [FilterRule(field: .ready, op: .isAnyOf, values: [FilterRule.readyValue])],
                 ViewPresentation(layout: .list, grouping: .none, ordering: .priority)),
-        builtIn(.inFlight, "In Flight", ViewIcon.builtIn[.inFlight]!,
+        builtIn(.inFlight, String(localized: "In Flight", bundle: .module, comment: "Built-in view: work in progress"), ViewIcon.builtIn[.inFlight]!,
                 rules: [FilterRule(field: .lifecycle, op: .isAnyOf, values: [StatusCategory.wip.rawValue])],
                 ViewPresentation(layout: .list, grouping: .status, ordering: .recentlyUpdated)),
-        builtIn(.stuck, "Stuck", ViewIcon.builtIn[.stuck]!,
+        builtIn(.stuck, String(localized: "Stuck", bundle: .module, comment: "Built-in view: blocked by something upstream"), ViewIcon.builtIn[.stuck]!,
                 rules: [FilterRule(field: .blocked, op: .isAnyOf, values: [FilterRule.blockedValue])],
                 // Blockers matter here and nowhere much else, so the Blocked-by column is on.
                 ViewPresentation(layout: .list, grouping: .none, ordering: .priority,
                                  columns: ListColumn.allCases.filter { $0.isVisibleByDefault || $0 == .blockedBy }.map(\.id))),
-        builtIn(.pipeline, "Pipeline", ViewIcon.builtIn[.pipeline]!,
+        builtIn(.pipeline, String(localized: "Pipeline", bundle: .module, comment: "Built-in view: a board of everything live"), ViewIcon.builtIn[.pipeline]!,
                 // Everything live, plus a week of what landed: a working board, not an archive.
                 rules: [FilterRule(field: .closed, op: .within, values: [TimeWindow.week.rawValue])],
                 ViewPresentation(layout: .board, grouping: .category, ordering: .priority)),
-        builtIn(.recent, "Recent", ViewIcon.builtIn[.recent]!,
+        builtIn(.recent, String(localized: "Recent", bundle: .module, comment: "Built-in view: changed in the last day"), ViewIcon.builtIn[.recent]!,
                 rules: [FilterRule(field: .updated, op: .within, values: [TimeWindow.day.rawValue])],
                 ViewPresentation(layout: .list, grouping: .assignee, ordering: .recentlyUpdated)),
-        builtIn(.landed, "Landed", ViewIcon.builtIn[.landed]!,
+        builtIn(.landed, String(localized: "Landed", bundle: .module, comment: "Built-in view: closed in the last week"), ViewIcon.builtIn[.landed]!,
                 rules: [
                     FilterRule(field: .lifecycle, op: .isAnyOf, values: [StatusCategory.done.rawValue]),
                     FilterRule(field: .closed, op: .within, values: [TimeWindow.week.rawValue]),
                 ],
                 ViewPresentation(layout: .list, grouping: .none, ordering: .recentlyClosed)),
-        builtIn(.deferred, "Deferred", ViewIcon.builtIn[.deferred]!,
+        builtIn(.deferred, String(localized: "Deferred", bundle: .module, comment: "Built-in view: bd's frozen category"), ViewIcon.builtIn[.deferred]!,
                 rules: [FilterRule(field: .lifecycle, op: .isAnyOf, values: [StatusCategory.frozen.rawValue])],
                 ViewPresentation(layout: .list, grouping: .none, ordering: .priority)),
-        builtIn(.everything, "Everything", ViewIcon.builtIn[.everything]!,
+        builtIn(.everything, String(localized: "Everything", bundle: .module, comment: "Built-in view: the whole database"), ViewIcon.builtIn[.everything]!,
                 rules: [],
                 ViewPresentation(layout: .list, grouping: .category, ordering: .recentlyUpdated)),
-        builtIn(.starred, "Starred", ViewIcon.builtIn[.starred]!,
+        builtIn(.starred, String(localized: "Starred", bundle: .module, comment: "Built-in view: starred beads"), ViewIcon.builtIn[.starred]!,
                 rules: [FilterRule(field: .labels, op: .includesAll, values: [IssueMark.starred.label])],
                 // A label spans every lifecycle, so lifecycle is the grouping that reads best.
                 ViewPresentation(layout: .list, grouping: .category, ordering: .priority)),

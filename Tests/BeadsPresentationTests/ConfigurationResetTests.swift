@@ -50,6 +50,10 @@ struct ConfigurationResetTests {
         #expect(bare.isEmpty)
         let one = ConfigurationInventory(presentKeys: ["eventsJournalTurnedOn"], recentWorkspaces: 0, journalWorkspaces: 1, libraryViews: 0)
         #expect(one.lines.last?.detail == "the setting, and 1 workspace it was turned on in")
+        // The language is macOS's own per-app key, and a reset puts it back to the system's.
+        let language = ConfigurationInventory(presentKeys: ["AppleLanguages"], recentWorkspaces: 0, journalWorkspaces: 0, libraryViews: 0)
+        #expect(language.lines.map(\.title) == ["Saved views in the Library", "Language"])
+        #expect(language.lines.last?.detail == "back to the system language")
     }
 
     @Test("the plan removes the Library only when asked, and the commands say exactly that")

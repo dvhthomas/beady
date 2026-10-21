@@ -146,10 +146,19 @@ struct WorkspaceView: View {
             }
         case .loaded:
             if model.visibleIssues.isEmpty && model.presentedLayout != .board {
+                let narrowed = model.hasClearableFilters || !model.searchText.isEmpty
                 ContentUnavailableView {
-                    Label(model.hasClearableFilters || !model.searchText.isEmpty ? "Nothing matches" : "No issues", systemImage: "line.3.horizontal.decrease.circle")
+                    if narrowed {
+                        Label("Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
+                    } else {
+                        Label("No issues", systemImage: "line.3.horizontal.decrease.circle")
+                    }
                 } description: {
-                    Text(model.hasClearableFilters || !model.searchText.isEmpty ? "No issues in \(model.viewTitle) match this view's filters." : "\(model.viewTitle) is empty.")
+                    if narrowed {
+                        Text("No issues in \(model.viewTitle) match this view's filters.")
+                    } else {
+                        Text("\(model.viewTitle) is empty.")
+                    }
                 } actions: {
                     if model.hasClearableFilters || !model.searchText.isEmpty {
                         Button("Clear Filters") {
@@ -165,9 +174,12 @@ struct WorkspaceView: View {
                 ContentUnavailableView {
                     Label("Nothing to split", systemImage: "rectangle.split.3x1")
                 } description: {
-                    Text(split.groupings.isEmpty
-                        ? "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column, and no other grouping would spread it out."
-                        : "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column. Group by something that would spread it out, or show the list:")
+                    let grouping = DisplayText.grouping(model.grouping == .none ? .category : model.grouping)
+                    if split.groupings.isEmpty {
+                        Text("Everything here lands in one \(grouping) column, and no other grouping would spread it out.")
+                    } else {
+                        Text("Everything here lands in one \(grouping) column. Group by something that would spread it out, or show the list:")
+                    }
                 } actions: {
                     ForEach(split.groupings) { grouping in
                         Button(DisplayText.grouping(grouping)) { model.grouping = grouping }
@@ -238,10 +250,12 @@ struct WorkspaceView: View {
 
     private var helpText: String {
         guard let destination = model.backup.destination else {
-            return "Nothing is backing this database up. bd's JSONL export carries the issues, not their history — click to choose a folder."
+            return String(localized: "Nothing is backing this database up. bd's JSONL export carries the issues, not their history — click to choose a folder.")
         }
-        let size = model.backup.databaseSize.map { " · \($0)" } ?? ""
-        return "Backed up to \(destination)\(size). Click to back up now."
+        if let size = model.backup.databaseSize {
+            return String(localized: "Backed up to \(destination) · \(size). Click to back up now.", comment: "Tooltip: the backup folder, then the database size")
+        }
+        return String(localized: "Backed up to \(destination). Click to back up now.", comment: "Tooltip: the backup folder")
     }
 
     /// One sheet, shown for whichever thing is open; a change being confirmed wins.
@@ -278,13 +292,13 @@ struct WorkspaceView: View {
 
     private var subtitle: String {
         guard let snapshot = model.snapshot else { return model.title }
-        var parts = [model.title, "\(model.visibleIssues.count) of \(snapshot.issues.count)"]
-        if !model.canEdit { parts.append("read-only") }
+        var parts = [model.title, String(localized: "\(model.visibleIssues.count) of \(snapshot.issues.count)", comment: "Window subtitle: beads shown, beads in the database")]
+        if !model.canEdit { parts.append(String(localized: "read-only", comment: "Window subtitle")) }
         if snapshot.unreadableRecordCount > 0 {
-            parts.append("\(snapshot.unreadableRecordCount) unreadable records skipped")
+            parts.append(String(localized: "\(snapshot.unreadableRecordCount) unreadable records skipped", comment: "Window subtitle; plural on the number of records"))
         }
         if let lastLoaded = model.lastLoaded {
-            parts.append("refreshed \(lastLoaded.formatted(date: .omitted, time: .standard))")
+            parts.append(String(localized: "refreshed \(lastLoaded.formatted(date: .omitted, time: .standard))", comment: "Window subtitle; the value is a time of day"))
         }
 
         return parts.joined(separator: " · ")
@@ -316,7 +330,7 @@ struct WorkspaceView: View {
                             systemImage: record.succeeded ? "checkmark.circle" : "xmark.octagon"
                         )
                     }
-                    .help(record.message ?? "Applied and verified")
+                    .help(record.message ?? String(localized: "Applied and verified", comment: "Tooltip on a change that landed"))
                     if record.undo != nil {
                         Button {
                             undo(record)

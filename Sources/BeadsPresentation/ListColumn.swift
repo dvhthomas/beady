@@ -1,4 +1,5 @@
 import BeadsCore
+import Foundation
 
 /// A column in the issue list, in the order the row shows them.
 ///
@@ -25,22 +26,22 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .priority: "Priority"
-        case .id: "ID"
-        case .status: "Status"
-        case .type: "Type"
-        case .title: "Title"
-        case .labels: "Labels"
-        case .assignee: "Assignee"
-        case .progress: "Progress"
-        case .blockedBy: "Blocked by"
-        case .date: "Updated"
+        case .priority: String(localized: "Priority", bundle: .module, comment: "Column header")
+        case .id: String(localized: "ID", bundle: .module, comment: "Column header: the bead id")
+        case .status: String(localized: "Status", bundle: .module, comment: "Column header")
+        case .type: String(localized: "Type", bundle: .module, comment: "Column header: bead type")
+        case .title: String(localized: "Title", bundle: .module, comment: "Column header")
+        case .labels: String(localized: "Labels", bundle: .module, comment: "Column header")
+        case .assignee: String(localized: "Assignee", bundle: .module, comment: "Column header")
+        case .progress: String(localized: "Progress", bundle: .module, comment: "Column header: closed/total children")
+        case .blockedBy: String(localized: "Blocked by", bundle: .module, comment: "Column header: what the bead waits on")
+        case .date: String(localized: "Updated", bundle: .module, comment: "Column header: when the bead last changed")
         }
     }
 
     /// The header, which for the date column names the date being shown.
     public func title(for sort: IssueSort) -> String {
-        self == .date && sort == .recentlyClosed ? "Closed" : title
+        self == .date && sort == .recentlyClosed ? String(localized: "Closed", bundle: .module, comment: "Column header: when the bead was closed") : title
     }
 
     /// The title carries the row; hiding it would leave nothing to read.

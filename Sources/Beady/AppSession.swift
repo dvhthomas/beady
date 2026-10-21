@@ -26,6 +26,21 @@ final class AppSession {
     var turnsOnJournal: Bool {
         didSet { preferences?.set(turnsOnJournal, forKey: Self.turnsOnJournalKey) }
     }
+    /// The language Beady is shown in, or nil for the system's. Stored under the key macOS
+    /// itself reads for a per-app language, so this and System Settings can't disagree; bundles
+    /// follow it from the next launch.
+    var language: String? {
+        didSet {
+            guard let preferences else { return }
+            if let stored = LanguageSetting.stored(for: language) {
+                preferences.set(stored, forKey: LanguageSetting.key)
+            } else {
+                preferences.removeObject(forKey: LanguageSetting.key)
+            }
+        }
+    }
+    /// What this process launched with: when `language` differs, a relaunch is what applies it.
+    private let languageAtLaunch: String?
     /// Panels, sheets and column layout, shared with the menu bar.
     let ui = WorkspaceUI()
     /// Appearance, themes and text size.
@@ -60,6 +75,10 @@ final class AppSession {
         turnsOnJournal = preferences.map {
             $0.object(forKey: Self.turnsOnJournalKey) == nil || $0.bool(forKey: Self.turnsOnJournalKey)
         } ?? false
+        // Read from Beady's own domain: `object(forKey:)` would answer with the system's list.
+        let chosen = LanguageSetting.chosen(from: preferences?.persistentDomain(forName: Self.preferencesDomain)?[LanguageSetting.key])
+        language = chosen
+        languageAtLaunch = chosen
         viewsDirectory = preferences == nil ? nil : FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("Beady/views", isDirectory: true)
@@ -149,6 +168,27 @@ final class AppSession {
         viewFileError = nil
     }
 
+    // MARK: Language
+
+    /// True once the language setting differs from the one this process launched with.
+    var needsRelaunchForLanguage: Bool { language != languageAtLaunch }
+
+    /// Starts a fresh copy of the app and quits this one, which is how a language change takes
+    /// effect: bundles pick their language once, at launch. The bare SwiftPM binary has no
+    /// bundle to reopen, so it only quits.
+    func relaunch() {
+        let url = Bundle.main.bundleURL
+        guard url.pathExtension == "app" else {
+            NSApp.terminate(nil)
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+    }
+
     // MARK: Reset Configuration
 
     /// The preferences domain a reset removes: the bundle's, or the inventory's name when running
@@ -180,8 +220,8 @@ final class AppSession {
         let views = libraryViews
         guard !views.isEmpty else { return }
         let panel = NSSavePanel()
-        panel.title = "Export Saved Views"
-        panel.nameFieldStringValue = "Beady views.\(ViewLibrary.bundleExtension)"
+        panel.title = String(localized: "Export Saved Views")
+        panel.nameFieldStringValue = "\(String(localized: "Beady views", comment: "Default file name for an export of every saved view")).\(ViewLibrary.bundleExtension)"
         panel.allowedContentTypes = [.beadyViews]
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -204,6 +244,7 @@ final class AppSession {
         pendingImports = []
         themes.restoreDefaults()
         turnsOnJournal = true
+        language = nil
         do {
             try ConfigurationReset.perform(
                 plan,
@@ -212,7 +253,7 @@ final class AppSession {
                 libraryFolder: viewsDirectory?.deletingLastPathComponent()
             )
         } catch {
-            openError = "Couldn't remove the Library folder: \(error.localizedDescription)"
+            openError = String(localized: "Couldn't remove the Library folder: \(error.localizedDescription)")
         }
         // An empty Library folder is recreated so views can be saved again, and watched again,
         // since the watch died with the folder.
@@ -248,9 +289,9 @@ final class AppSession {
 
     func chooseViewsToImport() {
         let panel = NSOpenPanel()
-        panel.title = "Import Views"
-        panel.message = "Choose .beadyview or .beadyviews files."
-        panel.prompt = "Import"
+        panel.title = String(localized: "Import Views")
+        panel.message = String(localized: "Choose .beadyview or .beadyviews files.")
+        panel.prompt = String(localized: "Import", comment: "Open panel button")
         panel.allowedContentTypes = [.beadyView, .beadyViews]
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
@@ -261,7 +302,7 @@ final class AppSession {
     func exportView(_ id: IssueView.ID) {
         guard let model, let view = model.views.first(where: { $0.id == id }) else { return }
         let panel = NSSavePanel()
-        panel.title = "Export View"
+        panel.title = String(localized: "Export View")
         panel.nameFieldStringValue = view.exportFilename
         panel.allowedContentTypes = [.beadyView]
         panel.canCreateDirectories = true
@@ -285,9 +326,9 @@ final class AppSession {
     func chooseBackupFolder() {
         guard let model else { return }
         let panel = NSOpenPanel()
-        panel.title = "Choose a Backup Folder"
-        panel.message = "bd will push this database there: tables, branches and history, not just the issues."
-        panel.prompt = "Back Up Here"
+        panel.title = String(localized: "Choose a Backup Folder")
+        panel.message = String(localized: "bd will push this database there: tables, branches and history, not just the issues.")
+        panel.prompt = String(localized: "Back Up Here", comment: "Open panel button")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -303,9 +344,9 @@ final class AppSession {
 
     func chooseWorkspace() {
         let panel = NSOpenPanel()
-        panel.title = "Open Beads Workspace"
-        panel.message = "Choose a project folder containing .beads, or the .beads folder itself."
-        panel.prompt = "Open"
+        panel.title = String(localized: "Open Beads Workspace")
+        panel.message = String(localized: "Choose a project folder containing .beads, or the .beads folder itself.")
+        panel.prompt = String(localized: "Open", comment: "Open panel button")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
@@ -380,6 +421,9 @@ final class AppSession {
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size
+        case .setLanguage(let code):
+            language = code
+            if needsRelaunchForLanguage { ui.showsRelaunchPrompt = true }
         }
     }
 

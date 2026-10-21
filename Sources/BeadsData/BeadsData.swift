@@ -13,15 +13,15 @@ public enum BeadsDataError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notAWorkspace(let path):
-            "\(path) has no initialised .beads folder. Choose a project that uses beads, or its .beads folder."
+            String(localized: "\(path) has no initialised .beads folder. Choose a project that uses beads, or its .beads folder.", bundle: .module)
         case .bdNotFound(let searched):
-            "Couldn't find the bd executable. Looked in: \(searched.joined(separator: ", ")). Set BD_PATH to override."
+            String(localized: "Couldn't find the bd executable. Looked in: \(searched.joined(separator: ", ")). Set BD_PATH to override.", bundle: .module)
         case .commandFailed(let exitCode, let message):
-            "bd exited with status \(exitCode): \(message.isEmpty ? "no error output" : message)"
+            String(localized: "bd exited with status \(exitCode): \(message.isEmpty ? String(localized: "no error output", bundle: .module) : message)", bundle: .module)
         case .timedOut(let seconds):
-            "bd didn't answer within \(seconds) seconds."
+            String(localized: "bd didn't answer within \(seconds) seconds.", bundle: .module, comment: "Plural on the number of seconds")
         case .unreadableOutput(let detail):
-            "bd returned output that couldn't be read: \(detail)"
+            String(localized: "bd returned output that couldn't be read: \(detail)", bundle: .module)
         }
     }
 }

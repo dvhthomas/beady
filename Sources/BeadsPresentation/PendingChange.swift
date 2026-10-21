@@ -72,34 +72,42 @@ enum ChangeDescriber {
     static func summary(_ change: IssueChange) -> String {
         switch change {
         case .edit(let id, _):
-            return "Edit \(id)"
+            return String(localized: "Edit \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id")
         case .setStatus(let id, let from, let to, _):
-            if to == "closed" { return "Close \(id)" }
-            if from == "closed" { return "Reopen \(id)" }
-            return "Move \(id) to \(DisplayText.status(to))"
+            if to == "closed" { return String(localized: "Close \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id") }
+            if from == "closed" { return String(localized: "Reopen \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id") }
+            return String(localized: "Move \(id.rawValue) to \(DisplayText.status(to))", bundle: .module, comment: "Change summary: a bead id, then the new status")
         case .setParent(let id, let from, let to):
-            if let to { return "Move \(id) to \(to)" }
-            return "Remove \(id) from \(from.map(\.rawValue) ?? "its parent")"
+            if let to { return String(localized: "Move \(id.rawValue) to \(to.rawValue)", bundle: .module, comment: "Change summary: a bead id, then the new parent's id") }
+            if let from { return String(localized: "Remove \(id.rawValue) from \(from.rawValue)", bundle: .module, comment: "Change summary: a bead id, then its old parent's id") }
+            return String(localized: "Remove \(id.rawValue) from its parent", bundle: .module, comment: "Change summary; the value is a bead id")
         case .create(let new):
-            return "Create \(new.type) “\(new.title)”"
+            return String(localized: "Create \(new.type) “\(new.title)”", bundle: .module, comment: "Change summary: bd's type name, then the title")
         case .setMark(let id, let mark, let on):
-            return on ? "\(mark.title) \(id)" : "Un\(mark.title.lowercased()) \(id)"
+            switch (mark, on) {
+            case (.pinned, true): return String(localized: "Pin \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id")
+            case (.pinned, false): return String(localized: "Unpin \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id")
+            case (.starred, true): return String(localized: "Star \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id")
+            case (.starred, false): return String(localized: "Unstar \(id.rawValue)", bundle: .module, comment: "Change summary; the value is a bead id")
+            }
         case .setBlocker(let id, let blocker, let on):
-            return on ? "Make \(id) wait for \(blocker)" : "Stop \(id) waiting for \(blocker)"
+            return on
+                ? String(localized: "Make \(id.rawValue) wait for \(blocker.rawValue)", bundle: .module, comment: "Change summary: two bead ids")
+                : String(localized: "Stop \(id.rawValue) waiting for \(blocker.rawValue)", bundle: .module, comment: "Change summary: two bead ids")
         }
     }
 
     static func subject(_ change: IssueChange, in snapshot: IssueSnapshot) -> String? {
         guard let id = change.issueID else { return nil }
         guard let issue = snapshot.issue(id) else { return id.rawValue }
-        return "\(id) · \(issue.title)"
+        return String(localized: "\(id.rawValue) · \(issue.title)", bundle: .module, comment: "A bead named by id and title")
     }
 
     static func details(_ change: IssueChange, in snapshot: IssueSnapshot) -> [String] {
         func name(_ id: IssueID?) -> String {
-            guard let id else { return "none" }
+            guard let id else { return String(localized: "none", bundle: .module, comment: "Stands in for a parent or blocker when there is none") }
             guard let issue = snapshot.issue(id) else { return id.rawValue }
-            return "\(id) “\(issue.title)”"
+            return String(localized: "\(id.rawValue) “\(issue.title)”", bundle: .module, comment: "A bead named by id and quoted title")
         }
 
         switch change {
@@ -107,45 +115,52 @@ enum ChangeDescriber {
             let issue = snapshot.issue(id)
             var lines: [String] = []
             if let title = edit.title {
-                lines.append("Title: “\(issue?.title ?? "")” → “\(title)”")
+                lines.append(String(localized: "Title: “\(issue?.title ?? "")” → “\(title)”", bundle: .module, comment: "Change detail: old title, new title"))
             }
             if let priority = edit.priority {
-                lines.append("Priority: \(DisplayText.priority(issue?.priority ?? 0)) → \(DisplayText.priority(priority))")
+                lines.append(String(localized: "Priority: \(DisplayText.priority(issue?.priority ?? 0)) → \(DisplayText.priority(priority))", bundle: .module, comment: "Change detail: old priority, new priority"))
             }
             if let description = edit.description {
-                lines.append(textChange("Description", from: issue?.description ?? "", to: description))
+                lines.append(textChange(String(localized: "Description", bundle: .module, comment: "Change detail: the field name"), from: issue?.description ?? "", to: description))
             }
             if let notes = edit.notes {
-                lines.append(textChange("Notes", from: issue?.notes ?? "", to: notes))
+                lines.append(textChange(String(localized: "Notes", bundle: .module, comment: "Change detail: the field name"), from: issue?.notes ?? "", to: notes))
             }
             return lines
         case .setStatus(_, let from, let to, _):
-            return ["Status: \(DisplayText.status(from)) → \(DisplayText.status(to))"]
+            return [String(localized: "Status: \(DisplayText.status(from)) → \(DisplayText.status(to))", bundle: .module, comment: "Change detail: old status, new status")]
         case .setParent(_, let from, let to):
-            return ["Parent: \(name(from)) → \(name(to))"]
+            return [String(localized: "Parent: \(name(from)) → \(name(to))", bundle: .module, comment: "Change detail: old parent, new parent")]
         case .create(let new):
-            var lines = ["Title: \(new.title)", "Type: \(new.type) · \(DisplayText.priority(new.priority))"]
+            var lines = [
+                String(localized: "Title: \(new.title)", bundle: .module, comment: "Change detail"),
+                String(localized: "Type: \(new.type) · \(DisplayText.priority(new.priority))", bundle: .module, comment: "Change detail: bd's type name, then the priority"),
+            ]
             if let parent = new.parent {
-                lines.append("Parent: \(name(parent))")
+                lines.append(String(localized: "Parent: \(name(parent))", bundle: .module, comment: "Change detail"))
             }
             if !new.description.isEmpty {
-                lines.append("Description: \(new.description.count) characters")
+                lines.append(String(localized: "Description: \(new.description.count) characters", bundle: .module, comment: "Change detail; plural on the number of characters"))
             }
             // bd copies the parent's labels onto a new child.
             if let labels = new.parent.flatMap({ snapshot.issue($0) })?.labels, !labels.isEmpty {
-                lines.append("Labels: inherits \(labels.joined(separator: ", ")) from the parent")
+                lines.append(String(localized: "Labels: inherits \(labels.joined(separator: ", ")) from the parent", bundle: .module, comment: "Change detail; the value is a list of labels"))
             }
             return lines
         case .setMark(_, let mark, let on):
-            return ["Label: \(on ? "add" : "remove") “\(mark.label)”"]
+            return [on
+                ? String(localized: "Label: add “\(mark.label)”", bundle: .module, comment: "Change detail; the value is a bd label")
+                : String(localized: "Label: remove “\(mark.label)”", bundle: .module, comment: "Change detail; the value is a bd label")]
         case .setBlocker(_, let blocker, let on):
-            return ["Blocked by: \(on ? "add" : "remove") \(name(blocker))"]
+            return [on
+                ? String(localized: "Blocked by: add \(name(blocker))", bundle: .module, comment: "Change detail; the value is a bead id and title")
+                : String(localized: "Blocked by: remove \(name(blocker))", bundle: .module, comment: "Change detail; the value is a bead id and title")]
         }
     }
 
     private static func textChange(_ field: String, from old: String, to new: String) -> String {
-        if new.isEmpty { return "\(field): cleared (was \(old.count) characters)" }
-        if old.isEmpty { return "\(field): added (\(new.count) characters)" }
-        return "\(field): \(old.count) → \(new.count) characters"
+        if new.isEmpty { return String(localized: "\(field): cleared (was \(old.count) characters)", bundle: .module, comment: "Change detail: a field name, then how long it was; plural on the number of characters") }
+        if old.isEmpty { return String(localized: "\(field): added (\(new.count) characters)", bundle: .module, comment: "Change detail: a field name, then how long it is; plural on the number of characters") }
+        return String(localized: "\(field): \(old.count) → \(new.count) characters", bundle: .module, comment: "Change detail: a field name, the old length, the new length; plural on the last number")
     }
 }

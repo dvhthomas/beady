@@ -111,7 +111,9 @@ struct FilterBar: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .fixedSize()
-        .help(model.isBoardShownAsList ? "Shown as a list: the board has nothing to split" : "List, Tree or Board (⌘1, ⌘2, ⌘3)")
+        .help(model.isBoardShownAsList
+            ? String(localized: "Shown as a list: the board has nothing to split", comment: "Tooltip on the layout switcher")
+            : String(localized: "List, Tree or Board (⌘1, ⌘2, ⌘3)", comment: "Tooltip on the layout switcher"))
     }
 
     /// The switcher shows what is drawn; picking a segment is an explicit choice.
@@ -239,7 +241,7 @@ struct FilterMenu: View {
     }
 
     private var prompt: String {
-        field.wrappedValue.map { "Filter \(DisplayText.field($0).lowercased())…" } ?? "Filter by…"
+        field.wrappedValue.map { String(localized: "Filter \(DisplayText.field($0))…", comment: "Search field prompt; the value is a filter field such as Status") } ?? String(localized: "Filter by…", comment: "Search field prompt")
     }
 
     private var fields: [FilterField] {
@@ -271,9 +273,9 @@ struct FilterValuesList: View {
                 .toggleStyle(.checkbox)
                 .lineLimit(1)
                 .disabled(model.isLocked(field))
-                .help(model.isLocked(field) ? "Part of what \(model.view.name) means; duplicate the view to change it" : (option.help ?? ""))
+                .help(model.isLocked(field) ? lockedHelp(model.view.name) : (option.help ?? ""))
                 Spacer(minLength: 12)
-                Text("\(option.count)")
+                Text(option.count, format: .number)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -357,7 +359,7 @@ struct FilterChipView: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
-                    .help("Part of what \(model.view.name) means; duplicate the view to change it")
+                    .help(lockedHelp(model.view.name))
             } else {
                 Button {
                     model.removeFilter(chip.field)
@@ -431,6 +433,11 @@ struct DisplayOptionsView: View {
         .background(theme.background)
         .frame(width: 340)
     }
+}
+
+/// Why a chip or a value can't be changed: it defines the built-in view.
+func lockedHelp(_ viewName: String) -> String {
+    String(localized: "Part of what \(viewName) means; duplicate the view to change it", comment: "Tooltip; the value is a view's name")
 }
 
 enum FilterStyle {

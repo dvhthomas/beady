@@ -223,7 +223,7 @@ public struct ViewLibrary: Equatable, Sendable {
             view.isBuiltIn = false
             if self.view(view.id) != nil {
                 view.id = IssueView.ID(UUID().uuidString)
-                view.name += " (imported)"
+                view.name = String(localized: "\(view.name) (imported)", bundle: .module, comment: "Name of an imported view whose id was already taken")
             }
             views.append(view)
             added.append(view)
@@ -258,9 +258,9 @@ public enum ViewImportError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notAView:
-            "This file isn't a Beady view."
+            String(localized: "This file isn't a Beady view.", bundle: .module)
         case .newerFormat(let version):
-            "This view was saved by a newer Beady (format \(version)); this Beady reads format \(IssueView.formatVersion). Update Beady to open it."
+            String(localized: "This view was saved by a newer Beady (format \(version)); this Beady reads format \(IssueView.formatVersion). Update Beady to open it.", bundle: .module)
         }
     }
 }
@@ -338,7 +338,7 @@ enum ViewMigration {
                 var filter = record.state.filter
                 filter.set(FilterRule(field: .lifecycle, op: .isAnyOf, values: [StatusCategory.active.rawValue]))
                 library.offers.append(IssueView(
-                    id: IssueView.ID(UUID().uuidString), name: "Open", symbol: "circle",
+                    id: IssueView.ID(UUID().uuidString), name: String(localized: "Open", bundle: .module, comment: "Name of the offered view holding the open lifecycle category"), symbol: "circle",
                     filter: filter, presentation: record.state.presentation
                 ))
             case .lifecycle(let scope):
