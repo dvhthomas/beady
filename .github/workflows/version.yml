@@ -1,0 +1,95 @@
+# Turns a push to master into a release without anyone bumping a number. The
+# next version is the highest v* tag reachable from master plus the largest
+# release:* label on the pull requests merged since it (patch when there is no
+# label). It is written to VERSION, committed, tagged vX.Y.Z and handed to the
+# Release workflow, which builds the app and publishes the Homebrew cask.
+#
+# Why no loop: the commit this pushes is the tagged one, so a run that starts
+# from it finds master already released and stops. (A push made with
+# GITHUB_TOKEN doesn't start workflows anyway, which is also why the Release
+# workflow is dispatched here rather than left to the tag push.)
+name: Version
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write # push the VERSION commit and the tag
+  pull-requests: read # read the merged pull requests' labels
+  actions: write # start the Release workflow
+
+# Merges close together queue up; each run works from the tip of master as it
+# is then, so the second finds the first's tag and does nothing.
+concurrency:
+  group: version-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the next version
+        id: next
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --quiet origin "$GITHUB_REF_NAME"
+          git checkout --quiet "origin/$GITHUB_REF_NAME"
+          if git describe --tags --exact-match --match 'v[0-9]*' HEAD >/dev/null 2>&1; then
+            echo "$GITHUB_REF_NAME is already released as $(git describe --tags --exact-match HEAD); nothing to do."
+            exit 0
+          fi
+
+          current=$(scripts/next-version.sh current)
+          if [ "$(cat VERSION)" != "$current" ]; then
+            echo "::error file=VERSION::VERSION says $(cat VERSION) but the latest tag is v$current. VERSION is derived from the tags; put it back to $current (or tag v$(cat VERSION) by hand if that release really happened). See RELEASE.md."
+            exit 1
+          fi
+
+          # The pull requests merged since the tag, one per first-parent commit.
+          prs=$(for sha in $(git rev-list --first-parent "v$current..HEAD"); do
+                  gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
+                    --jq ".[] | select(.merged_at != null and .base.ref == \"$GITHUB_REF_NAME\") | .number"
+                done | sort -un)
+          sizes=()
+          for pr in $prs; do
+            labels=()
+            while IFS= read -r label; do labels+=("$label"); done \
+              < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '.labels[].name')
+            size=$(scripts/next-version.sh size ${labels[@]+"${labels[@]}"})
+            echo "#$pr: $size"
+            sizes+=("$size")
+          done
+          if [ "${#sizes[@]}" -eq 0 ]; then
+            echo "No pull request since v$current (a direct push); treating it as a patch."
+            sizes=(patch)
+          fi
+
+          size=$(scripts/next-version.sh largest "${sizes[@]}")
+          next=$(scripts/next-version.sh bump "$current" "$size")
+          if [ "$next" = "$current" ]; then
+            echo "Everything since v$current is release:none; nothing to release."
+            exit 0
+          fi
+          echo "v$current -> v$next ($size)"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Commit VERSION, tag, and start the Release workflow
+        if: steps.next.outputs.next != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.next.outputs.next }}
+        run: |
+          echo "$NEXT" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --quiet -am "Version $NEXT"
+          git tag -a "v$NEXT" -m "Beady $NEXT"
+          git push --atomic origin "HEAD:$GITHUB_REF_NAME" "v$NEXT"
+          gh workflow run release.yml --ref "v$NEXT"
+          echo "Released **v$NEXT**: VERSION committed, tag pushed, Release workflow started." >> "$GITHUB_STEP_SUMMARY"

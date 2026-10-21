@@ -1,7 +1,9 @@
 # Builds the app on a tagged commit, attaches the zip to a GitHub Release, and
 # publishes the matching Homebrew cask to the tap (dvhthomas/homebrew-beady).
-# The app is ad-hoc signed only: there's no Developer ID, so downloads are
-# quarantined until the user allows them (see the release notes below).
+# The Version workflow makes the tag on every push to master and starts this
+# workflow on it; pushing a v* tag by hand works too. The app is ad-hoc signed
+# only: there's no Developer ID, so downloads are quarantined until the user
+# allows them (see the release notes below).
 name: Release
 
 on:
@@ -30,7 +32,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::VERSION says $(cat VERSION) but the tag is $GITHUB_REF_NAME. Bump VERSION on master first; see RELEASE.md."
+            echo "::error::VERSION says $(cat VERSION) but the tag is $GITHUB_REF_NAME. Tags come from the Version workflow, which keeps them in step; see RELEASE.md."
             exit 1
           fi
 
@@ -44,6 +46,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/*.zip
+          generate_release_notes: true # the merged pull requests, after the body below
           body: |
             Built from ${{ github.sha }}.
 

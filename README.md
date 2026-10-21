@@ -368,9 +368,10 @@ into a real window and reports whether the single-key shortcuts and the keyboard
 
 ### Releasing
 
-Every release is a new tag on master, and the number in `VERSION` has to match it. The Release
-workflow builds the app, attaches the zip to a GitHub Release, and rewrites the Homebrew cask.
-[RELEASE.md](RELEASE.md) has the steps and what to check afterwards.
+Every merge to master is a release. A `release:minor` or `release:major` label on the pull
+request says how big it is; no label means a patch. CI works out the next version, writes
+`VERSION`, tags it, builds the app, attaches the zip to a GitHub Release, and rewrites the
+Homebrew cask. [RELEASE.md](RELEASE.md) has the details and what to check afterwards.
 
 This app's own work is tracked in beads — `bd list` in a clone of your own. The backlog
 itself stays on the machine it's worked on; only bd's configuration is committed.

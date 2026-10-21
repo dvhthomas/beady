@@ -1,0 +1,42 @@
+# Fails a pull request that is unclear about how big a release it is, so the
+# Version workflow can turn the merged PRs into a version number without
+# guessing. The one decision is a label: none for a bug fix or tweak (patch),
+# release:minor for a feature, release:major for a break, release:none for a
+# change nobody needs shipped. VERSION itself is written on merge and must not
+# be edited by hand. See RELEASE.md.
+name: Release size
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: At most one release:* label
+        run: |
+          labels=()
+          while IFS= read -r label; do labels+=("$label"); done \
+            < <(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH")
+          if ! size=$(scripts/next-version.sh size ${labels[@]+"${labels[@]}"} 2>&1); then
+            echo "::error title=Release size::${size#next-version: } (see RELEASE.md)"
+            exit 1
+          fi
+          echo "Merging this pull request makes a **$size** release." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: VERSION is written on merge, not by hand
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename' | grep -qx VERSION; then
+            echo "::error file=VERSION,title=Release size::VERSION is derived from the release:* label when this merges; don't edit it. See RELEASE.md."
+            exit 1
+          fi
