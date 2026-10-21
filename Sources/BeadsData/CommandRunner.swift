@@ -13,7 +13,14 @@ public struct CommandResult: Equatable, Sendable {
 }
 
 public protocol CommandRunning: Sendable {
-    func run(_ executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult
+    /// `directory` is the working directory for the process; nil inherits the app's.
+    func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval) async throws -> CommandResult
+}
+
+extension CommandRunning {
+    public func run(_ executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
+        try await run(executable, arguments: arguments, directory: nil, timeout: timeout)
+    }
 }
 
 public struct ProcessCommandRunner: CommandRunning {
@@ -37,8 +44,8 @@ public struct ProcessCommandRunner: CommandRunning {
 
     /// Throws `BeadsDataError.timedOut` after `timeout`, or `CancellationError` if the task is
     /// cancelled; either way the process is stopped rather than left running.
-    public func run(_ executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
-        let run = ProcessRun(executable: executable, arguments: arguments, environment: environment)
+    public func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval) async throws -> CommandResult {
+        let run = ProcessRun(executable: executable, arguments: arguments, directory: directory, environment: environment)
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 run.start(timeout: timeout, continuation: continuation)
@@ -75,9 +82,10 @@ private final class ProcessRun: @unchecked Sendable {
     private var continuation: CheckedContinuation<CommandResult, Error>?
     private var timeoutWork: DispatchWorkItem?
 
-    init(executable: URL, arguments: [String], environment: [String: String]) {
+    init(executable: URL, arguments: [String], directory: URL?, environment: [String: String]) {
         process.executableURL = executable
         process.arguments = arguments
+        process.currentDirectoryURL = directory
         process.environment = environment
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe

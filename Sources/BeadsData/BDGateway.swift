@@ -19,17 +19,28 @@ public struct BeadsWorkspace: Hashable, Sendable {
     /// Accepts either a project folder or the `.beads` folder inside it. The `.beads` folder must
     /// be one bd has initialised: bd would silently use a parent folder's database for an empty one.
     public static func resolve(_ url: URL) throws -> BeadsWorkspace {
+        let inspection = inspect(url)
+        guard inspection.hasBeadsDatabase else { throw BeadsDataError.notAWorkspace(path: url.path) }
+        return BeadsWorkspace(projectDirectory: inspection.projectDirectory)
+    }
+
+    /// What is at a chosen folder, for deciding whether to open it or offer to create a database
+    /// in it. Accepts the same folders as `resolve`, and never throws: a folder with nothing in
+    /// it is a plain answer, not an error.
+    public static func inspect(_ url: URL) -> WorkspaceInspection {
         let standardized = url.standardizedFileURL
         let project = standardized.lastPathComponent == ".beads"
             ? standardized.deletingLastPathComponent()
             : standardized
         let beads = project.appendingPathComponent(".beads")
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: beads.path, isDirectory: &isDirectory), isDirectory.boolValue,
-              isInitialised(beads) else {
-            throw BeadsDataError.notAWorkspace(path: url.path)
-        }
-        return BeadsWorkspace(projectDirectory: project)
+        let hasBeads = FileManager.default.fileExists(atPath: beads.path, isDirectory: &isDirectory) && isDirectory.boolValue
+        return WorkspaceInspection(
+            projectDirectory: project,
+            hasBeadsDatabase: hasBeads && isInitialised(beads),
+            // A directory in a checkout, a file in a git worktree; either way the folder is a repository.
+            isGitRepository: FileManager.default.fileExists(atPath: project.appendingPathComponent(".git").path)
+        )
     }
 
     private static func isInitialised(_ beads: URL) -> Bool {
@@ -38,6 +49,14 @@ public struct BeadsWorkspace: Hashable, Sendable {
             ["metadata.json", "config.yaml", "embeddeddolt", "dolt"].contains(name) || name.hasSuffix(".db")
         }
     }
+}
+
+/// The facts `BeadsWorkspace.inspect` reports about a folder.
+public struct WorkspaceInspection: Equatable, Sendable {
+    /// The project folder: the chosen one, or the parent when `.beads` itself was chosen.
+    public let projectDirectory: URL
+    public let hasBeadsDatabase: Bool
+    public let isGitRepository: Bool
 }
 
 /// Every bd invocation the app makes. Reads always carry `--readonly`; writes pass values as
@@ -67,13 +86,15 @@ public enum BDCommand: Equatable, Sendable {
     case close(IssueID, reason: String?)
     case reopen(IssueID, reason: String?)
     case create(NewIssue, dryRun: Bool)
+    /// `bd init` with Beady's defaults; the reasoning is on `NewDatabasePlan` in BeadsPresentation.
+    case initDatabase(prefix: String)
 
     public var isReadOnly: Bool {
         switch self {
         case .list, .listTitled, .statuses, .show, .ready, .blocked, .history, .backupStatus,
              .version, .configGet, .eventsTail: true
         case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .addBlocker,
-             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet: false
+             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet, .initDatabase: false
         }
     }
 
@@ -146,6 +167,10 @@ public enum BDCommand: Equatable, Sendable {
             if let parent = new.parent { arguments.append("--parent=\(parent.rawValue)") }
             if !new.description.isEmpty { arguments.append("--description=\(new.description)") }
             return arguments + (dryRun ? ["--dry-run", "--json"] : ["--json"])
+        case .initDatabase(let prefix):
+            // No wizards (there is no terminal to answer them), no agent instruction files, no
+            // git hooks: the database and nothing else. Embedded Dolt is bd's own default.
+            return ["init", "--non-interactive", "--skip-agents", "--skip-hooks", "--prefix=\(prefix)"]
         }
     }
 
@@ -182,6 +207,13 @@ public struct BDGateway: Sendable {
         BDGateway(workspace: try BeadsWorkspace.resolve(url), executable: try locator.locate())
     }
 
+    /// A gateway on a folder that is not a workspace yet, for `.initDatabase` and nothing else;
+    /// once that has run, `open` the folder for a gateway that has checked it. Accepts the same
+    /// folders as `open`.
+    public static func forNewWorkspace(at url: URL, locator: BDExecutableLocator = BDExecutableLocator()) throws -> BDGateway {
+        BDGateway(workspace: BeadsWorkspace(projectDirectory: BeadsWorkspace.inspect(url).projectDirectory), executable: try locator.locate())
+    }
+
     /// Runs a command and returns its output, throwing bd's own error message when it fails.
     public func run(_ command: BDCommand) async throws -> Data {
         let result = try await result(of: command)
@@ -191,12 +223,24 @@ public struct BDGateway: Sendable {
 
     /// Runs a command and returns the raw result, for callers that interpret failures themselves.
     public func result(of command: BDCommand) async throws -> CommandResult {
-        try await runner.run(executable, arguments: ["-C", workspace.projectDirectory.path] + command.arguments, timeout: timeout)
+        let project = workspace.projectDirectory
+        return switch command {
+        case .initDatabase:
+            // `bd -C` refuses a folder that has no beads project yet, so init runs inside it.
+            try await runner.run(executable, arguments: command.arguments, directory: project, timeout: timeout)
+        default:
+            try await runner.run(executable, arguments: ["-C", project.path] + command.arguments, directory: nil, timeout: timeout)
+        }
     }
 
     /// The exact command line, quoted the way a shell would need.
     public func preview(_ command: BDCommand) -> String {
-        (["bd", "-C", workspace.projectDirectory.path] + command.arguments).map(Self.shellQuoted).joined(separator: " ")
+        let project = Self.shellQuoted(workspace.projectDirectory.path)
+        let arguments = command.arguments.map(Self.shellQuoted).joined(separator: " ")
+        return switch command {
+        case .initDatabase: "cd \(project) && bd \(arguments)"
+        default: "bd -C \(project) \(arguments)"
+        }
     }
 
     /// A cheap summary of the files bd changes when it writes.

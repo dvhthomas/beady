@@ -148,6 +148,14 @@ struct ProcessCommandRunnerTests {
         #expect(result.exitCode == 3)
     }
 
+    @Test("a working directory, when given, is where the process runs")
+    func workingDirectory() async throws {
+        let directory = try makeTempDirectory()
+        let result = try await ProcessCommandRunner().run(sh, arguments: ["-c", "pwd"], directory: directory, timeout: 10)
+        let printed = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(URL(fileURLWithPath: printed).resolvingSymlinksInPath() == directory.resolvingSymlinksInPath())
+    }
+
     @Test("large output doesn't deadlock the pipe")
     func largeOutput() async throws {
         let result = try await ProcessCommandRunner().run(sh, arguments: ["-c", "head -c 2000000 /dev/zero"], timeout: 20)

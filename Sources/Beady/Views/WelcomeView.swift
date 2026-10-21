@@ -18,6 +18,9 @@ struct WelcomeView: View {
             Button("Open Beads Workspace…") { session.chooseWorkspace() }
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
+            if session.isCreatingDatabase {
+                ProgressView("Creating a beads database…")
+            }
             if let error = session.openError {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(theme.pinned)
