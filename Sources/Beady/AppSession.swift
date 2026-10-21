@@ -13,6 +13,12 @@ extension UTType {
     static let beadyViews = UTType("me.bitsby.beady.views") ?? UTType(filenameExtension: ViewLibrary.bundleExtension) ?? .json
 }
 
+/// What the Create Database alert shows: the plan, and the exact command line it will run.
+struct NewDatabaseOffer {
+    let plan: NewDatabasePlan
+    let command: String
+}
+
 /// Composition root: turns a folder into a wired-up WorkspaceModel and remembers recents.
 @MainActor
 @Observable
@@ -21,6 +27,10 @@ final class AppSession {
     private(set) var workspace: BeadsWorkspace?
     private(set) var openError: String?
     private(set) var recentPaths: [String]
+    /// A git repository without a database, waiting for the user's yes or no.
+    private(set) var databaseOffer: NewDatabaseOffer?
+    /// True while bd is making a database the user said yes to.
+    private(set) var isCreatingDatabase = false
     /// The setting: turn bd's change journal on in workspaces that don't have it. On by default;
     /// nil preferences (the offscreen snapshots) mean nothing is ever written.
     var turnsOnJournal: Bool {
@@ -95,7 +105,61 @@ final class AppSession {
         }
     }
 
+    /// Opens a database, offers to make one in a git repository that has none, or says why
+    /// neither can happen. The decision is `WorkspaceOpening`'s; this gathers the facts.
     func open(_ url: URL) {
+        let found = BeadsWorkspace.inspect(url)
+        let folder = ChosenFolder(
+            path: found.projectDirectory.path,
+            hasBeadsDatabase: found.hasBeadsDatabase,
+            isGitRepository: found.isGitRepository
+        )
+        switch WorkspaceOpening.decide(folder) {
+        case .open:
+            openWorkspace(url)
+        case .offerNewDatabase(let plan):
+            forget(found.projectDirectory.path)
+            offerNewDatabase(plan)
+        case .refuse(let reason):
+            forget(found.projectDirectory.path)
+            openError = reason
+        }
+    }
+
+    private func offerNewDatabase(_ plan: NewDatabasePlan) {
+        do {
+            // The same gateway that will run it builds the preview, so what's shown is what runs.
+            let gateway = try BDGateway.forNewWorkspace(at: URL(fileURLWithPath: plan.projectPath))
+            databaseOffer = NewDatabaseOffer(plan: plan, command: gateway.preview(.initDatabase(prefix: plan.prefix)))
+            openError = nil
+        } catch {
+            openError = error.localizedDescription
+        }
+    }
+
+    /// Yes to the offer: run bd init, then open the folder like any other workspace.
+    func createDatabase() {
+        guard let offer = databaseOffer, !isCreatingDatabase else { return }
+        databaseOffer = nil
+        isCreatingDatabase = true
+        let url = URL(fileURLWithPath: offer.plan.projectPath)
+        Task {
+            defer { isCreatingDatabase = false }
+            do {
+                _ = try await BDGateway.forNewWorkspace(at: url).run(.initDatabase(prefix: offer.plan.prefix))
+                open(url)
+            } catch {
+                openError = String(localized: "Couldn't create a beads database in \(offer.plan.folderName): \(error.localizedDescription)", comment: "The folder's name, then bd's error")
+            }
+        }
+    }
+
+    /// No to the offer: nothing is written, and nothing is remembered.
+    func declineDatabase() {
+        databaseOffer = nil
+    }
+
+    private func openWorkspace(_ url: URL) {
         do {
             // Everything that reads or writes beads goes through this one gateway.
             let gateway = try BDGateway.open(url)
@@ -131,9 +195,6 @@ final class AppSession {
             }
         } catch {
             openError = error.localizedDescription
-            if let dataError = error as? BeadsDataError, case .notAWorkspace = dataError {
-                forget(url.standardizedFileURL.path)
-            }
         }
     }
 
@@ -345,7 +406,7 @@ final class AppSession {
     func chooseWorkspace() {
         let panel = NSOpenPanel()
         panel.title = String(localized: "Open Beads Workspace")
-        panel.message = String(localized: "Choose a project folder containing .beads, or the .beads folder itself.")
+        panel.message = String(localized: "Choose a project folder containing .beads, or a git repository to create one in.")
         panel.prompt = String(localized: "Open", comment: "Open panel button")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false

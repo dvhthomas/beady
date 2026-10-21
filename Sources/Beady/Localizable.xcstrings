@@ -2234,7 +2234,48 @@
         }
       }
     },
+    "Choose a project folder containing .beads, or a git repository to create one in." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle einen Projektordner mit .beads oder ein Git-Repository, in dem eine angelegt werden soll."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una carpeta de proyecto que contenga .beads, o un repositorio Git donde crear una."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un dossier de projet contenant .beads, ou un dépôt Git où en créer une."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".beads を含むプロジェクトフォルダか、データベースを作成する Git リポジトリを選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ".beads가 있는 프로젝트 폴더나, 데이터베이스를 만들 Git 저장소를 선택하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha uma pasta de projeto que contenha .beads, ou um repositório Git onde criar um."
+          }
+        }
+      }
+    },
     "Choose a project folder containing .beads, or the .beads folder itself." : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2835,6 +2876,47 @@
         }
       }
     },
+    "Couldn't create a beads database in %@: %@" : {
+      "comment" : "The folder's name, then bd's error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beads-Datenbank in %@ konnte nicht angelegt werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo crear una base de datos beads en %@: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de créer une base de données beads dans %@ : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に beads データベースを作成できませんでした：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 beads 데이터베이스를 만들 수 없습니다: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível criar um banco de dados beads em %@: %@"
+          }
+        }
+      }
+    },
     "Couldn't load beads" : {
       "localizations" : {
         "de" : {
@@ -2915,6 +2997,46 @@
         }
       }
     },
+    "Create Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank anlegen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer la base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを作成"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터베이스 만들기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criar banco de dados"
+          }
+        }
+      }
+    },
     "Create a bead (⌘N). Every change is confirmed before it's written." : {
       "localizations" : {
         "de" : {
@@ -2991,6 +3113,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Criado"
+          }
+        }
+      }
+    },
+    "Creating a beads database…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beads-Datenbank wird angelegt …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Creando una base de datos beads…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Création d'une base de données beads…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beads データベースを作成中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "beads 데이터베이스를 만드는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criando um banco de dados beads…"
           }
         }
       }

@@ -38,6 +38,13 @@ struct BDCommandTests {
         #expect(BDCommand.create(new, dryRun: false).arguments.last == "--json")
     }
 
+    @Test("init makes the database and nothing else: no prompts, no agent files, no git hooks")
+    func initDatabase() {
+        #expect(BDCommand.initDatabase(prefix: "tile-engine").arguments == [
+            "init", "--non-interactive", "--skip-agents", "--skip-hooks", "--prefix=tile-engine",
+        ])
+    }
+
     @Test("exactly the mutating commands are writes, and no write claims --readonly")
     func classification() {
         let reads: [BDCommand] = [.list, .listTitled("x"), .statuses, .show("x"), .ready, .blocked]
@@ -45,6 +52,7 @@ struct BDCommandTests {
             .updateFields("x", IssueEdit(title: "t")),
             .setStatus("x", "open"), .setParent("x", "y"), .close("x", reason: "r"),
             .reopen("x", reason: nil), .create(NewIssue(title: "t"), dryRun: false),
+            .initDatabase(prefix: "x"),
         ]
         #expect(reads.allSatisfy { $0.isReadOnly && $0.arguments.first == "--readonly" })
         #expect(writes.allSatisfy { !$0.isReadOnly && !$0.arguments.contains("--readonly") })
@@ -67,6 +75,15 @@ struct BDGatewayTests {
         #expect(runner.invocations.map { Array($0.arguments.dropFirst(2)) } == [
             BDCommand.list.arguments, BDCommand.close("demo-1", reason: "done").arguments,
         ])
+        #expect(runner.invocations.allSatisfy { $0.directory == nil })
+    }
+
+    @Test("init runs inside the folder instead of pointing -C at it, which bd refuses before init")
+    func initRunsInFolder() async throws {
+        let runner = FakeRunner { _ in ok("") }
+        _ = try await BDGateway(workspace: workspace, executable: bd, runner: runner).run(.initDatabase(prefix: "p"))
+        #expect(runner.invocations.map(\.arguments) == [BDCommand.initDatabase(prefix: "p").arguments])
+        #expect(runner.invocations.map(\.directory) == [workspace.projectDirectory])
     }
 
     @Test("a failing command surfaces bd's own error message")
@@ -82,6 +99,69 @@ struct BDGatewayTests {
         let gateway = BDGateway(workspace: workspace, executable: bd, runner: FakeRunner { _ in ok("") })
         #expect(gateway.preview(.reopen("demo-1", reason: "it's back")) == "bd -C /tmp/project reopen '--reason=it'\\''s back' --json -- demo-1")
         #expect(gateway.preview(.setParent("demo-1", nil)) == "bd -C /tmp/project update --parent= --json -- demo-1")
+        #expect(gateway.preview(.initDatabase(prefix: "tile-engine")) ==
+            "cd /tmp/project && bd init --non-interactive --skip-agents --skip-hooks --prefix=tile-engine")
+    }
+}
+
+@Suite("Workspace detection")
+struct WorkspaceDetectionTests {
+    /// A folder with whatever `.beads` and `.git` entries the case needs.
+    private func folder(beads: [String]?, git: String?) throws -> URL {
+        let dir = try makeTempDirectory()
+        if let beads {
+            let beadsDir = dir.appendingPathComponent(".beads")
+            try FileManager.default.createDirectory(at: beadsDir, withIntermediateDirectories: true)
+            for name in beads { try Data().write(to: beadsDir.appendingPathComponent(name)) }
+        }
+        switch git {
+        case "directory": try FileManager.default.createDirectory(at: dir.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        case "file": try Data("gitdir: /elsewhere/.git/worktrees/x\n".utf8).write(to: dir.appendingPathComponent(".git"))
+        default: break
+        }
+        return dir
+    }
+
+    @Test("an initialised .beads folder is a database; an empty one is not, since bd would use a parent's")
+    func database() throws {
+        #expect(try BeadsWorkspace.inspect(folder(beads: ["metadata.json"], git: nil)).hasBeadsDatabase)
+        #expect(try BeadsWorkspace.inspect(folder(beads: ["config.yaml"], git: nil)).hasBeadsDatabase)
+        #expect(try BeadsWorkspace.inspect(folder(beads: ["beads.db"], git: nil)).hasBeadsDatabase)
+        #expect(try !BeadsWorkspace.inspect(folder(beads: [], git: nil)).hasBeadsDatabase)
+        #expect(try !BeadsWorkspace.inspect(folder(beads: nil, git: nil)).hasBeadsDatabase)
+    }
+
+    @Test("a git repository is a folder with .git inside it: a directory, or a worktree's .git file")
+    func git() throws {
+        #expect(try BeadsWorkspace.inspect(folder(beads: nil, git: "directory")).isGitRepository)
+        #expect(try BeadsWorkspace.inspect(folder(beads: nil, git: "file")).isGitRepository)
+        #expect(try !BeadsWorkspace.inspect(folder(beads: nil, git: nil)).isGitRepository)
+    }
+
+    @Test("choosing the .beads folder itself means its parent project, even before it is initialised")
+    func beadsFolderChosen() throws {
+        let project = try folder(beads: [], git: "directory")
+        let inspection = BeadsWorkspace.inspect(project.appendingPathComponent(".beads"))
+        #expect(inspection.projectDirectory == project.standardizedFileURL)
+        #expect(!inspection.hasBeadsDatabase)
+        #expect(inspection.isGitRepository)
+    }
+
+    @Test("resolve and inspect agree on what is a workspace")
+    func resolveAgrees() throws {
+        let yes = try folder(beads: ["metadata.json"], git: nil)
+        let no = try folder(beads: [], git: "directory")
+        #expect(try BeadsWorkspace.resolve(yes).projectDirectory == BeadsWorkspace.inspect(yes).projectDirectory)
+        #expect(throws: BeadsDataError.notAWorkspace(path: no.path)) { try BeadsWorkspace.resolve(no) }
+    }
+
+    @Test("a gateway for a folder that is not yet a workspace points bd at the project, ready for init")
+    func gatewayForNewWorkspace() throws {
+        let project = try folder(beads: nil, git: "directory")
+        let locator = BDExecutableLocator(environment: ["BD_PATH": "/usr/bin/true"], isExecutable: { _ in true })
+        let gateway = try BDGateway.forNewWorkspace(at: project.appendingPathComponent(".beads"), locator: locator)
+        #expect(gateway.workspace.projectDirectory == project.standardizedFileURL)
+        #expect(gateway.preview(.initDatabase(prefix: "p")).hasPrefix("cd "))
     }
 }
 

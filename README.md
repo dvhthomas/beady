@@ -186,6 +186,26 @@ xattr -dr com.apple.quarantine /Applications/Beady.app
 Open a project folder containing `.beads` (or the `.beads` folder itself) with ⌘O. The last
 workspace reopens on launch; `--workspace /path/to/project` overrides it.
 
+A folder that holds a git repository but no `.beads` gets an offer instead: "Create a beads
+database in *folder*?", with the exact `bd init` line it will run, and Create Database or Cancel.
+Cancel writes nothing. The defaults are deliberately the fewest that make a workspace Beady can
+open:
+
+- **Prefix** from the folder's name: lowercased, letters and digits with runs of anything else
+  folded to one hyphen, starting with a letter and at most 16 characters cut back to a whole word
+  (`Tile Engine` → `tile-engine`, so beads are `tile-engine-a3f2`). A name with nothing usable in
+  it gives `beads`.
+- **The database and nothing else**: `--skip-agents --skip-hooks`, so no AGENTS.md, CLAUDE.md,
+  Cursor or Codex files and no git hooks appear in the repository; `bd setup` and
+  `bd hooks install` add them later if wanted. `--non-interactive`, since there is no terminal for
+  bd's wizards. Storage is bd's own default, embedded Dolt.
+- bd itself commits `.beads/` and a `.gitignore` entry to the repository as part of init, and
+  touches nothing else there. bd's change journal is then handled as for any workspace (below).
+
+A plain folder, without `.git` inside it, is refused with the reason: `bd init` would run
+`git init` there itself, which is more than opening a folder should do. Run `git init` first, or
+choose the repository.
+
 ## What you can see
 
 - **Views** (sidebar, modelled on Linear, navigation only): a view is a saved filter with a saved
@@ -286,7 +306,8 @@ BeadsPresentation   BeadsData     WorkspaceModel (per-view state) │ BDGateway 
   `ChangeRunner`). It defines the single `BeadsStore` port.
 - **BeadsData** implements that port. Every bd invocation is a typed `BDCommand` run by one
   `BDGateway`, which also owns the change token and workspace detection. Reads always carry
-  `--readonly`; the only writes are `update`, `close`, `reopen` and `create`. `BDStore` implements
+  `--readonly`; the writes are `update`, `close`, `reopen`, `create`, `config set-many`, `backup`
+  and `init` (run inside the folder rather than through `-C`, which bd refuses before init). `BDStore` implements
   `BeadsStore` purely through the gateway, and an architecture test keeps it that way. Underneath:
   locating `bd` (Finder-launched apps get a minimal PATH), non-blocking pipe draining, timeouts and
   cancellation that escalate SIGTERM to SIGKILL (bd traps SIGTERM), and per-record JSON decoding.
@@ -337,6 +358,11 @@ project:
 ```bash
 BEADY_IT_WRITABLE_WORKSPACE=/path/to/scratch-project scripts/test.sh
 ```
+
+Behind the same gate, a third test creates a database the way the app does: `git init` in a
+temporary folder, `bd init` with Beady's defaults through the real bd, then a check that the
+result opens, took the prefix, and has no agent files or hooks. It never touches the scratch
+workspace, only its own temporary folder.
 
 `scripts/test.sh` also passes the Swift Testing macro plugin path when only the Command Line Tools
 are installed, since SwiftPM doesn't find it on its own there. For the same reason (no SwiftUI

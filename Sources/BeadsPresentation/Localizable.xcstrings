@@ -130,6 +130,88 @@
         }
       }
     },
+    "%@ has no .beads database, and it isn't a git repository (no .git inside it), so Beady won't create one there. Run git init in it first, or choose a repository." : {
+      "comment" : "The folder's path",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hat keine .beads-Datenbank und ist kein Git-Repository (kein .git darin), daher legt Beady dort keine an. Führe zuerst git init darin aus oder wähle ein Repository."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no tiene base de datos .beads y no es un repositorio Git (no hay .git dentro), así que Beady no creará una ahí. Ejecuta primero git init en ella o elige un repositorio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ n'a pas de base de données .beads et n'est pas un dépôt Git (pas de .git à l'intérieur), Beady n'en créera donc pas ici. Exécutez d'abord git init dans ce dossier, ou choisissez un dépôt."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ には .beads データベースがなく、Git リポジトリでもありません（中に .git がありません）。そのため Beady はそこには作成しません。先にそのフォルダで git init を実行するか、リポジトリを選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에는 .beads 데이터베이스가 없고 Git 저장소도 아닙니다(안에 .git이 없음). 따라서 Beady는 거기에 데이터베이스를 만들지 않습니다. 먼저 해당 폴더에서 git init을 실행하거나 저장소를 선택하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não tem um banco de dados .beads e não é um repositório Git (não há .git dentro), então o Beady não criará um ali. Execute git init nela primeiro ou escolha um repositório."
+          }
+        }
+      }
+    },
+    "%@ is a git repository without a .beads database. Beady can make one: bd's embedded Dolt storage, beads named %@-<id>, no agent files and no git hooks.\n\nbd will run:\n%@\n\nbd commits the new .beads folder and a .gitignore entry to the repository, and touches nothing else." : {
+      "comment" : "Alert text; the folder's name, the issue-id prefix, then the exact command line",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ist ein Git-Repository ohne .beads-Datenbank. Beady kann eine anlegen: bd's eingebetteter Dolt-Speicher, Beads mit Namen %@-<id>, keine Agent-Dateien und keine Git-Hooks.\n\nbd führt aus:\n%@\n\nbd committet den neuen Ordner .beads und einen .gitignore-Eintrag im Repository und rührt sonst nichts an."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ es un repositorio Git sin base de datos .beads. Beady puede crear una: el almacenamiento Dolt integrado de bd, beads llamados %@-<id>, sin archivos de agentes ni hooks de Git.\n\nbd ejecutará:\n%@\n\nbd confirma la nueva carpeta .beads y una entrada en .gitignore en el repositorio, y no toca nada más."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ est un dépôt Git sans base de données .beads. Beady peut en créer une : le stockage Dolt intégré de bd, des beads nommés %@-<id>, sans fichiers d'agents ni hooks Git.\n\nbd exécutera :\n%@\n\nbd valide (commit) le nouveau dossier .beads et une entrée .gitignore dans le dépôt, et ne touche à rien d'autre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は .beads データベースのない Git リポジトリです。Beady が作成できます：bd の組み込み Dolt ストレージ、%@-<id> という名前のビーズ、エージェント用ファイルも Git フックもなし。\n\nbd は次を実行します：\n%@\n\nbd は新しい .beads フォルダと .gitignore の項目をリポジトリにコミットし、それ以外には触れません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) .beads 데이터베이스가 없는 Git 저장소입니다. Beady가 만들 수 있습니다: bd의 내장 Dolt 저장소, %@-<id> 이름의 비드, 에이전트 파일과 Git 훅 없음.\n\nbd가 실행할 명령:\n%@\n\nbd는 새 .beads 폴더와 .gitignore 항목을 저장소에 커밋하며 그 외에는 아무것도 건드리지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ é um repositório Git sem banco de dados .beads. O Beady pode criar um: o armazenamento Dolt embutido do bd, beads chamados %@-<id>, sem arquivos de agentes nem hooks do Git.\n\nO bd executará:\n%@\n\nO bd faz commit da nova pasta .beads e de uma entrada no .gitignore no repositório, e não toca em mais nada."
+          }
+        }
+      }
+    },
     "%@ or %@" : {
       "comment" : "Two keys that both run a command, such as ‘/ or ⌘F’",
       "localizations" : {
@@ -2452,6 +2534,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Criar %1$@ “%2$@”"
+          }
+        }
+      }
+    },
+    "Create a beads database in %@?" : {
+      "comment" : "Alert title; the folder's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beads-Datenbank in %@ anlegen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Crear una base de datos beads en %@?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer une base de données beads dans %@ ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ に beads データベースを作成しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 beads 데이터베이스를 만들까요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criar um banco de dados beads em %@?"
           }
         }
       }

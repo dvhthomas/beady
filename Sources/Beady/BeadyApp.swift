@@ -105,6 +105,12 @@ struct RootView: View {
         } message: {
             Text(session.openError ?? "")
         }
+        .alert(session.databaseOffer?.plan.offerTitle ?? "", isPresented: showsDatabaseOffer) {
+            Button("Create Database") { session.createDatabase() }
+            Button("Cancel", role: .cancel) { session.declineDatabase() }
+        } message: {
+            Text(session.databaseOffer.map { $0.plan.offerMessage(command: $0.command) } ?? "")
+        }
         .sheet(isPresented: showsResetConfiguration) {
             ResetConfigurationSheet(
                 inventory: session.configurationInventory(),
@@ -145,6 +151,13 @@ struct RootView: View {
         Binding(
             get: { session.viewFileError != nil },
             set: { if !$0 { session.dismissViewFileError() } }
+        )
+    }
+
+    private var showsDatabaseOffer: Binding<Bool> {
+        Binding(
+            get: { session.databaseOffer != nil },
+            set: { if !$0 { session.declineDatabase() } }
         )
     }
 
