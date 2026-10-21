@@ -33,10 +33,10 @@ public enum WorkspaceOpening {
     public static func decide(_ folder: ChosenFolder) -> OpenDecision {
         if folder.hasBeadsDatabase { return .open }
         if folder.isGitRepository { return .offerNewDatabase(NewDatabasePlan(projectPath: folder.path)) }
-        return .refuse(
-            "\(folder.path) has no .beads database, and it isn't a git repository (no .git inside it), " +
-            "so Beady won't create one there. Run git init in it first, or choose a repository."
-        )
+        return .refuse(String(
+            localized: "\(folder.path) has no .beads database, and it isn't a git repository (no .git inside it), so Beady won't create one there. Run git init in it first, or choose a repository.",
+            bundle: .module, comment: "The folder's path"
+        ))
     }
 }
 
@@ -102,19 +102,25 @@ public struct NewDatabasePlan: Equatable, Sendable {
         return String(prefix.prefix(maximumPrefixLength))
     }
 
-    public var offerTitle: String { "Create a beads database in \(folderName)?" }
+    public var offerTitle: String {
+        String(localized: "Create a beads database in \(folderName)?", bundle: .module, comment: "Alert title; the folder's name")
+    }
 
     /// `command` is the exact command line the app will run, from the gateway.
     public func offerMessage(command: String) -> String {
-        """
-        \(folderName) is a git repository without a .beads database. Beady can make one: \
-        bd's embedded Dolt storage, beads named \(prefix)-<id>, no agent files and no git hooks.
+        String(
+            localized: """
+            \(folderName) is a git repository without a .beads database. Beady can make one: \
+            bd's embedded Dolt storage, beads named \(prefix)-<id>, no agent files and no git hooks.
 
-        bd will run:
-        \(command)
+            bd will run:
+            \(command)
 
-        bd commits the new .beads folder and a .gitignore entry to the repository, and \
-        touches nothing else.
-        """
+            bd commits the new .beads folder and a .gitignore entry to the repository, and \
+            touches nothing else.
+            """,
+            bundle: .module,
+            comment: "Alert text; the folder's name, the issue-id prefix, then the exact command line"
+        )
     }
 }

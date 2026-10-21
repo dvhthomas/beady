@@ -109,12 +109,12 @@ struct WaitingMark: View {
     private var tooltip: String {
         switch reason.kind {
         case .waitingOnBeads:
-            let names = reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: "\n")
-            return "Waiting on:\n\(names)\n\nClick for details."
+            let names = reason.blockers.map { "\($0.id.rawValue) \($0.title)" }.joined(separator: "\n")
+            return String(localized: "Waiting on:\n\(names)\n\nClick for details.", comment: "Tooltip; the value is one bead per line")
         case .waitingOnAnotherProject:
-            return "Waiting on another project: \(reason.externalCapabilities.joined(separator: ", "))"
+            return String(localized: "Waiting on another project: \(reason.externalCapabilities.joined(separator: ", "))", comment: "Tooltip")
         case .declared:
-            return "Someone set this bead's status to blocked. bd records no reason for that."
+            return String(localized: "Someone set this bead's status to blocked. bd records no reason for that.", comment: "Tooltip")
         }
     }
 }
@@ -195,7 +195,7 @@ struct WaitingDetail: View {
             .background(theme.surface, in: RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .help("Open \(blocker.id)")
+        .help("Open \(blocker.id.rawValue)")
     }
 }
 
@@ -227,13 +227,21 @@ enum MarkStyle {
         }
     }
 
+    /// The mark's name, for a glyph that can't be clicked off.
+    static func name(_ mark: IssueMark) -> String {
+        switch mark {
+        case .pinned: String(localized: "Pinned", comment: "Tooltip on the pin glyph")
+        case .starred: String(localized: "Starred", comment: "Tooltip on the star glyph")
+        }
+    }
+
     /// What the menu item says, given what the bead already is.
     static func action(_ mark: IssueMark, isOn: Bool) -> String {
         switch (mark, isOn) {
-        case (.pinned, false): "Pin to Top"
-        case (.pinned, true): "Unpin"
-        case (.starred, false): "Star"
-        case (.starred, true): "Unstar"
+        case (.pinned, false): String(localized: "Pin to Top", comment: "Menu item")
+        case (.pinned, true): String(localized: "Unpin", comment: "Menu item")
+        case (.starred, false): String(localized: "Star", comment: "Menu item")
+        case (.starred, true): String(localized: "Unstar", comment: "Menu item")
         }
     }
 }
@@ -258,7 +266,7 @@ struct MarkGlyphs: View {
                     .help(MarkStyle.action(mark, isOn: true))
             } else {
                 glyph(mark)
-                    .help(mark.title)
+                    .help(MarkStyle.name(mark))
             }
         }
     }

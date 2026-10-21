@@ -86,7 +86,7 @@ struct ThemePickerView: View {
     private func section(_ appearance: Theme.Appearance, _ options: [Theme]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(appearance == .dark ? "Dark" : "Light")
+                Text(appearance == .dark ? AppearancePreference.dark.title : AppearancePreference.light.title)
                     .font(.subheadline.weight(.semibold))
                 Text("· \(sectionUsage(appearance))")
                     .font(.caption)
@@ -120,17 +120,19 @@ struct ThemePickerView: View {
     /// What the Appearance setting means for the two lists below it.
     private var explanation: String {
         switch themes.appearance {
-        case .system: "↑↓ to try them on. Appearance follows macOS, so your dark and light choices are both used — each when macOS switches to it."
-        case .dark: "↑↓ to try them on. Appearance is pinned to Dark, so the dark choice is what you'll see."
-        case .light: "↑↓ to try them on. Appearance is pinned to Light, so the light choice is what you'll see."
+        case .system: String(localized: "↑↓ to try them on. Appearance follows macOS, so your dark and light choices are both used — each when macOS switches to it.")
+        case .dark: String(localized: "↑↓ to try them on. Appearance is pinned to Dark, so the dark choice is what you'll see.")
+        case .light: String(localized: "↑↓ to try them on. Appearance is pinned to Light, so the light choice is what you'll see.")
         }
     }
 
     private func sectionUsage(_ appearance: Theme.Appearance) -> String {
-        switch themes.appearance {
-        case .system: appearance == .dark ? "when macOS is dark" : "when macOS is light"
-        case .dark: appearance == .dark ? "in use" : "unused while Appearance is Dark"
-        case .light: appearance == .light ? "in use" : "unused while Appearance is Light"
+        switch (themes.appearance, appearance) {
+        case (.system, .dark): String(localized: "when macOS is dark", comment: "When the dark theme list applies")
+        case (.system, .light): String(localized: "when macOS is light", comment: "When the light theme list applies")
+        case (.dark, .dark), (.light, .light): String(localized: "in use", comment: "When a theme list applies")
+        case (.dark, .light): String(localized: "unused while Appearance is Dark", comment: "When a theme list applies")
+        case (.light, .dark): String(localized: "unused while Appearance is Light", comment: "When a theme list applies")
         }
     }
 
@@ -205,7 +207,13 @@ private struct ThemeSwatch: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(theme.name)
                     .foregroundStyle(Color(theme.colors.text))
-                Text(theme.isHighContrast ? "Maximum contrast, for easier reading" : "beady-1a2  Freeform positioning")
+                Group {
+                    if theme.isHighContrast {
+                        Text("Maximum contrast, for easier reading")
+                    } else {
+                        Text("beady-1a2  Freeform positioning", comment: "Sample row in a theme swatch: a bead id and a title")
+                    }
+                }
                     .font(.caption)
                     .foregroundStyle(Color(theme.colors.secondaryText))
             }
@@ -259,6 +267,23 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(theme.secondaryText)
             }
+            Section("Language") {
+                Picker("Language", selection: language) {
+                    ForEach(LanguageSetting.choices, id: \.self) { choice in
+                        Text(LanguageSetting.title(for: choice)).tag(choice)
+                    }
+                }
+                if session.needsRelaunchForLanguage {
+                    HStack {
+                        Text("Takes effect when Beady next launches.")
+                        Spacer()
+                        Button("Relaunch Now") { session.relaunch() }
+                    }
+                }
+                Text("System Default follows macOS. This is the same per-app choice as System Settings › General › Language & Region › Applications.")
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
             Section("Workspaces") {
                 Toggle("Turn on bd's change journal in workspaces that don't have it", isOn: turnsOnJournal)
                 Text("bd 1.3 and later can record who made each change, so Beady can say which agent is working on a bead. It's a workspace setting every bd command follows. Beady turns it on when a writable workspace opens, lists that under Changes with an Undo, and leaves alone a workspace where it was turned off afterwards.")
@@ -284,6 +309,10 @@ struct SettingsView: View {
 
     private var turnsOnJournal: Binding<Bool> {
         Binding(get: { session.turnsOnJournal }, set: { session.turnsOnJournal = $0 })
+    }
+
+    private var language: Binding<String?> {
+        Binding(get: { session.language }, set: { session.language = $0 })
     }
 }
 

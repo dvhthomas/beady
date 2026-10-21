@@ -25,7 +25,11 @@ struct BDCommandTests {
         #expect(BDCommand.setStatus("demo-1", "in_progress").arguments == ["update", "--status=in_progress", "--json", "--", "demo-1"])
         #expect(BDCommand.setParent("demo-1", "epic-b").arguments == ["update", "--parent=epic-b", "--json", "--", "demo-1"])
         #expect(BDCommand.setParent("demo-1", nil).arguments == ["update", "--parent=", "--json", "--", "demo-1"])
-        #expect(BDCommand.close("demo-1", reason: "shipped").arguments == ["close", "--reason=shipped", "--json", "--", "demo-1"])
+        // --force: bd refuses a plain close when the bead's assignee isn't its actor, and the actor is
+        // whatever the environment says ($USER from Finder, git user.name from a terminal), so a
+        // human's own beads would fail to close. The app checks pinned beads itself first.
+        #expect(BDCommand.close("demo-1", reason: "shipped").arguments == ["close", "--reason=shipped", "--force", "--json", "--", "demo-1"])
+        #expect(BDCommand.close("demo-1", reason: nil).arguments == ["close", "--force", "--json", "--", "demo-1"])
         #expect(BDCommand.reopen("demo-1", reason: nil).arguments == ["reopen", "--json", "--", "demo-1"])
         let new = NewIssue(title: "New", type: "bug", priority: 1, description: "why", parent: "epic-a")
         #expect(BDCommand.create(new, dryRun: true).arguments == [

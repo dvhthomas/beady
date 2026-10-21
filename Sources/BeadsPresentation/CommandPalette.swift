@@ -76,6 +76,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case setSidebarStyle(SidebarStyle)
     case chooseTheme
     case setTextSize(TextSize)
+    /// A language Beady ships with, or nil for the system's; takes effect after a relaunch.
+    case setLanguage(String?)
 
     public var id: String {
         switch self {
@@ -118,50 +120,53 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
+        case .setLanguage(let code): "language-\(code ?? "system")"
         }
     }
 
     public var title: String {
         switch self {
-        case .openWorkspace: "Open Beads Workspace…"
-        case .closeWorkspace: "Close Workspace"
-        case .refresh: "Refresh from bd"
-        case .newBead: "New Bead"
-        case .editSelected: "Edit Selected Bead"
-        case .focusSearch: "Find in This View"
-        case .addFilter: "Add Filter"
-        case .clearFilters: "Clear Filters"
-        case .displayOptions: "Display Options"
-        case .toggleDetails: "Toggle Details Panel"
-        case .showShortcuts: "Keyboard Shortcuts"
-        case .showView(let id): "Go to \(Self.viewName(id))"
-        case .saveView: "Save View"
-        case .saveViewAs: "Save as New View…"
-        case .resetView: "Reset View"
-        case .exportView: "Export View…"
-        case .importViews: "Import Views…"
-        case .setLayout(let layout): "Show as \(layout.rawValue.capitalized)"
-        case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
-        case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
+        case .openWorkspace: String(localized: "Open Beads Workspace…", bundle: .module, comment: "Command")
+        case .closeWorkspace: String(localized: "Close Workspace", bundle: .module, comment: "Command")
+        case .refresh: String(localized: "Refresh from bd", bundle: .module, comment: "Command")
+        case .newBead: String(localized: "New Bead", bundle: .module, comment: "Command")
+        case .editSelected: String(localized: "Edit Selected Bead", bundle: .module, comment: "Command")
+        case .focusSearch: String(localized: "Find in This View", bundle: .module, comment: "Command")
+        case .addFilter: String(localized: "Add Filter", bundle: .module, comment: "Command")
+        case .clearFilters: String(localized: "Clear Filters", bundle: .module, comment: "Command")
+        case .displayOptions: String(localized: "Display Options", bundle: .module, comment: "Command")
+        case .toggleDetails: String(localized: "Toggle Details Panel", bundle: .module, comment: "Command")
+        case .showShortcuts: String(localized: "Keyboard Shortcuts", bundle: .module, comment: "Command")
+        case .showView(let id): String(localized: "Go to \(Self.viewName(id))", bundle: .module, comment: "Command; the value is a view's name")
+        case .saveView: String(localized: "Save View", bundle: .module, comment: "Command")
+        case .saveViewAs: String(localized: "Save as New View…", bundle: .module, comment: "Command")
+        case .resetView: String(localized: "Reset View", bundle: .module, comment: "Command: back to the view as saved")
+        case .exportView: String(localized: "Export View…", bundle: .module, comment: "Command")
+        case .importViews: String(localized: "Import Views…", bundle: .module, comment: "Command")
+        case .setLayout(let layout): String(localized: "Show as \(DisplayText.layout(layout))", bundle: .module, comment: "Command; the value is List, Board or Tree")
+        case .setGrouping(let grouping): String(localized: "Group by \(DisplayText.grouping(grouping))", bundle: .module, comment: "Command; the value is a grouping such as Status")
+        case .setOrdering(let sort): String(localized: "Order by \(DisplayText.sort(sort))", bundle: .module, comment: "Command; the value is an ordering such as Priority")
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
-        case .toggleMark(let mark): "Toggle \(mark == .pinned ? "Pin" : "Star")"
-        case .showGraph: "Show Dependency Graph"
-        case .goBack: "Back"
-        case .goForward: "Forward"
-        case .focusSelected: "Focus on Selected Bead"
-        case .unfocus: "Leave Focused View"
-        case .expandAll: "Expand All"
-        case .collapseAll: "Collapse All"
-        case .toggleColumn(let column): "Column: \(column.title)"
-        case .resetColumns: "Reset Columns"
-        case .openSettings: "Settings…"
-        case .resetConfiguration: "Reset Configuration…"
-        case .backUpNow: "Back Up Now"
-        case .setUpBackup: "Set Up Backup…"
-        case .turnOnJournal: "Turn On bd's Change Journal"
-        case .setSidebarStyle(let style): "Sidebar: \(style.title)"
-        case .chooseTheme: "Theme…"
-        case .setTextSize(let size): "Text Size: \(size.title)"
+        case .toggleMark(.pinned): String(localized: "Toggle Pin", bundle: .module, comment: "Command")
+        case .toggleMark(.starred): String(localized: "Toggle Star", bundle: .module, comment: "Command")
+        case .showGraph: String(localized: "Show Dependency Graph", bundle: .module, comment: "Command")
+        case .goBack: String(localized: "Back", bundle: .module, comment: "Command: to the last bead looked at")
+        case .goForward: String(localized: "Forward", bundle: .module, comment: "Command: to the bead come back from")
+        case .focusSelected: String(localized: "Focus on Selected Bead", bundle: .module, comment: "Command: narrow the view to everything under it")
+        case .unfocus: String(localized: "Leave Focused View", bundle: .module, comment: "Command")
+        case .expandAll: String(localized: "Expand All", bundle: .module, comment: "Command, in the tree")
+        case .collapseAll: String(localized: "Collapse All", bundle: .module, comment: "Command, in the tree")
+        case .toggleColumn(let column): String(localized: "Column: \(column.title)", bundle: .module, comment: "Command: show or hide a list column; the value is its header")
+        case .resetColumns: String(localized: "Reset Columns", bundle: .module, comment: "Command")
+        case .openSettings: String(localized: "Settings…", bundle: .module, comment: "Command")
+        case .resetConfiguration: String(localized: "Reset Configuration…", bundle: .module, comment: "Command")
+        case .backUpNow: String(localized: "Back Up Now", bundle: .module, comment: "Command")
+        case .setUpBackup: String(localized: "Set Up Backup…", bundle: .module, comment: "Command")
+        case .turnOnJournal: String(localized: "Turn On bd's Change Journal", bundle: .module, comment: "Command")
+        case .setSidebarStyle(let style): String(localized: "Sidebar: \(style.title)", bundle: .module, comment: "Command; the value is Themed or Translucent")
+        case .chooseTheme: String(localized: "Theme…", bundle: .module, comment: "Command")
+        case .setTextSize(let size): String(localized: "Text Size: \(size.title)", bundle: .module, comment: "Command; the value is a text size such as Large")
+        case .setLanguage(let code): String(localized: "Language: \(LanguageSetting.title(for: code))", bundle: .module, comment: "Command; the value is a language name, or System Default")
         }
     }
 
@@ -211,25 +216,30 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .chooseTheme: ["theme", "themes", "colour", "color", "appearance", "dark mode",
                             "light mode", "contrast", "dracula", "nord", "solarized"]
         case .setTextSize: ["text", "font", "bigger", "larger", "smaller", "size", "accessibility", "eyesight"]
+        case .setLanguage(let code): ["language", "locale", "translation", "english"] + (code.map { [$0, LanguageSetting.displayName($0, in: Locale(identifier: "en"))] } ?? ["system", "default"])
         }
     }
 
     /// The section it appears under in the palette and the shortcut sheet.
     public var group: String {
         switch self {
-        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: "Workspace"
-        case .newBead, .editSelected, .toggleMark, .showGraph: "Beads"
-        case .focusSearch, .addFilter, .clearFilters: "Find"
+        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: String(localized: "Workspace", bundle: .module, comment: "Command group")
+        case .newBead, .editSelected, .toggleMark, .showGraph: Self.beadsGroup
+        case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
-             .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
-        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews: "Views"
-        case .openSettings, .setSidebarStyle, .resetConfiguration: "Appearance"
-        case .showShortcuts: "Help"
-        case .showView, .goBack, .goForward: "Views"
-        case .goToIssue: "Beads"
-        case .chooseTheme, .setTextSize: "Appearance"
+             .expandAll, .collapseAll, .toggleColumn, .resetColumns: String(localized: "Display", bundle: .module, comment: "Command group")
+        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews: Self.viewsGroup
+        case .openSettings, .setSidebarStyle, .resetConfiguration: Self.appearanceGroup
+        case .showShortcuts: String(localized: "Help", bundle: .module, comment: "Command group")
+        case .showView, .goBack, .goForward: Self.viewsGroup
+        case .goToIssue: Self.beadsGroup
+        case .chooseTheme, .setTextSize, .setLanguage: Self.appearanceGroup
         }
     }
+
+    private static var beadsGroup: String { String(localized: "Beads", bundle: .module, comment: "Command group") }
+    private static var viewsGroup: String { String(localized: "Views", bundle: .module, comment: "Command group") }
+    private static var appearanceGroup: String { String(localized: "Appearance", bundle: .module, comment: "Command group") }
 
     /// The keys that run this command. The first is the one the palette leads with; a command
     /// with both a plain key and a ⌘ key has the plain one first, as Linear does.
@@ -258,14 +268,15 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .resetView: [KeyBinding("r", [.command, .option])]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
-             .backUpNow, .setUpBackup, .turnOnJournal: []
+             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage: []
         }
     }
 
     /// How the keys are written in the palette and the shortcut sheet.
     public var shortcut: String? {
         let keys = bindings.map(\.display)
-        return keys.isEmpty ? nil : keys.joined(separator: " or ")
+        guard let first = keys.first else { return nil }
+        return keys.dropFirst().reduce(first) { String(localized: "\($0) or \($1)", bundle: .module, comment: "Two keys that both run a command, such as ‘/ or ⌘F’") }
     }
 
     /// The palette names a view the way the sidebar does.
@@ -348,6 +359,7 @@ public enum CommandCatalog {
         commands += IssueSort.allCases.map { .setOrdering($0) }
         commands += [.displayOptions, .toggleDetails, .chooseTheme]
         commands += TextSize.allCases.map { .setTextSize($0) }
+        commands += LanguageSetting.choices.map { .setLanguage($0) }
         commands.append(.showShortcuts)
         return commands
     }

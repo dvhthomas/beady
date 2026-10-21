@@ -345,7 +345,7 @@ public final class WorkspaceModel {
         guard let source = library.view(id) else { return nil }
         var copy = source
         copy.id = IssueView.ID(UUID().uuidString)
-        copy.name = "\(source.name) copy"
+        copy.name = String(localized: "\(source.name) copy", bundle: .module, comment: "Name of a duplicated view")
         copy.isBuiltIn = false
         library.views.append(copy)
         return copy
@@ -473,8 +473,8 @@ public final class WorkspaceModel {
         case .status: return DisplayText.status(key)
         case .priority: return Int(key).map(DisplayText.priority) ?? key
         case .type: return key.prefix(1).uppercased() + key.dropFirst()
-        case .assignee: return key.isEmpty ? "Unassigned" : key
-        case .parent: return key.isEmpty ? "No parent" : (snapshot?.issue(IssueID(key))?.title ?? key)
+        case .assignee: return key.isEmpty ? String(localized: "Unassigned", bundle: .module, comment: "Group header for beads with no assignee") : key
+        case .parent: return key.isEmpty ? String(localized: "No parent", bundle: .module, comment: "Group header for top-level beads") : (snapshot?.issue(IssueID(key))?.title ?? key)
         }
     }
 
@@ -561,9 +561,9 @@ public final class WorkspaceModel {
         case .lifecycle: StatusCategory(rawValue: raw).map(DisplayText.lifecycle) ?? raw
         case .status: DisplayText.status(raw)
         case .priority: Int(raw).map(DisplayText.priority) ?? raw
-        case .assignee: raw.isEmpty ? "Unassigned" : raw
-        case .blocked: "Blocked"
-        case .ready: raw
+        case .assignee: raw.isEmpty ? String(localized: "Unassigned", bundle: .module, comment: "Filter value for beads with no assignee") : raw
+        case .blocked: String(localized: "Blocked", bundle: .module, comment: "Filter value")
+        case .ready: raw == FilterRule.readyValue ? String(localized: "yes", bundle: .module, comment: "Filter value for Ready: ‘Ready · is · yes’") : raw
         case .parent: snapshot?.issue(IssueID(raw))?.title ?? raw
         case .updated, .closed: TimeWindow(rawValue: raw).map(DisplayText.window) ?? raw
         case .type, .labels: raw
@@ -601,8 +601,8 @@ public final class WorkspaceModel {
         let builtIns = library.views.filter { $0.isBuiltIn && $0.id != .starred }
         let mine = library.views.filter { !$0.isBuiltIn }
         var sections = [
-            SidebarSection(kind: .views, title: "Views", entries: builtIns.map(sidebarEntry), canAdd: false),
-            SidebarSection(kind: .mine, title: "My Views", entries: mine.map(sidebarEntry), canAdd: true),
+            SidebarSection(kind: .views, title: String(localized: "Views", bundle: .module, comment: "Sidebar section: the built-in views"), entries: builtIns.map(sidebarEntry), canAdd: false),
+            SidebarSection(kind: .mine, title: String(localized: "My Views", bundle: .module, comment: "Sidebar section: the user's own views"), entries: mine.map(sidebarEntry), canAdd: true),
         ]
         if let starred = library.view(.starred), total(in: starred) > 0 {
             sections.append(SidebarSection(kind: .starred, title: "", entries: [sidebarEntry(starred)], canAdd: false))
@@ -754,10 +754,10 @@ public final class WorkspaceModel {
 
     /// One phrase for the window's subtitle: the whole backup UI, as agreed.
     public var backupSummary: String? {
-        if isBackingUp { return "backing up…" }
-        guard backup.isConfigured else { return "not backed up" }
-        guard let last = backup.lastSync else { return "backup set up, not run yet" }
-        return "backed up \(ChangeDescriber.ago(last, from: now()))"
+        if isBackingUp { return String(localized: "backing up…", bundle: .module, comment: "Toolbar backup status") }
+        guard backup.isConfigured else { return String(localized: "not backed up", bundle: .module, comment: "Toolbar backup status") }
+        guard let last = backup.lastSync else { return String(localized: "backup set up, not run yet", bundle: .module, comment: "Toolbar backup status") }
+        return String(localized: "backed up \(ChangeDescriber.ago(last, from: now()))", bundle: .module, comment: "Toolbar backup status; the value is a relative time such as ‘6 minutes ago’")
     }
 
     // MARK: Editing a bead
@@ -1096,11 +1096,11 @@ public final class WorkspaceModel {
         do {
             try await store.writeJournalSettings(written)
         } catch {
-            record(summary: "Turn on bd's change journal in \(title)", error: error)
+            record(summary: String(localized: "Turn on bd's change journal in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"), error: error)
             return error.localizedDescription
         }
         journalPolicy.noteTurnedOn()
-        record(summary: "Turned on bd's change journal in \(title)", undo: .journalSettings(JournalRetention.settings(toUndo: written)))
+        record(summary: String(localized: "Turned on bd's change journal in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"), undo: .journalSettings(JournalRetention.settings(toUndo: written)))
         await followJournal()
         return nil
     }
@@ -1117,7 +1117,7 @@ public final class WorkspaceModel {
                 return error.localizedDescription
             }
             activity[index].undo = nil
-            record(summary: "Turned bd's change journal off in \(title)")
+            record(summary: String(localized: "Turned bd's change journal off in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"))
             await followJournal()
         }
         return nil
@@ -1171,7 +1171,7 @@ public final class WorkspaceModel {
             problems.append(ChangeProblem(
                 code: .recentlyChangedElsewhere,
                 severity: .warning,
-                message: "\(recent.actor) changed \(recent.field ?? "this bead") \(ChangeDescriber.ago(recent.date, from: now())). Refresh if you're not sure you're looking at the latest."
+                message: String(localized: "\(recent.actor) changed \(recent.field ?? String(localized: "this bead", bundle: .module, comment: "Stands in for a field name when bd didn't record one")) \(ChangeDescriber.ago(recent.date, from: now())). Refresh if you're not sure you're looking at the latest.", bundle: .module, comment: "Warning: who changed what, and a relative time such as ‘2 minutes ago’")
             ))
         }
         pendingChange = PendingChange(
@@ -1304,7 +1304,7 @@ public final class WorkspaceModel {
         let problems = ChangeValidator.problems(for: pending.change.normalized(), in: snapshot)
         if problems != pending.problems {
             pending.problems = problems
-            pending.notice = "The checks changed since this was proposed, because the data was refreshed. Review them, then apply again."
+            pending.notice = String(localized: "The checks changed since this was proposed, because the data was refreshed. Review them, then apply again.", bundle: .module)
             pendingChange = pending
             return
         }

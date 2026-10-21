@@ -182,39 +182,39 @@ public enum ChangeValidator {
             problems.append(ChangeProblem(code: code, severity: .warning, message: message))
         }
         func checkTitle(_ title: String) {
-            if title.isEmpty { error(.emptyTitle, "The title can't be empty.") }
-            if title.count > maxTitleLength { error(.titleTooLong, "Titles are limited to \(maxTitleLength) characters.") }
+            if title.isEmpty { error(.emptyTitle, String(localized: "The title can't be empty.", bundle: .module)) }
+            if title.count > maxTitleLength { error(.titleTooLong, String(localized: "Titles are limited to \(maxTitleLength) characters.", bundle: .module)) }
             let control = CharacterSet.controlCharacters.union(.newlines)
             if title.unicodeScalars.contains(where: control.contains) {
-                error(.titleHasLineBreaks, "Titles must be a single line, without tabs or line breaks.")
+                error(.titleHasLineBreaks, String(localized: "Titles must be a single line, without tabs or line breaks.", bundle: .module))
             }
         }
         func checkPriority(_ priority: Int) {
-            if !(0...4).contains(priority) { error(.invalidPriority, "Priority must be between P0 and P4.") }
+            if !(0...4).contains(priority) { error(.invalidPriority, String(localized: "Priority must be between P0 and P4.", bundle: .module)) }
         }
 
         switch change.normalized() {
         case .edit(let id, let edit):
             guard let issue = snapshot.issue(id) else {
-                error(.unknownIssue, "\(id) isn't in this database.")
+                error(.unknownIssue, Self.notInDatabase(id))
                 break
             }
             if let title = edit.title { checkTitle(title) }
             if let priority = edit.priority { checkPriority(priority) }
             if let type = edit.type, !(coreTypes.contains(type) || snapshot.types.contains(type)) {
-                error(.invalidType, "“\(type)” isn't a type this database uses.")
+                error(.invalidType, String(localized: "“\(type)” isn't a type this database uses.", bundle: .module))
             }
             if let assignee = edit.assignee {
                 let control = CharacterSet.controlCharacters.union(.newlines)
                 if assignee.unicodeScalars.contains(where: control.contains) {
-                    error(.assigneeHasLineBreaks, "An assignee is a single line of text.")
+                    error(.assigneeHasLineBreaks, String(localized: "An assignee is a single line of text.", bundle: .module))
                 }
             }
             for label in edit.addedLabels.union(edit.removedLabels) where label.contains(",") {
-                error(.unusableLabel, "bd splits label lists on commas, so “\(label)” can't be a label.")
+                error(.unusableLabel, String(localized: "bd splits label lists on commas, so “\(label)” can't be a label.", bundle: .module))
             }
             for label in edit.addedLabels.intersection(edit.removedLabels) {
-                error(.contradictoryLabels, "“\(label)” is being added and removed at the same time.")
+                error(.contradictoryLabels, String(localized: "“\(label)” is being added and removed at the same time.", bundle: .module))
             }
             let existing = Set(issue.labels)
             let changesSomething = [
@@ -227,41 +227,41 @@ public enum ChangeValidator {
                 edit.addedLabels.isEmpty ? nil : !edit.addedLabels.subtracting(existing).isEmpty,
                 edit.removedLabels.isEmpty ? nil : !edit.removedLabels.intersection(existing).isEmpty,
             ].contains(true)
-            if !changesSomething { error(.noChange, "Nothing would change.") }
+            if !changesSomething { error(.noChange, String(localized: "Nothing would change.", bundle: .module)) }
             if edit.description == "", !trimmed(issue.description).isEmpty {
-                warning(.clearsDescription, "This removes the whole description.")
+                warning(.clearsDescription, String(localized: "This removes the whole description.", bundle: .module))
             }
             if edit.notes == "", !trimmed(issue.notes).isEmpty {
-                warning(.clearsNotes, "This removes all the notes.")
+                warning(.clearsNotes, String(localized: "This removes all the notes.", bundle: .module))
             }
 
         case .setStatus(let id, _, let to, let reason):
             guard let issue = snapshot.issue(id) else {
-                error(.unknownIssue, "\(id) isn't in this database.")
+                error(.unknownIssue, Self.notInDatabase(id))
                 break
             }
             guard snapshot.catalog.knows(to) else {
-                error(.unknownStatus, "“\(to)” isn't a status this database knows.")
+                error(.unknownStatus, String(localized: "“\(to)” isn't a status this database knows.", bundle: .module))
                 break
             }
             guard to != issue.status else {
-                error(.noChange, "\(id) is already \(to).")
+                error(.noChange, String(localized: "\(id.rawValue) is already \(to).", bundle: .module, comment: "A bead already has the status being set; the second value is bd's status name"))
                 break
             }
             if to == "closed" {
                 if reason == nil {
-                    error(.missingCloseReason, "Say why it's being closed. The reason is stored with the bead, and lets the app confirm the close was yours.")
+                    error(.missingCloseReason, String(localized: "Say why it's being closed. The reason is stored with the bead, and lets the app confirm the close was yours.", bundle: .module))
                 }
                 if issue.status == "pinned" {
-                    error(.closesPinned, "bd won't close a pinned bead.")
+                    error(.closesPinned, String(localized: "bd won't close a pinned bead.", bundle: .module))
                 }
             }
             if snapshot.catalog.category(of: to) == .done {
                 let unfinished = snapshot.descendants(of: id).filter { !snapshot.isDone($0) }
                 if !unfinished.isEmpty {
-                    let count = "\(unfinished.count) issue\(unfinished.count == 1 ? "" : "s") under \(id) \(unfinished.count == 1 ? "isn't" : "aren't") finished."
+                    let count = String(localized: "\(unfinished.count) issues under \(id.rawValue) aren't finished.", bundle: .module, comment: "Plural: how many issues under the bead are unfinished")
                     if issue.type == "epic" {
-                        error(.closesWithOpenChildren, "\(count) bd won't close an epic until they are.")
+                        error(.closesWithOpenChildren, String(localized: "\(count) bd won't close an epic until they are.", bundle: .module, comment: "The first value is the sentence saying how many issues are unfinished"))
                     } else {
                         warning(.closesWithOpenChildren, count)
                     }
@@ -270,81 +270,95 @@ public enum ChangeValidator {
 
         case .setParent(let id, _, let to):
             guard let issue = snapshot.issue(id) else {
-                error(.unknownIssue, "\(id) isn't in this database.")
+                error(.unknownIssue, Self.notInDatabase(id))
                 break
             }
             if to == issue.parentID {
-                error(.noChange, to.map { "\(id) is already under \($0)." } ?? "\(id) has no parent already.")
+                error(.noChange, to.map { String(localized: "\(id.rawValue) is already under \($0.rawValue).", bundle: .module) } ?? String(localized: "\(id.rawValue) has no parent already.", bundle: .module))
                 break
             }
             guard let to else { break }
             if to == id {
-                error(.parentIsSelf, "An issue can't be its own parent.")
+                error(.parentIsSelf, String(localized: "An issue can't be its own parent.", bundle: .module))
                 break
             }
             guard let parent = snapshot.issue(to) else {
-                error(.unknownParent, "\(to) isn't in this database.")
+                error(.unknownParent, Self.notInDatabase(to))
                 break
             }
             if snapshot.isDescendant(parent, of: id) {
-                error(.parentIsDescendant, "\(to) is inside \(id), so this would create a loop.")
+                error(.parentIsDescendant, String(localized: "\(to.rawValue) is inside \(id.rawValue), so this would create a loop.", bundle: .module))
                 break
             }
-            if snapshot.isDone(parent) { warning(.closedParent, "\(to) is closed.") }
+            if snapshot.isDone(parent) { warning(.closedParent, Self.isClosed(to)) }
 
         case .setBlocker(let id, let blocker, let on):
             guard let issue = snapshot.issue(id) else {
-                error(.unknownIssue, "\(id) isn't in this database.")
+                error(.unknownIssue, Self.notInDatabase(id))
                 break
             }
             guard let blocking = snapshot.issue(blocker) else {
-                error(.unknownIssue, "\(blocker) isn't in this database.")
+                error(.unknownIssue, Self.notInDatabase(blocker))
                 break
             }
             guard id != blocker else {
-                error(.blockerIsSelf, "A bead can't wait for itself.")
+                error(.blockerIsSelf, String(localized: "A bead can't wait for itself.", bundle: .module))
                 break
             }
             let already = snapshot.blockers(of: issue).contains { $0.id == blocker }
             guard already != on else {
                 error(.noChange, on
-                    ? "\(id) already waits for \(blocker)."
-                    : "\(id) doesn't wait for \(blocker).")
+                    ? String(localized: "\(id.rawValue) already waits for \(blocker.rawValue).", bundle: .module)
+                    : String(localized: "\(id.rawValue) doesn't wait for \(blocker.rawValue).", bundle: .module))
                 break
             }
             if on {
                 // bd checks for cycles itself, but refusing here costs nothing and explains why.
                 if waits(blocking, on: id, in: snapshot) {
-                    error(.blockerLoops, "\(blocker) already waits for \(id), so this would leave both stuck.")
+                    error(.blockerLoops, String(localized: "\(blocker.rawValue) already waits for \(id.rawValue), so this would leave both stuck.", bundle: .module))
                 } else if snapshot.isDone(blocking) {
-                    warning(.blockerIsDone, "\(blocker) is already finished, so this won't hold anything up.")
+                    warning(.blockerIsDone, String(localized: "\(blocker.rawValue) is already finished, so this won't hold anything up.", bundle: .module))
                 }
             }
 
         case .setMark(let id, let mark, let on):
             guard let issue = snapshot.issue(id) else {
-                error(.unknownIssue, "\(id) isn't in this database.")
+                error(.unknownIssue, Self.notInDatabase(id))
                 break
             }
             if issue.has(mark) == on {
-                error(.noChange, on ? "\(id) is already \(mark.title.lowercased())." : "\(id) isn't \(mark.title.lowercased()).")
+                let message: String = switch (mark, on) {
+                case (.pinned, true): String(localized: "\(id.rawValue) is already pinned.", bundle: .module)
+                case (.pinned, false): String(localized: "\(id.rawValue) isn't pinned.", bundle: .module)
+                case (.starred, true): String(localized: "\(id.rawValue) is already starred.", bundle: .module)
+                case (.starred, false): String(localized: "\(id.rawValue) isn't starred.", bundle: .module)
+                }
+                error(.noChange, message)
             }
 
         case .create(let new):
             checkTitle(new.title)
             checkPriority(new.priority)
             if !(coreTypes.contains(new.type) || snapshot.types.contains(new.type)) {
-                error(.invalidType, "“\(new.type)” isn't a known issue type.")
+                error(.invalidType, String(localized: "“\(new.type)” isn't a known issue type.", bundle: .module))
             }
             if let parentID = new.parent {
                 if let parent = snapshot.issue(parentID) {
-                    if snapshot.isDone(parent) { warning(.closedParent, "\(parentID) is closed.") }
+                    if snapshot.isDone(parent) { warning(.closedParent, Self.isClosed(parentID)) }
                 } else {
-                    error(.unknownParent, "\(parentID) isn't in this database.")
+                    error(.unknownParent, Self.notInDatabase(parentID))
                 }
             }
         }
         return problems
+    }
+
+    private static func notInDatabase(_ id: IssueID) -> String {
+        String(localized: "\(id.rawValue) isn't in this database.", bundle: .module)
+    }
+
+    private static func isClosed(_ id: IssueID) -> String {
+        String(localized: "\(id.rawValue) is closed.", bundle: .module)
     }
 }
 
@@ -394,35 +408,49 @@ public enum ChangeGuard {
             if let assignee = edit.assignee { expect("assignee", assignee, after.assignee ?? "") }
             let landed = Set(after.labels)
             for label in edit.addedLabels where !landed.contains(label) {
-                expect("label \(label)", "present", "absent")
+                expect(Word.label(label), Word.present, Word.absent)
             }
             for label in edit.removedLabels where landed.contains(label) {
-                expect("label \(label)", "absent", "present")
+                expect(Word.label(label), Word.absent, Word.present)
             }
         case .setStatus(_, let from, let to, let reason):
             expect("status", to, after.status)
             if to == "closed", let reason {
                 // bd close on something already closed exits 0 and keeps the old reason.
-                expect("close reason", reason, after.closeReason ?? "none")
+                expect(Word.closeReason, reason, after.closeReason ?? Word.none)
             }
             if from == "closed", to != "closed", let closedAt = after.closedAt {
-                expect("closed at", "none", closedAt.formatted(.iso8601))
+                expect(Word.closedAt, Word.none, closedAt.formatted(.iso8601))
             }
         case .setParent(_, _, let to):
-            expect("parent", to?.rawValue ?? "none", after.parentID?.rawValue ?? "none")
+            expect("parent", to?.rawValue ?? Word.none, after.parentID?.rawValue ?? Word.none)
         case .setMark(_, let mark, let on):
-            expect(mark.label, on ? "present" : "absent", after.has(mark) ? "present" : "absent")
+            expect(mark.label, on ? Word.present : Word.absent, after.has(mark) ? Word.present : Word.absent)
         case .setBlocker(_, let blocker, let on):
             let waits = after.dependencies.contains { $0.kind == .blocks && $0.dependsOnID == blocker }
-            expect("blocked by \(blocker)", on ? "yes" : "no", waits ? "yes" : "no")
+            expect(Word.blockedBy(blocker), on ? Word.yes : Word.no, waits ? Word.yes : Word.no)
         case .create(let new):
             expect("title", new.title, trimmed(after.title))
             expect("type", new.type, after.type)
             expect("priority", "P\(new.priority)", "P\(after.priority)")
             expect("description", new.description, after.description)
-            expect("parent", new.parent?.rawValue ?? "none", after.parentID?.rawValue ?? "none")
+            expect("parent", new.parent?.rawValue ?? Word.none, after.parentID?.rawValue ?? Word.none)
         }
         return result
+    }
+
+    /// The words a conflict report uses for what a field held, beside bd's own field names,
+    /// which stay as bd spells them (title, status, parent…).
+    enum Word {
+        static var present: String { String(localized: "present", bundle: .module, comment: "A label's state in a conflict report") }
+        static var absent: String { String(localized: "absent", bundle: .module, comment: "A label's state in a conflict report") }
+        static var none: String { String(localized: "none", bundle: .module, comment: "An empty parent or close reason in a conflict report") }
+        static var yes: String { String(localized: "yes", bundle: .module, comment: "Whether a bead waits for another, in a conflict report") }
+        static var no: String { String(localized: "no", bundle: .module, comment: "Whether a bead waits for another, in a conflict report") }
+        static var closeReason: String { String(localized: "close reason", bundle: .module, comment: "A field name in a conflict report") }
+        static var closedAt: String { String(localized: "closed at", bundle: .module, comment: "A field name in a conflict report") }
+        static func label(_ label: String) -> String { String(localized: "label \(label)", bundle: .module, comment: "A field name in a conflict report; the value is a bd label") }
+        static func blockedBy(_ id: IssueID) -> String { String(localized: "blocked by \(id.rawValue)", bundle: .module, comment: "A field name in a conflict report; the value is a bead id") }
     }
 
     private static func touchedFields(_ change: IssueChange) -> [Field] {
@@ -465,7 +493,7 @@ public enum ChangeGuard {
             case .notes: trimmed(issue.notes)
             case .priority: "P\(issue.priority)"
             case .status: issue.status
-            case .parent: issue.parentID?.rawValue ?? "none"
+            case .parent: issue.parentID?.rawValue ?? Word.none
             }
         }
     }
@@ -505,15 +533,17 @@ public enum ChangeFailure: Error, Equatable, Sendable, LocalizedError {
         case .rejected(let problems):
             return problems.map(\.message).joined(separator: " ")
         case .conflict(let conflicts):
-            let fields = conflicts.map { "\($0.field) was “\($0.expected)”, now “\($0.actual)”" }.joined(separator: "; ")
-            return "Nothing was written: this bead changed since you started (\(fields)). Review the current version and try again."
+            let fields = conflicts.map { String(localized: "\($0.field) was “\($0.expected)”, now “\($0.actual)”", bundle: .module, comment: "One field of a bead that changed underneath an edit: bd's field name, the value seen, the value now") }.joined(separator: "; ")
+            return String(localized: "Nothing was written: this bead changed since you started (\(fields)). Review the current version and try again.", bundle: .module)
         case .issueDisappeared(let id):
-            return "Nothing was written: \(id) no longer exists."
+            return String(localized: "Nothing was written: \(id.rawValue) no longer exists.", bundle: .module)
         case .writeFailed(let message):
             return message
         case .unverified(let id, let mismatches):
-            let fields = mismatches.map { "\($0.field) is “\($0.actual)”, expected “\($0.expected)”" }.joined(separator: "; ")
-            return "bd accepted the change, but reading \(id) back doesn't match\(fields.isEmpty ? "" : ": \(fields)"). Check it before retrying."
+            let fields = mismatches.map { String(localized: "\($0.field) is “\($0.actual)”, expected “\($0.expected)”", bundle: .module, comment: "One field that didn't read back as written: bd's field name, the value read, the value expected") }.joined(separator: "; ")
+            return fields.isEmpty
+                ? String(localized: "bd accepted the change, but reading \(id.rawValue) back doesn't match. Check it before retrying.", bundle: .module)
+                : String(localized: "bd accepted the change, but reading \(id.rawValue) back doesn't match: \(fields). Check it before retrying.", bundle: .module)
         case .uncertain(_, let detail):
             return detail
         }
@@ -601,7 +631,7 @@ public struct ChangeRunner: Sendable {
                     return found[0].id
                 }
                 let ids = found.map(\.id.rawValue).joined(separator: ", ")
-                throw ChangeFailure.uncertain(nil, "bd reported “\(message)”, but \(found.count == 1 ? "a bead" : "\(found.count) beads") titled “\(new.title)” now exist\(found.count == 1 ? "s" : "") (\(ids)) that don't all match what was asked for. Check before trying again.")
+                throw ChangeFailure.uncertain(nil, String(localized: "bd reported “\(message)”, but \(found.count) beads titled “\(new.title)” now exist (\(ids)) that don't all match what was asked for. Check before trying again.", bundle: .module, comment: "Plural on the number of beads found: bd's error, how many, the title, their ids"))
             }
             throw ChangeFailure.writeFailed(message)
         }
@@ -619,17 +649,17 @@ public struct ChangeRunner: Sendable {
         }
 
         guard let after = latest else {
-            throw ChangeFailure.uncertain(id, "bd reported “\(message)”, and \(id) couldn't be read back. Check it before trying again.")
+            throw ChangeFailure.uncertain(id, String(localized: "bd reported “\(message)”, and \(id.rawValue) couldn't be read back. Check it before trying again.", bundle: .module))
         }
         let others = ChangeGuard.untouchedDifferences(for: change, before: before, after: after)
         if others.isEmpty, ChangeGuard.conflicts(for: change, seen: before, current: after).isEmpty {
             throw ChangeFailure.writeFailed(message)
         }
-        let state = ChangeGuard.mismatches(for: change, after: after).map { "\($0.field) is “\($0.actual)” (wanted “\($0.expected)”)" }
-            + others.map { "\($0.field) changed to “\($0.actual)” (was “\($0.expected)”)" }
+        let state = ChangeGuard.mismatches(for: change, after: after).map { String(localized: "\($0.field) is “\($0.actual)” (wanted “\($0.expected)”)", bundle: .module, comment: "One field that isn't as the change asked: bd's field name, the value now, the value wanted") }
+            + others.map { String(localized: "\($0.field) changed to “\($0.actual)” (was “\($0.expected)”)", bundle: .module, comment: "One field the change didn't touch but that moved anyway: bd's field name, the value now, the value before") }
         throw ChangeFailure.uncertain(
             id,
-            "bd reported “\(message)”, and \(id) is no longer as it was: \(state.joined(separator: "; ")). Part of the change may have landed, or another session wrote at the same moment. Check it before trying again."
+            String(localized: "bd reported “\(message)”, and \(id.rawValue) is no longer as it was: \(state.joined(separator: "; ")). Part of the change may have landed, or another session wrote at the same moment. Check it before trying again.", bundle: .module)
         )
     }
 
@@ -656,13 +686,13 @@ public struct ChangeRunner: Sendable {
             if id == child {
                 throw ChangeFailure.rejected([ChangeProblem(
                     code: .parentIsDescendant, severity: .error,
-                    message: "\(parent) is now inside \(id), so this would create a loop."
+                    message: String(localized: "\(parent.rawValue) is now inside \(id.rawValue), so this would create a loop.", bundle: .module)
                 )])
             }
             guard let issue = try await writer.currentIssue(id) else {
                 if id == parent {
                     throw ChangeFailure.rejected([ChangeProblem(
-                        code: .unknownParent, severity: .error, message: "\(parent) no longer exists."
+                        code: .unknownParent, severity: .error, message: String(localized: "\(parent.rawValue) no longer exists.", bundle: .module)
                     )])
                 }
                 return

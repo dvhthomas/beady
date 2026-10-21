@@ -14,6 +14,8 @@ final class WorkspaceUI {
     var showsThemes = false
     /// The Reset Configuration sheet, from ⌘P or Settings.
     var showsResetConfiguration = false
+    /// Offers a relaunch after the language changed from ⌘P; Settings shows its own button.
+    var showsRelaunchPrompt = false
     var showsFilterMenu = false
     var showsDisplayOptions = false
     /// The Save as New View sheet: name and icon live here so the sheet's fields are observable.

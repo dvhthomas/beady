@@ -26,8 +26,12 @@ struct EditBeadForm: View {
                 assigneeField
                 labelsField
                 blockersField
-                textField("Description", draft.description, prompt: "What is this bead about?")
-                textField("Notes", draft.notes, prompt: "Anything worth knowing while working on it")
+                FormField(title: "Description") {
+                    ProseEditor(text: draft.description, prompt: String(localized: "What is this bead about?"), minHeight: 140)
+                }
+                FormField(title: "Notes") {
+                    ProseEditor(text: draft.notes, prompt: String(localized: "Anything worth knowing while working on it"), minHeight: 90)
+                }
                 footer
             }
             .padding(16)
@@ -200,7 +204,7 @@ struct EditBeadForm: View {
                             Image(systemName: "xmark.circle")
                         }
                         .buttonStyle(.plain)
-                        .help("Stop waiting for \(blocker.id)")
+                        .help("Stop waiting for \(blocker.id.rawValue)")
                     }
                     .font(.callout)
                 }
@@ -241,12 +245,6 @@ struct EditBeadForm: View {
         .overlay(Capsule().strokeBorder(theme.border))
     }
 
-    private func textField(_ title: String, _ text: Binding<String>, prompt: String) -> some View {
-        FormField(title: title) {
-            ProseEditor(text: text, prompt: prompt, minHeight: title == "Description" ? 140 : 90)
-        }
-    }
-
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -267,21 +265,21 @@ struct EditBeadForm: View {
     /// Says what would be written, so Review Changes isn't a leap.
     private var summary: String {
         guard case .edit(_, let edit)? = draft.wrappedValue.change else {
-            return "Nothing changed yet. Only the fields you touch are sent."
+            return String(localized: "Nothing changed yet. Only the fields you touch are sent.")
         }
         var parts: [String] = []
-        if edit.title != nil { parts.append("title") }
-        if edit.type != nil { parts.append("type") }
-        if edit.priority != nil { parts.append("priority") }
-        if edit.assignee != nil { parts.append("assignee") }
+        if edit.title != nil { parts.append(String(localized: "title", comment: "A field, in a list of what an edit will change")) }
+        if edit.type != nil { parts.append(String(localized: "type", comment: "A field, in a list of what an edit will change")) }
+        if edit.priority != nil { parts.append(String(localized: "priority", comment: "A field, in a list of what an edit will change")) }
+        if edit.assignee != nil { parts.append(String(localized: "assignee", comment: "A field, in a list of what an edit will change")) }
         if !edit.addedLabels.isEmpty { parts.append("+\(edit.addedLabels.sorted().joined(separator: ", +"))") }
         if !edit.removedLabels.isEmpty { parts.append("−\(edit.removedLabels.sorted().joined(separator: ", −"))") }
-        if edit.description != nil { parts.append("description") }
-        if edit.notes != nil { parts.append("notes") }
-        return "Will change \(parts.joined(separator: ", ")). Nothing is written until you confirm."
+        if edit.description != nil { parts.append(String(localized: "description", comment: "A field, in a list of what an edit will change")) }
+        if edit.notes != nil { parts.append(String(localized: "notes", comment: "A field, in a list of what an edit will change")) }
+        return String(localized: "Will change \(parts.joined(separator: ", ")). Nothing is written until you confirm.", comment: "The value is a list of fields, and labels prefixed + or −")
     }
 
-    private func field(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+    private func field(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
         FormField(title: title, content: content)
     }
 }
@@ -289,7 +287,7 @@ struct EditBeadForm: View {
 /// A captioned control, the unit both the edit form and the new-bead form are built from.
 struct FormField<Content: View>: View {
     @Environment(\.theme) private var theme
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder let content: Content
 
     var body: some View {

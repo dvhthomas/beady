@@ -89,7 +89,7 @@ struct IssueListView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(reason.blockers.isEmpty)
-                    .help(DisplayText.preview(reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: ", ")) ?? reason.summary)
+                    .help(DisplayText.preview(reason.blockers.map { "\($0.id.rawValue) \($0.title)" }.joined(separator: ", ")) ?? reason.summary)
                 }
             }
             column(.date) { issue in
@@ -109,7 +109,7 @@ struct IssueListView: View {
                     } header: {
                         HStack(spacing: 6) {
                             Text(group.title)
-                            Text("\(group.issues.count)")
+                            Text(group.issues.count, format: .number)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                             // Grouped by parent, the header is a bead: say how far along it is.
@@ -230,7 +230,7 @@ private struct OutlineRowView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .help(row.isExpanded ? "Collapse" : "Expand")
+                    .help(row.isExpanded ? String(localized: "Collapse", comment: "Tooltip on a tree disclosure") : String(localized: "Expand", comment: "Tooltip on a tree disclosure"))
                 } else {
                     Color.clear
                 }
@@ -289,7 +289,7 @@ private struct TreeIssueRow: View {
             PriorityBadge(priority: issue.priority)
         }
         .opacity(node.isMatch ? 1 : 0.5)
-        .help(node.isMatch ? issue.title : "\(issue.title)\nShown for context; doesn't match the filters")
+        .help(node.isMatch ? issue.title : String(localized: "\(issue.title)\nShown for context; doesn't match the filters", comment: "Tooltip on a dimmed tree row; the value is the bead's title"))
     }
 }
 
@@ -371,7 +371,7 @@ private struct BoardColumnView: View {
                 Text(group.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text("\(group.issues.count)")
+                Text(group.issues.count, format: .number)
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -437,7 +437,7 @@ private struct IssueCard: View {
             }
             HStack(spacing: 4) {
                 MarkGlyphs(issue: issue, remove: removeMark)
-                Text("")
+                Text(verbatim: "")
                     .frame(width: 0, height: 0)
             }
             .fixedSize()
