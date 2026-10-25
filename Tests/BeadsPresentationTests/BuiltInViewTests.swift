@@ -88,7 +88,7 @@ struct BuiltInViewTests {
     @Test("the table: sidebar order, unique ids, every one built in, each with a symbol")
     func table() {
         let views = IssueView.builtIns
-        #expect(views.map(\.name) == ["Ready", "In Flight", "Stuck", "Pipeline", "Recent", "Landed", "Deferred", "Everything", "Starred"])
+        #expect(views.map(\.name) == ["Pipeline", "Ready", "In Flight", "Stuck", "Recent", "Landed", "Deferred", "Everything", "Starred"])
         #expect(Set(views.map(\.id)).count == views.count)
         #expect(views.allSatisfy { $0.isBuiltIn })
         #expect(views.allSatisfy { !$0.symbol.isEmpty })
