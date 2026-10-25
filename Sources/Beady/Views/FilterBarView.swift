@@ -411,6 +411,12 @@ struct DisplayOptionsView: View {
                     Text(DisplayText.sort(sort)).tag(sort)
                 }
             }
+            if model.presentedLayout == .board {
+                Toggle("Nest sub-tasks", isOn: $model.nestsSubtasks)
+                    // Grouped by parent, the columns are the parents already.
+                    .disabled(model.grouping == .parent)
+                    .help("Fold a sub-task into its parent's card when the parent is on the board")
+            }
             if model.presentedLayout == .list {
                 Section("Columns") {
                     ForEach(ListColumn.allCases) { column in

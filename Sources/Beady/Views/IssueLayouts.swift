@@ -313,8 +313,8 @@ struct IssueBoardView: View {
         // the whole board float away from the top when a filter left it shorter than the pane.
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
-                ForEach(model.boardGroups) { group in
-                    BoardColumnView(group: group, model: model)
+                ForEach(model.boardColumns) { column in
+                    BoardColumnView(column: column, model: model)
                         .frame(width: 290)
                 }
             }
@@ -355,23 +355,23 @@ struct IssueBoardView: View {
 
 private struct BoardColumnView: View {
     @Environment(\.theme) private var theme
-    let group: IssueGroupModel
+    let column: BoardColumnModel
     let model: WorkspaceModel
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var isDropTarget = State(initialValue: false)
 
-    init(group: IssueGroupModel, model: WorkspaceModel) {
-        self.group = group
+    init(column: BoardColumnModel, model: WorkspaceModel) {
+        self.column = column
         self.model = model
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(group.title)
+                Text(column.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text(group.issues.count, format: .number)
+                Text(column.cards.count, format: .number)
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -380,16 +380,22 @@ private struct BoardColumnView: View {
 
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(group.issues) { issue in
+                    ForEach(column.cards) { card in
                         IssueCard(
-                            issue: issue,
+                            issue: card.issue,
+                            children: card.children,
                             snapshot: model.snapshot,
-                            isSelected: model.selection == issue.id,
-                            openBlocker: { model.selection = $0 },
-                            removeMark: { mark in Task { await model.toggleMark(mark, on: issue.id) } }
+                            selection: model.selection,
+                            isExpanded: model.boardExpanded.contains(card.id),
+                            toggleExpansion: { model.toggleBoardCard(card.id) },
+                            select: { model.selection = $0 },
+                            canDrag: model.canEdit,
+                            removeMark: { mark in Task { await model.toggleMark(mark, on: card.id) } },
+                            menu: { issue in cardMenu(issue) }
                         )
-                            .onTapGesture { model.selection = issue.id }
-                            .draggableIssue(issue.id, when: model.canEdit)
+                            .onTapGesture { model.selection = card.id }
+                            .draggableIssue(card.id, when: model.canEdit)
+                            .contextMenu { cardMenu(card.issue) }
                     }
                 }
                 .padding(2)
@@ -404,26 +410,50 @@ private struct BoardColumnView: View {
         )
         // Only proposes; the confirmation sheet has the final say.
         .dropDestination(for: String.self) { items, _ in
-            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: group.key) else {
+            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: column.key) else {
                 // Nothing to do: refuse at once so the card animates home without a pause.
                 return false
             }
             // Staging the change is work; let the drag finish its animation first.
-            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: group.key) }
+            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: column.key) }
             return true
         } isTargeted: { targeted in
             isDropTarget.wrappedValue = targeted && model.canEdit
         }
     }
+
+    /// The card's menu, the same choices as a list row's.
+    @ViewBuilder
+    private func cardMenu(_ issue: BeadsCore.Issue) -> some View {
+        ForEach(IssueMark.allCases, id: \.self) { mark in
+            Button(MarkStyle.action(mark, isOn: issue.has(mark))) {
+                Task { await model.toggleMark(mark, on: issue.id) }
+            }
+            .disabled(!model.canEdit)
+        }
+        Divider()
+        Button("Focus on This Bead") { model.focus(on: issue.id) }
+            .disabled(model.snapshot?.children(of: issue.id).isEmpty != false)
+        Button("Show Details") { model.selection = issue.id }
+    }
 }
 
-private struct IssueCard: View {
+private struct IssueCard<Menu: View>: View {
     @Environment(\.theme) private var theme
     let issue: Issue
+    /// Direct sub-tasks folded into this card; empty with nesting off.
+    let children: [BoardChildRow]
     let snapshot: IssueSnapshot?
-    let isSelected: Bool
-    let openBlocker: (IssueID) -> Void
+    let selection: IssueID?
+    let isExpanded: Bool
+    let toggleExpansion: () -> Void
+    let select: (IssueID) -> Void
+    let canDrag: Bool
     let removeMark: (IssueMark) -> Void
+    /// The context menu for a bead on this card, built where the model lives.
+    @ViewBuilder let menu: (Issue) -> Menu
+
+    private var isSelected: Bool { selection == issue.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -448,7 +478,7 @@ private struct IssueCard: View {
                 .help(DisplayText.preview(issue.title) ?? "")
             HStack(spacing: 6) {
                 if let snapshot, let reason = BlockedReason.of(issue.id, in: snapshot) {
-                    WaitingMark(reason: reason, snapshot: snapshot, open: openBlocker)
+                    WaitingMark(reason: reason, snapshot: snapshot, open: select)
                 }
                 if let assignee = issue.assignee {
                     Label(assignee, systemImage: "person")
@@ -471,6 +501,28 @@ private struct IssueCard: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
+            if !children.isEmpty {
+                Button(action: toggleExpansion) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        Text("^[\(children.count) sub-task](inflect: true)")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "Hide the sub-tasks" : "Show the sub-tasks")
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(children) { child in
+                            childRow(child)
+                        }
+                    }
+                }
+            }
         }
         .padding(10)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
@@ -479,6 +531,36 @@ private struct IssueCard: View {
                 .strokeBorder(isSelected ? theme.accent : theme.border, lineWidth: isSelected ? 2 : 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// One folded sub-task: its own status glyph — which keeps what the column said when the
+    /// child folded in from another one — title and subtree progress, selectable and draggable
+    /// like any card.
+    private func childRow(_ child: BoardChildRow) -> some View {
+        let category = snapshot?.category(of: child.issue) ?? .active
+        return HStack(spacing: 6) {
+            Image(systemName: category.symbolName)
+                .font(.caption)
+                .foregroundStyle(theme.color(category))
+            Text(child.issue.title)
+                .font(.caption)
+                .lineLimit(1)
+                .help(DisplayText.preview(child.issue.title) ?? "")
+            Spacer(minLength: 4)
+            if let completion = child.completion {
+                CompletionMeter(completion: completion)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            selection == child.id ? AnyShapeStyle(theme.selection) : AnyShapeStyle(.clear),
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 5))
+        .onTapGesture { select(child.id) }
+        .draggableIssue(child.id, when: canDrag)
+        .contextMenu { menu(child.issue) }
     }
 }
 
