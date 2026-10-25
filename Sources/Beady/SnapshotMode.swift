@@ -418,6 +418,10 @@ enum SnapshotMode {
             model.selection = waiting.id
             model.selection = blocker.id
             capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
+            // The dependency graph pinned under the details, following the selection.
+            session.ui.showsGraphPane = true
+            capture("24-detail-with-graph-pane", IssueDetailView(model: model, ui: session.ui).frame(width: 420, height: 820))
+            session.ui.showsGraphPane = false
             // Nothing selected but history behind it: the bar stays at the top and the placeholder
             // centres in what's left, at two heights, and says what the arrows do.
             model.selection = nil

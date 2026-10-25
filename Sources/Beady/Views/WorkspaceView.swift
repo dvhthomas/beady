@@ -64,7 +64,7 @@ struct WorkspaceView: View {
                 .frame(maxWidth: .infinity)
                 if ui.showsInspector {
                     InspectorDivider(width: $inspectorWidth)
-                    IssueDetailView(model: model)
+                    IssueDetailView(model: model, ui: ui)
                         .scrollContentBackground(.hidden)
                         .frame(width: inspectorWidth)
                         .background(theme.background)

@@ -19,7 +19,7 @@ public struct ConfigurationInventory: Equatable, Sendable {
         .appearance: ["appearance", "darkTheme", "lightTheme", "textSize", "sidebarStyle"],
         // The per-app language, under the key macOS itself uses (System Settings writes the same one).
         .language: [LanguageSetting.key],
-        .window: ["issueListColumns", "inspectorWidth"],
+        .window: ["issueListColumns", "inspectorWidth", "inspectorShowsGraph", "inspectorGraphHeight"],
         .journal: ["turnsOnEventsJournal", "eventsJournalTurnedOn"],
     ]
 

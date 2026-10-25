@@ -43,6 +43,7 @@
       }
     },
     "%@ %@\nClick to follow · Show in Main Window to open it" : {
+      "comment" : "Tooltip on a graph card in the dependency window",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -84,6 +85,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ %2$@\nClique para seguir · Mostrar na janela principal para abri-lo"
+          }
+        }
+      }
+    },
+    "%@ %@\nClick to select it" : {
+      "comment" : "Tooltip on a graph card in the details pane",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@\nKlicken, um ihn auszuwählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@\nClick to select it"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@\nHaz clic para seleccionarlo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@\nCliquez pour le sélectionner"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@\nクリックで選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@\n클릭하면 선택됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@\nClique para selecioná-lo"
           }
         }
       }
@@ -6405,6 +6453,86 @@
         }
       }
     },
+    "Open in Graph Window" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Graph-Fenster öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir en la ventana del grafo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir dans la fenêtre du graphe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グラフウインドウで開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그래프 윈도우에서 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir na janela do grafo"
+          }
+        }
+      }
+    },
+    "Open the graph in its own window (⌘G)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den Graph in einem eigenen Fenster öffnen (⌘G)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir el grafo en su propia ventana (⌘G)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le graphe dans sa propre fenêtre (⌘G)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グラフを独立したウインドウで開く（⌘G）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그래프를 별도 윈도우에서 열기(⌘G)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir o grafo em uma janela própria (⌘G)"
+          }
+        }
+      }
+    },
     "Ordering" : {
       "localizations" : {
         "de" : {
@@ -6562,6 +6690,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Faz parte do que %@ significa; duplique a visualização para alterá-lo"
+          }
+        }
+      }
+    },
+    "Pin the dependency graph under the details, following the selected bead (⇧⌘G)" : {
+      "comment" : "Tooltip",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den Abhängigkeitsgraph unter den Details anheften; er folgt dem ausgewählten Bead (⇧⌘G)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fijar el grafo de dependencias bajo los detalles, siguiendo el bead seleccionado (⇧⌘G)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Épingler le graphe des dépendances sous les détails, en suivant le bead sélectionné (⇧⌘G)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依存関係グラフを詳細の下にピン留めし、選択したビーズに追従させます（⇧⌘G）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "의존성 그래프를 세부사항 아래에 고정하고 선택한 비즈를 따라갑니다(⇧⌘G)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixar o grafo de dependências sob os detalhes, acompanhando o bead selecionado (⇧⌘G)"
           }
         }
       }
@@ -9373,6 +9542,87 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Desafixar"
+          }
+        }
+      }
+    },
+    "Unpin the dependency graph (⇧⌘G)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den Abhängigkeitsgraph lösen (⇧⌘G)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desfijar el grafo de dependencias (⇧⌘G)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désépingler le graphe des dépendances (⇧⌘G)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依存関係グラフのピン留めを解除（⇧⌘G）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "의존성 그래프 고정 해제(⇧⌘G)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desafixar o grafo de dependências (⇧⌘G)"
+          }
+        }
+      }
+    },
+    "Unpin the dependency graph from this pane (⇧⌘G)" : {
+      "comment" : "Tooltip",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den Abhängigkeitsgraph aus diesem Bereich lösen (⇧⌘G)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desfijar el grafo de dependencias de este panel (⇧⌘G)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désépingler le graphe des dépendances de ce panneau (⇧⌘G)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このパネルから依存関係グラフのピン留めを解除（⇧⌘G）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 패널에서 의존성 그래프 고정 해제(⇧⌘G)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desafixar o grafo de dependências deste painel (⇧⌘G)"
           }
         }
       }

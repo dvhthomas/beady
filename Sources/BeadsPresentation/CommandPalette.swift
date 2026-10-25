@@ -68,6 +68,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case goToIssue(IssueID, title: String)
     case toggleMark(IssueMark)
     case showGraph
+    /// Pins the dependency graph into the details pane, following the selected bead; again unpins.
+    case toggleGraphPane
     case goBack
     case goForward
     case focusSelected
@@ -115,6 +117,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goToIssue(let id, _): "go-\(id.rawValue)"
         case .toggleMark(let mark): "mark-\(mark.rawValue)"
         case .showGraph: "show-graph"
+        case .toggleGraphPane: "toggle-graph-pane"
         case .goBack: "go-back"
         case .goForward: "go-forward"
         case .focusSelected: "focus-selected"
@@ -164,6 +167,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleMark(.pinned): String(localized: "Toggle Pin", bundle: .module, comment: "Command")
         case .toggleMark(.starred): String(localized: "Toggle Star", bundle: .module, comment: "Command")
         case .showGraph: String(localized: "Show Dependency Graph", bundle: .module, comment: "Command")
+        case .toggleGraphPane: String(localized: "Pin Dependency Graph to Details", bundle: .module, comment: "Command: show the dependency graph as a pane in the details panel, or hide it again")
         case .goBack: String(localized: "Back", bundle: .module, comment: "Command: to the last bead looked at")
         case .goForward: String(localized: "Forward", bundle: .module, comment: "Command: to the bead come back from")
         case .focusSelected: String(localized: "Focus on Selected Bead", bundle: .module, comment: "Command: narrow the view to everything under it")
@@ -213,6 +217,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setOrdering: ["sort", "order", "arrange"]
         case .goToIssue: ["bead", "issue", "go to"]
         case .showGraph: ["graph", "dependencies", "blockers", "unblock", "chain", "why blocked"]
+        case .toggleGraphPane: ["graph", "pin", "pane", "details", "inspector", "dependencies", "split", "dock"]
         case .focusSelected: ["focus", "subtree", "children", "zoom in", "scope"]
         case .unfocus: ["unfocus", "leave", "out", "back to view"]
         case .expandAll: ["expand", "open all", "unfold"]
@@ -243,7 +248,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .openWorkspace, .closeWorkspace, .switchWorkspace, .nextWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: String(localized: "Workspace", bundle: .module, comment: "Command group")
         case .newBead, .editSelected, .toggleMark, .showGraph: Self.beadsGroup
         case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
-        case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
+        case .displayOptions, .toggleDetails, .toggleGraphPane, .setLayout, .setGrouping, .setOrdering,
              .expandAll, .collapseAll, .toggleColumn, .resetColumns: String(localized: "Display", bundle: .module, comment: "Command group")
         case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews, .copyAsBDCommand: Self.viewsGroup
         case .openSettings, .setSidebarStyle, .resetConfiguration: Self.appearanceGroup
@@ -277,6 +282,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setLayout(let layout): [KeyBinding(Character("\(layoutNumber(layout))"), .command)]
         case .toggleMark(let mark): [KeyBinding(mark == .pinned ? "p" : "s", [.command, .shift])]
         case .showGraph: [KeyBinding("g", .command)]
+        case .toggleGraphPane: [KeyBinding("g", [.command, .shift])]
         case .openSettings: [KeyBinding(",", .command)]
         case .goBack: [KeyBinding("[", .command)]
         case .goForward: [KeyBinding("]", .command)]
@@ -348,7 +354,7 @@ public enum CommandCatalog {
             commands += IssueMark.allCases.map { .toggleMark($0) }
         }
         // The graph is a whole-database view now, so it doesn't need a selection to open.
-        commands.append(.showGraph)
+        commands += [.showGraph, .toggleGraphPane]
         if model.canGoBack { commands.append(.goBack) }
         if model.canGoForward { commands.append(.goForward) }
         if let id = model.selection, model.snapshot?.children(of: id).isEmpty == false {

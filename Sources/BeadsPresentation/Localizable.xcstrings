@@ -5337,6 +5337,47 @@
         }
       }
     },
+    "Pin Dependency Graph to Details" : {
+      "comment" : "Command: show the dependency graph as a pane in the details panel, or hide it again",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abhängigkeitsgraph in den Details anheften"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fijar el grafo de dependencias en los detalles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Épingler le graphe des dépendances aux détails"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依存関係グラフを詳細にピン留め"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "의존성 그래프를 세부사항에 고정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixar o grafo de dependências nos detalhes"
+          }
+        }
+      }
+    },
     "Pipeline" : {
       "comment" : "Built-in view: a board of everything live",
       "localizations" : {

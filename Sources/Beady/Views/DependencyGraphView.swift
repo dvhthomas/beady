@@ -13,6 +13,9 @@ struct DependencyGraphView: View {
     let ui: WorkspaceUI
     /// Set when the graph is its own window: it needs nothing from you, so Escape closes it.
     var close: (() -> Void)?
+    /// Pinned into the details pane: the selection is the focus, a click selects, and the
+    /// toolbar keeps to what fits a narrow pane.
+    var embedded = false
 
     private static let cell = CGSize(width: 230, height: 76)
     private static let gap = CGSize(width: 64, height: 16)
@@ -22,8 +25,10 @@ struct DependencyGraphView: View {
         let graph = DependencyGraph(model.snapshot ?? IssueSnapshot(issues: []), includeFinished: ui.graphIncludesFinished)
         let positions = graph.layout()
         VStack(spacing: 0) {
-            toolbar(graph)
-            Divider()
+            if !embedded {
+                toolbar(graph)
+                Divider()
+            }
             if graph.nodes.isEmpty {
                 ContentUnavailableView {
                     Label("No Dependencies", systemImage: "point.3.connected.trianglepath.dotted")
@@ -38,8 +43,37 @@ struct DependencyGraphView: View {
             } else {
                 canvas(graph, positions)
             }
+            if embedded {
+                Divider()
+                embeddedBar
+            }
         }
         .background(theme.background)
+    }
+
+    /// What the pane shows: the focused bead, the legend and the finished-work switch. Zoom
+    /// keeps the window's shortcuts there; here it is two buttons.
+    private var embeddedBar: some View {
+        HStack(spacing: 10) {
+            legend
+            Spacer()
+            Toggle("Finished work", isOn: binding(\.graphIncludesFinished))
+                .toggleStyle(.checkbox)
+                .help("Closed beads, drawn faded")
+            HStack(spacing: 2) {
+                Button { zoom(by: -0.15) } label: { Image(systemName: "minus.magnifyingglass") }
+                Button { zoom(by: 0.15) } label: { Image(systemName: "plus.magnifyingglass") }
+            }
+            .buttonStyle(.accessoryBar)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+    }
+
+    /// Which bead the graph is about: the window's own focus, or the selection when pinned.
+    private var focusID: IssueID? {
+        embedded ? model.selection : ui.graphFocus
     }
 
     // MARK: Toolbar
@@ -106,7 +140,7 @@ struct DependencyGraphView: View {
     // MARK: The graph
 
     private func canvas(_ graph: DependencyGraph, _ positions: [IssueID: DependencyGraph.Position]) -> some View {
-        let focus = ui.graphFocus.flatMap { id in graph.nodes.contains { $0.id == id } ? id : nil }
+        let focus = focusID.flatMap { id in graph.nodes.contains { $0.id == id } ? id : nil }
         let upstream = focus.map(graph.upstream(of:)) ?? []
         let downstream = focus.map(graph.downstream(of:)) ?? []
         let zoom = ui.graphZoom
@@ -148,8 +182,8 @@ struct DependencyGraphView: View {
             .onAppear {
                 if let focus { scroller.scrollTo(focus, anchor: .center) }
             }
-            .onChange(of: ui.graphFocus) {
-                guard let focus = ui.graphFocus else { return }
+            .onChange(of: focusID) {
+                guard let focus = focusID else { return }
                 withAnimation(.easeInOut(duration: 0.35)) {
                     scroller.scrollTo(focus, anchor: .center)
                 }
@@ -174,7 +208,8 @@ struct DependencyGraphView: View {
         let finished = category == .done
         let zoom = ui.graphZoom
         return Button {
-            ui.graphFocus = issue.id
+            // Pinned, the graph follows the selection, so following a bead means selecting it.
+            if embedded { model.selection = issue.id } else { ui.graphFocus = issue.id }
         } label: {
             VStack(alignment: .leading, spacing: 4 * zoom) {
                 HStack(spacing: 6 * zoom) {
@@ -204,10 +239,16 @@ struct DependencyGraphView: View {
             .opacity(role == .unrelated ? 0.3 : (finished && role == .idle ? 0.6 : 1))
         }
         .buttonStyle(.plain)
-        .help("\(issue.id.rawValue) \(issue.title)\nClick to follow · Show in Main Window to open it")
+        .help(embedded
+            ? String(localized: "\(issue.id.rawValue) \(issue.title)\nClick to select it", comment: "Tooltip on a graph card in the details pane")
+            : String(localized: "\(issue.id.rawValue) \(issue.title)\nClick to follow · Show in Main Window to open it", comment: "Tooltip on a graph card in the dependency window"))
         .contextMenu {
-            Button("Follow This Bead") { ui.graphFocus = issue.id }
-            Button("Show in Main Window") { model.selection = issue.id }
+            if embedded {
+                Button("Open in Graph Window") { ui.openGraph(focusing: issue.id) }
+            } else {
+                Button("Follow This Bead") { ui.graphFocus = issue.id }
+                Button("Show in Main Window") { model.selection = issue.id }
+            }
         }
     }
 
