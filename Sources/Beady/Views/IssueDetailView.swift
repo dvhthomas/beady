@@ -3,22 +3,32 @@ import BeadsPresentation
 import SwiftUI
 
 struct IssueDetailView: View {
+    @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
+    /// Panels shared with the menu bar; nil where there is no window around the pane.
+    var ui: WorkspaceUI?
 
-    init(model: WorkspaceModel) {
+    init(model: WorkspaceModel, ui: WorkspaceUI? = nil) {
         self.model = model
+        self.ui = ui
     }
 
     var body: some View {
         // The history bar is pinned to the top in both states, where it sits when a bead is
         // selected; what's below takes the rest of the height, so the empty state centres in
-        // the pane rather than hanging just under the arrows.
+        // the pane rather than hanging just under the arrows. The pinned graph, when there is
+        // one, takes the bottom, at a height you drag.
         VStack(alignment: .leading, spacing: 0) {
             if model.canGoBack || model.canGoForward {
                 historyBar
             }
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let ui, ui.showsGraphPane {
+                GraphPaneDivider(ui: ui)
+                GraphPane(model: model, ui: ui)
+                    .frame(height: ui.graphPaneHeight)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: model.selection) { model.endEditing() }
@@ -75,7 +85,7 @@ struct IssueDetailView: View {
                 if let draft = draftBinding(for: issue) {
                     EditBeadForm(model: model, draft: draft) { model.endEditing() }
                 } else {
-                    IssueDetailContent(issue: issue, snapshot: snapshot, model: model) {
+                    IssueDetailContent(issue: issue, snapshot: snapshot, model: model, ui: ui) {
                         model.beginEditing(issue.id)
                     }
                 }
@@ -95,6 +105,7 @@ private struct IssueDetailContent: View {
     let issue: Issue
     let snapshot: IssueSnapshot
     let model: WorkspaceModel
+    var ui: WorkspaceUI?
     let onEdit: () -> Void
 
     var body: some View {
@@ -184,6 +195,18 @@ private struct IssueDetailContent: View {
                 }
             } label: {
                 Label("Move To", systemImage: "arrow.turn.down.right")
+            }
+
+            if let ui {
+                Button {
+                    ui.showsGraphPane.toggle()
+                } label: {
+                    Image(systemName: ui.showsGraphPane ? "pin.slash" : "point.3.connected.trianglepath.dotted")
+                }
+                .accessibilityLabel(AppCommand.toggleGraphPane.title)
+                .help(ui.showsGraphPane
+                    ? String(localized: "Unpin the dependency graph from this pane (⇧⌘G)", comment: "Tooltip")
+                    : String(localized: "Pin the dependency graph under the details, following the selected bead (⇧⌘G)", comment: "Tooltip"))
             }
         }
         .controlSize(.small)
@@ -438,5 +461,77 @@ private struct HistoryRow: View {
         return event.to.isEmpty
             ? String(localized: "cleared (was \(event.from))", comment: "History: the field was emptied; the value is what it held")
             : String(localized: "\(event.from) → \(event.to)", comment: "History: old value, new value")
+    }
+}
+
+/// The dependency graph as the bottom of the details pane: the selected bead in the middle,
+/// what it waits on in bold, what waits on it tinted, the rest faded. It follows the selection
+/// as you move down a list, which is the point of pinning it here rather than opening a window.
+struct GraphPane: View {
+    @Environment(\.theme) private var theme
+    let model: WorkspaceModel
+    let ui: WorkspaceUI
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Label("Dependencies", systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.secondaryText)
+                Spacer()
+                Button {
+                    ui.openGraph(focusing: model.selection)
+                } label: {
+                    Image(systemName: "macwindow")
+                }
+                .buttonStyle(.plain)
+                .help("Open the graph in its own window (⌘G)")
+                Button {
+                    ui.showsGraphPane = false
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+                .help("Unpin the dependency graph (⇧⌘G)")
+            }
+            .controlSize(.small)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            DependencyGraphView(model: model, ui: ui, embedded: true)
+        }
+        .background(theme.background)
+    }
+}
+
+/// The draggable edge above the pinned graph.
+private struct GraphPaneDivider: View {
+    @Environment(\.theme) private var theme
+    let ui: WorkspaceUI
+    private var startHeight = State<Double?>(initialValue: nil)
+
+    static let range = 160.0...600.0
+
+    init(ui: WorkspaceUI) {
+        self.ui = ui
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(theme.border)
+            .frame(height: 1)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { drag in
+                        let start = startHeight.wrappedValue ?? ui.graphPaneHeight
+                        startHeight.wrappedValue = start
+                        ui.graphPaneHeight = min(max(start - drag.translation.height, Self.range.lowerBound), Self.range.upperBound)
+                    }
+                    .onEnded { _ in startHeight.wrappedValue = nil }
+            )
     }
 }

@@ -188,3 +188,20 @@ struct PaletteMatchingTests {
         }
     }
 }
+
+@MainActor
+@Suite("Pinning the dependency graph")
+struct GraphPaneCommandTests {
+    @Test("the pane has its own command, next to the window's, under Display, on ⇧⌘G")
+    func command() async {
+        #expect(AppCommand.toggleGraphPane.bindings == [KeyBinding("g", [.command, .shift])])
+        #expect(AppCommand.toggleGraphPane.shortcut == "⇧⌘G")
+        #expect(AppCommand.toggleGraphPane.group == AppCommand.toggleDetails.group)
+        #expect(AppCommand.toggleGraphPane.title.localizedCaseInsensitiveContains("graph"))
+        let model = WorkspaceModel(title: "demo", store: MemoryStore([makeIssue("a")]), now: { t0 })
+        await model.load()
+        let all = CommandCatalog.all(for: model)
+        #expect(all.contains(.toggleGraphPane))
+        #expect(CommandCatalog.results(for: "pin graph", model: model).first == .toggleGraphPane)
+    }
+}

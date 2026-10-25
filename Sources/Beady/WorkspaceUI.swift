@@ -1,5 +1,6 @@
 import BeadsCore
 import BeadsPresentation
+import Foundation
 import Observation
 
 /// View state that both the window and the menu bar need to reach: which panels are open, and
@@ -7,7 +8,29 @@ import Observation
 @MainActor
 @Observable
 final class WorkspaceUI {
+    /// Where the pinned pane's state is remembered between launches; nil for the offscreen
+    /// snapshots, which must leave the saved layout alone.
+    @ObservationIgnored private let preferences: UserDefaults?
+    private static let graphPaneKey = "inspectorShowsGraph"
+    private static let graphPaneHeightKey = "inspectorGraphHeight"
+
+    init(preferences: UserDefaults? = nil) {
+        self.preferences = preferences
+        showsGraphPane = preferences?.bool(forKey: Self.graphPaneKey) ?? false
+        let height = preferences?.double(forKey: Self.graphPaneHeightKey) ?? 0
+        graphPaneHeight = height > 0 ? height : 280
+    }
+
     var showsInspector = true
+    /// The dependency graph pinned into the details pane, following the selected bead. A pane
+    /// rather than a window when the chain matters while you work down a list.
+    var showsGraphPane: Bool {
+        didSet { preferences?.set(showsGraphPane, forKey: Self.graphPaneKey) }
+    }
+    /// How tall the pinned graph is; dragged, and kept.
+    var graphPaneHeight: Double {
+        didSet { preferences?.set(graphPaneHeight, forKey: Self.graphPaneHeightKey) }
+    }
     var showsNewBead = false
     var showsPalette = false
     var showsShortcuts = false

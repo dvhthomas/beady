@@ -63,7 +63,7 @@ final class AppSession {
     static var canSyncLibrary: Bool { UbiquitousLibraryStore.isEntitled }
     @ObservationIgnored private var librarySyncer: LibrarySyncer?
     /// Panels, sheets and column layout, shared with the menu bar.
-    let ui = WorkspaceUI()
+    let ui: WorkspaceUI
     /// Appearance, themes and text size.
     let themes = ThemeStore()
 
@@ -97,6 +97,7 @@ final class AppSession {
     /// `--workspace <path>` on the command line wins over the most recent workspace.
     init(arguments: [String] = CommandLine.arguments, preferences: UserDefaults? = .standard) {
         self.preferences = preferences
+        ui = WorkspaceUI(preferences: preferences)
         turnsOnJournal = preferences.map {
             $0.object(forKey: Self.turnsOnJournalKey) == nil || $0.bool(forKey: Self.turnsOnJournalKey)
         } ?? false
@@ -541,6 +542,9 @@ final class AppSession {
             model?.searchText = ""
         case .displayOptions: ui.showsDisplayOptions = true
         case .toggleDetails: ui.showsInspector.toggle()
+        case .toggleGraphPane:
+            ui.showsGraphPane.toggle()
+            if ui.showsGraphPane { ui.showsInspector = true }
         case .showShortcuts: ui.showsShortcuts = true
         case .showView(let id): model?.viewID = id
         case .saveView: model?.save()
