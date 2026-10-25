@@ -4,13 +4,15 @@
 # running copy of the app is never overwritten in place.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=swift-flags.sh
+source "$ROOT/scripts/swift-flags.sh"
 CONFIG="${CONFIG:-debug}"
 SCRATCH="$ROOT/.build-app"
 APP="$ROOT/build/Beady.app"
 STAGING="$ROOT/build/Beady.app.staging"
 
-swift build --package-path "$ROOT" -c "$CONFIG" --scratch-path "$SCRATCH" --product Beady
-BIN_DIR="$(swift build --package-path "$ROOT" -c "$CONFIG" --scratch-path "$SCRATCH" --show-bin-path)"
+swift build --package-path "$ROOT" -c "$CONFIG" --scratch-path "$SCRATCH" --product Beady "${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"}"
+BIN_DIR="$(swift build --package-path "$ROOT" -c "$CONFIG" --scratch-path "$SCRATCH" --show-bin-path "${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"}")"
 
 rm -rf "$STAGING"
 mkdir -p "$STAGING/Contents/MacOS" "$STAGING/Contents/Resources"

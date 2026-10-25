@@ -49,6 +49,16 @@ struct LocalizationCatalogTests {
         return []
     }
 
+    /// The build has to compile the catalogs, not copy them: only SwiftPM's Swift Build backend
+    /// does (scripts/swift-flags.sh passes --build-system swiftbuild where the toolchain has it).
+    /// Without this, the app comes up in English with no plural forms and nothing else says why.
+    @Test("the build compiled the catalogs into the bundle; see scripts/swift-flags.sh if not")
+    func compiled() {
+        for language in Self.languages {
+            #expect(LanguageSetting.hasCompiledCatalog(for: language), "no compiled \(language) catalog in the BeadsPresentation bundle: this toolchain's build system copied Localizable.xcstrings instead of compiling it. Use Swift 6.4+, or pass --build-system swiftbuild (scripts/test.sh and scripts/bundle.sh do).")
+        }
+    }
+
     @Test("the catalogs exist, are the source language's, and are not empty", arguments: modules)
     func shape(module: String) throws {
         let catalog = try Self.catalog(module)

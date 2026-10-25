@@ -161,7 +161,9 @@ quarantines it the first time: open it, then choose **Open Anyway** in System Se
 its views and settings.
 
 **Build it yourself** — an app you build is never quarantined, and this is the route on an Intel
-Mac. You need a Swift 6 toolchain, from Xcode or the Command Line Tools:
+Mac. You need a Swift 6 toolchain, from Xcode or the Command Line Tools; the translations need
+Swift 6.1 or later (the scripts pick SwiftPM's Swift Build backend, which is what compiles the
+String Catalogs — see [docs/LOCALIZATION.md](docs/LOCALIZATION.md)):
 
 ```bash
 git clone https://github.com/dvhthomas/beady.git

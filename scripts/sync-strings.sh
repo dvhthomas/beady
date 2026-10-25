@@ -11,8 +11,10 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRATCH="${SCRATCH:-$ROOT/.build}"
+# shellcheck source=swift-flags.sh
+source "$ROOT/scripts/swift-flags.sh"
 
-swift build --package-path "$ROOT" --scratch-path "$SCRATCH" >/dev/null
+swift build --package-path "$ROOT" --scratch-path "$SCRATCH" "${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"}" >/dev/null
 
 for module in BeadsCore BeadsData BeadsPresentation Beady; do
   catalog="$ROOT/Sources/$module/Localizable.xcstrings"
