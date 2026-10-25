@@ -315,6 +315,14 @@ final class AppSession {
         }
     }
 
+    /// The view's filter and ordering as a `bd query` line, on the pasteboard.
+    func copyAsBDCommand(_ id: IssueView.ID) {
+        guard let model, let view = model.views.first(where: { $0.id == id }) else { return }
+        let query = BDQueryRendering.query(for: view, catalog: model.snapshot?.catalog ?? .builtIn)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(query.commandLine, forType: .string)
+    }
+
     func close() {
         watcher?.stop()
         watcher = nil
@@ -390,6 +398,7 @@ final class AppSession {
         case .saveViewAs: ui.promptSaveAsNewView(suggesting: model.map { $0.view.isBuiltIn ? "" : $0.view.name } ?? "")
         case .resetView: model?.reset()
         case .exportView(let id): exportView(id)
+        case .copyAsBDCommand(let id): copyAsBDCommand(id)
         case .importViews: chooseViewsToImport()
         case .resetConfiguration:
             ui.showsResetConfiguration = true

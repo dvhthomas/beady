@@ -127,6 +127,8 @@ struct SidebarView: View {
             if entry.isBuiltIn {
                 // A built-in is locked; a copy is how you get a variation of it.
                 Button("Duplicate") { model.duplicateView(entry.id) }
+                Divider()
+                Button(AppCommand.copyAsBDCommand(entry.id).title) { run(.copyAsBDCommand(entry.id)) }
             } else if let view = model.views.first(where: { $0.id == entry.id }) {
                 Button("Rename…") { ui.promptRename(view) }
                 Button("Change Icon…") { ui.promptChangeIcon(of: view) }
@@ -136,6 +138,7 @@ struct SidebarView: View {
                 if let file = exportFile(for: view) {
                     ShareLink(item: file) { Label("Share…", systemImage: "square.and.arrow.up") }
                 }
+                Button(AppCommand.copyAsBDCommand(entry.id).title) { run(.copyAsBDCommand(entry.id)) }
                 Divider()
                 Button("Delete", role: .destructive) { model.removeView(entry.id) }
             }

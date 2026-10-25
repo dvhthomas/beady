@@ -2409,6 +2409,47 @@
         }
       }
     },
+    "Copy as bd Command" : {
+      "comment" : "Command: the view's filter and ordering as a bd query line, to the pasteboard",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Als bd-Befehl kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar como comando de bd"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier comme commande bd"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bdコマンドとしてコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd 명령으로 복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar como comando do bd"
+          }
+        }
+      }
+    },
     "Create %@ “%@”" : {
       "comment" : "Change summary: bd's type name, then the title",
       "localizations" : {
