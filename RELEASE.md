@@ -63,6 +63,21 @@ build when `v$(cat VERSION)` is not the tag.
    The Open Anyway approval from the first install carries across upgrades, so the new build
    opens without another trip to System Settings.
 
+## Signing for real, and iCloud sync
+
+The releases are ad-hoc signed, and that is enough for everything but one setting: **Sync my
+views between Macs with iCloud** (Settings › Views) uses iCloud's Key-Value Store, which macOS
+only grants to an app signed with a Developer ID and carrying the entitlement in
+`Resources/Beady.entitlements`. An ad-hoc build runs without it and says so under the toggle.
+To build one that has it:
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" TEAM_ID=TEAMID scripts/bundle.sh
+```
+
+`scripts/bundle.sh` fills the team id into the entitlements and signs with them. The Release
+workflow doesn't do this: it has no certificate.
+
 ## When something goes wrong
 
 **The cask step was skipped.** Without the deploy key secret the workflow still makes the GitHub

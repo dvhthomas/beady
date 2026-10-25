@@ -8735,6 +8735,46 @@
         }
       }
     },
+    "Sync my views between Macs with iCloud" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Ansichten über iCloud zwischen Macs synchronisieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronizar mis vistas entre Macs con iCloud"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchroniser mes vues entre Mac avec iCloud"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudでMac間のビューを同期"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud로 Mac 간 나의 보기 동기화"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronizar minhas visualizações entre Macs com o iCloud"
+          }
+        }
+      }
+    },
     "System Default follows macOS. This is the same per-app choice as System Settings › General › Language & Region › Applications." : {
       "localizations" : {
         "de" : {
@@ -9011,6 +9051,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tema"
+          }
+        }
+      }
+    },
+    "This copy of Beady isn't signed with the iCloud entitlement, so it runs without sync; a signed build has it (see RELEASE.md)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Kopie von Beady ist nicht mit der iCloud-Berechtigung signiert und läuft deshalb ohne Synchronisierung; ein signierter Build hat sie (siehe RELEASE.md)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta copia de Beady no está firmada con el permiso de iCloud, así que funciona sin sincronización; una compilación firmada lo tiene (ver RELEASE.md)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette copie de Beady n’est pas signée avec l’autorisation iCloud, elle fonctionne donc sans synchronisation ; une version signée l’a (voir RELEASE.md)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このBeadyはiCloudのエンタイトルメント付きで署名されていないため、同期なしで動作します。署名済みビルドには含まれます（RELEASE.md参照）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Beady는 iCloud 권한으로 서명되지 않아 동기화 없이 실행됩니다. 서명된 빌드에는 포함되어 있습니다(RELEASE.md 참조)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta cópia do Beady não está assinada com a permissão do iCloud, então funciona sem sincronização; uma versão assinada a tem (veja RELEASE.md)."
           }
         }
       }
@@ -9414,6 +9494,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Atualizado"
+          }
+        }
+      }
+    },
+    "Views" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansichten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vistas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vues"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビュー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visualizações"
           }
         }
       }
@@ -9937,6 +10057,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gravando e verificando…"
+          }
+        }
+      }
+    },
+    "Your saved views follow you to every Mac signed into the same Apple ID. The newest edit of a view wins, and a view deleted on one Mac goes from the others. The files in your Library stay as they are when this is off." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine gesicherten Ansichten folgen dir auf jeden Mac, der mit derselben Apple-ID angemeldet ist. Die neueste Änderung einer Ansicht gewinnt, und eine auf einem Mac gelöschte Ansicht verschwindet auf den anderen. Ist dies aus, bleiben die Dateien in deiner Library, wie sie sind."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus vistas guardadas te siguen a todos los Mac con la misma cuenta de Apple. La edición más reciente de una vista gana, y una vista eliminada en un Mac desaparece de los demás. Con esto desactivado, los archivos de tu Biblioteca se quedan como están."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos vues enregistrées vous suivent sur chaque Mac connecté au même identifiant Apple. La modification la plus récente d’une vue l’emporte, et une vue supprimée sur un Mac disparaît des autres. Quand cette option est désactivée, les fichiers de votre Bibliothèque restent tels quels."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存したビューは、同じApple IDでサインインしたすべてのMacに引き継がれます。ビューの最新の編集が優先され、あるMacで削除したビューは他のMacからも消えます。オフのときはライブラリ内のファイルはそのまま残ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장한 보기가 같은 Apple ID로 로그인한 모든 Mac에 따라갑니다. 보기의 가장 최근 편집이 우선하며, 한 Mac에서 삭제한 보기는 다른 Mac에서도 사라집니다. 이 설정이 꺼져 있으면 라이브러리의 파일은 그대로 유지됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suas visualizações salvas acompanham você em todos os Macs com o mesmo ID Apple. A edição mais recente de uma visualização prevalece, e uma visualização apagada em um Mac some dos outros. Com isto desligado, os arquivos da sua Biblioteca ficam como estão."
           }
         }
       }

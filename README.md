@@ -47,7 +47,8 @@ views, each with an icon that says what it answers; the chip that defines In Fli
   dropping it on the sidebar — imports it under My Views. A view everyone on a project should
   have goes under **This Workspace**: drag it there (or *Move to This Workspace*) and its file
   moves to `.beads/beady/views` next to the database, to be committed like `.beads/issues.jsonl`;
-  whoever opens that database in Beady sees it.
+  whoever opens that database in Beady sees it. On a build signed with a Developer ID, Settings
+  can also keep your Library the same on every Mac through iCloud ([RELEASE.md](RELEASE.md)).
 - **Switch databases from the sidebar.** The top of the sidebar names the open workspace and its
   bd prefix; click it for the recent ones (each with its path, so two checkouts of a project tell
   apart) and Open Other…. ⌃⌘O cycles through them, and ⌘P knows `switch to <name>`.
