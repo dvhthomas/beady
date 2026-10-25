@@ -27,12 +27,16 @@ public struct DependencyGraph: Sendable {
     private let dependents: [IssueID: Set<IssueID>]
     private let layers: [IssueID: Int]
 
-    public init(_ snapshot: IssueSnapshot, includeFinished: Bool = true) {
+    /// `limitedTo` scopes the graph to those beads: an edge is kept only when both of its ends
+    /// are in the set, so nothing outside ever appears — not even as a boundary stub. Nil means
+    /// the whole database.
+    public init(_ snapshot: IssueSnapshot, limitedTo visible: Set<IssueID>? = nil, includeFinished: Bool = true) {
         var edges = Set<Edge>()
         for issue in snapshot.issues {
             for dependency in issue.dependencies where dependency.kind == .blocks {
                 let blocker = dependency.dependsOnID
                 guard blocker != issue.id, let blocking = snapshot.issue(blocker) else { continue }
+                if let visible, !(visible.contains(issue.id) && visible.contains(blocker)) { continue }
                 if !includeFinished, snapshot.isDone(issue) || snapshot.isDone(blocking) { continue }
                 edges.insert(Edge(from: blocker, to: issue.id))
             }
@@ -66,6 +70,11 @@ public struct DependencyGraph: Sendable {
         blockers[id] ?? []
     }
 
+    /// The beads waiting directly on this one.
+    public func directDownstream(of id: IssueID) -> Set<IssueID> {
+        dependents[id] ?? []
+    }
+
     /// Everything that has to finish, at any distance, before this bead can start.
     public func upstream(of id: IssueID) -> Set<IssueID> {
         reach(from: id, along: blockers)
@@ -92,6 +101,46 @@ public struct DependencyGraph: Sendable {
             rowOffset += height + 1
         }
         return positions
+    }
+
+    // MARK: Walking with the arrow keys
+
+    /// A step through the drawn grid. Named apart from the board's MoveDirection so a file that
+    /// sees both modules never has to disambiguate.
+    public enum Direction: Sendable {
+        case up, down, left, right
+    }
+
+    /// Where the arrow keys land from `id`: left and right walk direct blockers and dependents,
+    /// preferring the nearest row; up and down walk the same column of the laid-out grid, which
+    /// steps across stacked groups of work. The top-left node when `id` is nil or not drawn;
+    /// nil when there is nowhere to go, so the focus stays put at an edge.
+    public func neighbour(of id: IssueID?, direction: Direction) -> IssueID? {
+        let positions = layout()
+        guard let id, let place = positions[id] else {
+            return positions.min { ($0.value.row, $0.value.column, $0.key) < ($1.value.row, $1.value.column, $1.key) }?.key
+        }
+        switch direction {
+        case .left:
+            return nearest(to: place.row, among: directUpstream(of: id), in: positions)
+        case .right:
+            return nearest(to: place.row, among: directDownstream(of: id), in: positions)
+        case .up, .down:
+            let column = positions.filter { $0.value.column == place.column && $0.key != id }
+            let candidates = direction == .up
+                ? column.filter { $0.value.row < place.row }
+                : column.filter { $0.value.row > place.row }
+            return candidates.min { (abs($0.value.row - place.row), $0.key) < (abs($1.value.row - place.row), $1.key) }?.key
+        }
+    }
+
+    /// The candidate whose drawn row is closest to `row`; ties go to the lower id, so a step is
+    /// the same every time.
+    private func nearest(to row: Int, among candidates: Set<IssueID>, in positions: [IssueID: Position]) -> IssueID? {
+        candidates
+            .compactMap { id in positions[id].map { (id, $0) } }
+            .min { (abs($0.1.row - row), $0.0) < (abs($1.1.row - row), $1.0) }?
+            .0
     }
 
     // MARK: Workings
