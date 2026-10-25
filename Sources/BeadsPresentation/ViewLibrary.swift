@@ -35,11 +35,33 @@ public struct ViewLibrary: Equatable, Sendable {
     }
     public var live: [IssueView.ID: ViewState]
     public var offers: [IssueView]
+    /// The user views that live in the open workspace's `.beads/beady/views` rather than in the
+    /// user's Library, so they travel with the repository. Everything else in `views` is the
+    /// user's own, or a built-in.
+    public var workspaceViewIDs: Set<IssueView.ID>
 
-    public init(views: [IssueView] = IssueView.builtIns, live: [IssueView.ID: ViewState] = [:], offers: [IssueView] = []) {
+    public init(views: [IssueView] = IssueView.builtIns, live: [IssueView.ID: ViewState] = [:], offers: [IssueView] = [], workspaceViewIDs: Set<IssueView.ID> = []) {
         self.views = Self.ordered(views)
         self.live = live
         self.offers = offers
+        self.workspaceViewIDs = workspaceViewIDs
+    }
+
+    /// Where a view lives: the user's Library, or the open workspace.
+    public func tier(of id: IssueView.ID) -> ViewTier {
+        workspaceViewIDs.contains(id) ? .workspace : .library
+    }
+
+    /// Moves a user view between the tiers; the next save moves its file. A built-in stays
+    /// where it is. Returns whether anything moved.
+    @discardableResult
+    public mutating func moveView(_ id: IssueView.ID, to tier: ViewTier) -> Bool {
+        guard let view = view(id), !view.isBuiltIn, self.tier(of: id) != tier else { return false }
+        switch tier {
+        case .workspace: workspaceViewIDs.insert(id)
+        case .library: workspaceViewIDs.remove(id)
+        }
+        return true
     }
 
     private static func ordered(_ views: [IssueView]) -> [IssueView] {
@@ -73,7 +95,21 @@ public struct ViewLibrary: Equatable, Sendable {
     /// and its per-scope blob is migrated once; both are then removed. Anything that can't be read
     /// is dropped rather than fought with: the library starts from the built-ins and is saved
     /// again on the next change.
-    public static func load(from directory: URL?, preferences: UserDefaults?) -> ViewLibrary {
+    public static func load(from directory: URL?, workspaceDirectory: URL? = nil, preferences: UserDefaults?) -> ViewLibrary {
+        var library = loadLibrary(from: directory, preferences: preferences)
+        // The workspace tier: views committed next to the database. A file whose id the Library
+        // already has is left to the Library, so nothing is shown twice.
+        if let workspaceDirectory, let shared = readViews(in: workspaceDirectory) {
+            let known = Set(library.views.map(\.id))
+            for view in shared where !view.isBuiltIn && !known.contains(view.id) {
+                library.views.append(view)
+                library.workspaceViewIDs.insert(view.id)
+            }
+        }
+        return library
+    }
+
+    private static func loadLibrary(from directory: URL?, preferences: UserDefaults?) -> ViewLibrary {
         var library = ViewLibrary()
         let decoder = JSONDecoder()
         if let preferences, let data = preferences.data(forKey: legacyKey) {
@@ -138,12 +174,19 @@ public struct ViewLibrary: Equatable, Sendable {
 
     /// Writes the views to the folder when there is one (else to preferences), and what's live
     /// and the offers to preferences.
-    public func save(to directory: URL?, preferences: UserDefaults?) {
+    public func save(to directory: URL?, workspaceDirectory: URL? = nil, preferences: UserDefaults?) {
         let encoder = JSONEncoder()
+        let mine = views.filter { !workspaceViewIDs.contains($0.id) }
+        let shared = views.filter { workspaceViewIDs.contains($0.id) }
         if let directory {
-            writeViews(to: directory)
-        } else if let preferences, let data = try? encoder.encode(views) {
+            writeViews(mine, to: directory)
+        } else if let preferences, let data = try? encoder.encode(mine) {
             preferences.set(data, forKey: Self.viewsKey)
+        }
+        // The workspace folder is written only once it exists or something is moved into it:
+        // opening a database must never leave a mark in its .beads.
+        if let workspaceDirectory, !shared.isEmpty || FileManager.default.fileExists(atPath: workspaceDirectory.path) {
+            writeViews(shared, to: workspaceDirectory)
         }
         guard let preferences else { return }
         // A dictionary keyed by a struct doesn't encode as a JSON object, so one record per view,
@@ -161,6 +204,10 @@ public struct ViewLibrary: Equatable, Sendable {
     /// file whose content hasn't changed is left alone, so a folder watcher doesn't wake for
     /// nothing, and files for views that are gone are removed.
     func writeViews(to directory: URL) {
+        writeViews(views, to: directory)
+    }
+
+    private func writeViews(_ views: [IssueView], to directory: URL) {
         let manager = FileManager.default
         try? manager.createDirectory(at: directory, withIntermediateDirectories: true)
         let wanted = views.filter { view in

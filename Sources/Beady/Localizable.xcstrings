@@ -5245,6 +5245,86 @@
         }
       }
     },
+    "Move to My Views" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu „Meine Ansichten“ bewegen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover a Mis vistas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacer vers Mes vues"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マイビューに移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나의 보기로 이동"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover para Minhas visualizações"
+          }
+        }
+      }
+    },
+    "Move to This Workspace" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In diesen Arbeitsbereich bewegen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover a este espacio de trabajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacer vers cet espace de travail"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このワークスペースに移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 작업 공간으로 이동"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover para este espaço de trabalho"
+          }
+        }
+      }
+    },
     "Moving a bead is its own change: bd checks for loops" : {
       "localizations" : {
         "de" : {
@@ -9496,6 +9576,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Atualizado"
+          }
+        }
+      }
+    },
+    "Views kept in this workspace's .beads/beady/views, for everyone who opens it; drag a view here to share it" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansichten in .beads/beady/views dieses Arbeitsbereichs, für alle, die ihn öffnen; zieh eine Ansicht hierher, um sie zu teilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vistas guardadas en .beads/beady/views de este espacio de trabajo, para quien lo abra; arrastra una vista aquí para compartirla"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vues conservées dans .beads/beady/views de cet espace de travail, pour tous ceux qui l’ouvrent ; faites glisser une vue ici pour la partager"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このワークスペースの.beads/beady/viewsに保存され、開く人全員が使えるビュー。ここにビューをドラッグすると共有できます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 작업 공간의 .beads/beady/views에 보관되어 여는 모든 사람이 사용하는 보기입니다. 보기를 여기로 드래그하면 공유됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visualizações guardadas em .beads/beady/views deste espaço de trabalho, para todos que o abrirem; arraste uma visualização para cá para compartilhá-la"
           }
         }
       }
