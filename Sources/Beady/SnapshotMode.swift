@@ -330,6 +330,11 @@ enum SnapshotMode {
         pump(timeout: 60) { session.model?.loadState != .idle && session.model?.loadState != .loading }
         pump(seconds: 2.0)
         snap("5-switch-settled")
+        // The duplicate affordance, exercised the way the sidebar's context menu runs it: the
+        // copy must appear under My Views.
+        _ = session.model?.duplicateView(.pipeline)
+        pump(seconds: 0.6)
+        snap("6-duplicated-pipeline")
         window.close()
         exit(0)
     }
