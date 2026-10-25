@@ -355,6 +355,8 @@ enum SnapshotMode {
 
         model.viewID = .frontier
         capture("7-filter-menu-priority", FilterMenu(model: model, initialField: .priority).padding())
+        // The workspace switcher's list: the recents this Mac knows, the open one ticked.
+        capture("23-workspace-switcher", WorkspaceList(workspaces: session.ui.recentWorkspaces, current: session.ui.currentWorkspacePath, run: { _ in }).padding())
 
         // The confirmation sheet for moving a bead between epics. Only proposed, never applied:
         // snapshot mode must not write.

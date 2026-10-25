@@ -47,6 +47,12 @@ public final class WorkspaceModel {
     /// Every view the sidebar offers: the built-ins, then the user's own, in order.
     public var views: [IssueView] { library.views }
 
+    /// The issue prefix bd uses in this database, read off its ids; nil before the first load
+    /// or in an empty database. The switcher shows it next to the workspace's name.
+    public var issuePrefix: String? {
+        WorkspaceSwitching.prefix(of: snapshot?.issues.map(\.id) ?? [])
+    }
+
     /// The current view as saved: a built-in's definition, or a user view as last saved. An id
     /// this Beady doesn't know falls back to the first built-in rather than showing nothing.
     private var savedView: IssueView {

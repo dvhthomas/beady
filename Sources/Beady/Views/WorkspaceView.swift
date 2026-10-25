@@ -284,7 +284,7 @@ struct WorkspaceView: View {
         } else if ui.showsPalette {
             CommandPaletteView(model: model, ui: ui, run: run) { ui.showsPalette = false }
         } else if ui.showsShortcuts {
-            ShortcutsView(model: model) { ui.showsShortcuts = false }
+            ShortcutsView(model: model, ui: ui) { ui.showsShortcuts = false }
         } else if ui.showsThemes, let themes {
             ThemePickerView(themes: themes) { ui.showsThemes = false }
         }
