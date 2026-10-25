@@ -51,6 +51,17 @@ final class AppSession {
     }
     /// What this process launched with: when `language` differs, a relaunch is what applies it.
     private let languageAtLaunch: String?
+    /// The setting: keep the Library the same on every Mac through iCloud's Key-Value Store. Off
+    /// by default, and only a signed build can honour it.
+    var syncsLibrary: Bool {
+        didSet {
+            preferences?.set(syncsLibrary, forKey: Self.syncsLibraryKey)
+            updateLibrarySyncer()
+        }
+    }
+    /// Whether this build carries the iCloud entitlement the setting needs.
+    static var canSyncLibrary: Bool { UbiquitousLibraryStore.isEntitled }
+    @ObservationIgnored private var librarySyncer: LibrarySyncer?
     /// Panels, sheets and column layout, shared with the menu bar.
     let ui = WorkspaceUI()
     /// Appearance, themes and text size.
@@ -66,6 +77,7 @@ final class AppSession {
     private(set) var viewFileError: String?
 
     private static let recentsKey = "recentWorkspaces"
+    private static let syncsLibraryKey = "syncsLibraryWithiCloud"
     /// The bd issue prefix seen in each remembered workspace, by path, so the switcher can show
     /// it for workspaces that aren't open.
     private static let prefixesKey = "workspacePrefixes"
@@ -92,6 +104,7 @@ final class AppSession {
         let chosen = LanguageSetting.chosen(from: preferences?.persistentDomain(forName: Self.preferencesDomain)?[LanguageSetting.key])
         language = chosen
         languageAtLaunch = chosen
+        syncsLibrary = preferences?.bool(forKey: Self.syncsLibraryKey) ?? false
         viewsDirectory = preferences == nil ? nil : FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("Beady/views", isDirectory: true)
@@ -101,9 +114,13 @@ final class AppSession {
         if let viewsDirectory {
             try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
             libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
-                Task { @MainActor in self?.model?.reloadViews() }
+                Task { @MainActor in
+                    self?.model?.reloadViews()
+                    self?.librarySyncer?.sync()
+                }
             }
         }
+        updateLibrarySyncer()
         if let path = Self.value(of: "--workspace", in: arguments) ?? recentPaths.first {
             open(URL(fileURLWithPath: path))
         }
@@ -242,6 +259,20 @@ final class AppSession {
         viewFileError = nil
     }
 
+    // MARK: Library sync
+
+    /// Runs the syncer while the setting is on and the build can; stops it otherwise.
+    private func updateLibrarySyncer() {
+        librarySyncer?.stop()
+        librarySyncer = nil
+        guard syncsLibrary, Self.canSyncLibrary, let preferences, let viewsDirectory else { return }
+        let syncer = LibrarySyncer(directory: viewsDirectory, store: UbiquitousLibraryStore(), preferences: preferences) { [weak self] in
+            self?.model?.reloadViews()
+        }
+        librarySyncer = syncer
+        syncer.start()
+    }
+
     // MARK: Language
 
     /// True once the language setting differs from the one this process launched with.
@@ -319,6 +350,7 @@ final class AppSession {
         themes.restoreDefaults()
         turnsOnJournal = true
         language = nil
+        syncsLibrary = false
         do {
             try ConfigurationReset.perform(
                 plan,
@@ -335,7 +367,10 @@ final class AppSession {
             try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
             libraryWatcher?.stop()
             libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
-                Task { @MainActor in self?.model?.reloadViews() }
+                Task { @MainActor in
+                    self?.model?.reloadViews()
+                    self?.librarySyncer?.sync()
+                }
             }
         }
     }

@@ -93,7 +93,18 @@ cat > "$STAGING/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --sign - "$STAGING" >/dev/null 2>&1 || true
+# Signing. Ad hoc by default, which is what the releases get. With CODESIGN_IDENTITY (a
+# Developer ID Application certificate) and TEAM_ID set, the app is signed for real with
+# Resources/Beady.entitlements, which carries the iCloud Key-Value Store entitlement that
+# syncing the view Library needs; the Settings toggle stays off without it.
+if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
+  : "${TEAM_ID:?set TEAM_ID to the Apple Developer team id the identity belongs to}"
+  ENTITLEMENTS="$ROOT/build/Beady.entitlements"
+  sed "s/TEAM_ID/$TEAM_ID/" "$ROOT/Resources/Beady.entitlements" > "$ENTITLEMENTS"
+  codesign --force --sign "$CODESIGN_IDENTITY" --entitlements "$ENTITLEMENTS" "$STAGING"
+else
+  codesign --force --sign - "$STAGING" >/dev/null 2>&1 || true
+fi
 
 rm -rf "$APP"
 mv "$STAGING" "$APP"

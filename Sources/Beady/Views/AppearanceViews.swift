@@ -284,6 +284,19 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(theme.secondaryText)
             }
+            Section("Views") {
+                Toggle("Sync my views between Macs with iCloud", isOn: syncsLibrary)
+                    .disabled(!AppSession.canSyncLibrary)
+                if AppSession.canSyncLibrary {
+                    Text("Your saved views follow you to every Mac signed into the same Apple ID. The newest edit of a view wins, and a view deleted on one Mac goes from the others. The files in your Library stay as they are when this is off.")
+                        .font(.caption)
+                        .foregroundStyle(theme.secondaryText)
+                } else {
+                    Text("This copy of Beady isn't signed with the iCloud entitlement, so it runs without sync; a signed build has it (see RELEASE.md).")
+                        .font(.caption)
+                        .foregroundStyle(theme.secondaryText)
+                }
+            }
             Section("Workspaces") {
                 Toggle("Turn on bd's change journal in workspaces that don't have it", isOn: turnsOnJournal)
                 Text("bd 1.3 and later can record who made each change, so Beady can say which agent is working on a bead. It's a workspace setting every bd command follows. Beady turns it on when a writable workspace opens, lists that under Changes with an Undo, and leaves alone a workspace where it was turned off afterwards.")
@@ -313,6 +326,10 @@ struct SettingsView: View {
 
     private var language: Binding<String?> {
         Binding(get: { session.language }, set: { session.language = $0 })
+    }
+
+    private var syncsLibrary: Binding<Bool> {
+        Binding(get: { session.syncsLibrary }, set: { session.syncsLibrary = $0 })
     }
 }
 

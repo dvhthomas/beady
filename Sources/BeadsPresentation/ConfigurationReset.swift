@@ -15,7 +15,7 @@ public struct ConfigurationInventory: Equatable, Sendable {
     /// the code still reads them, so a reset clears them too.
     public static let knownKeys: [Group: Set<String>] = [
         .workspaces: ["recentWorkspaces", "workspacePrefixes"],
-        .views: ["views", "liveViews", "offeredViews", "viewStates", "view", "scope", "collapsedSidebarSections"],
+        .views: ["views", "liveViews", "offeredViews", "viewStates", "view", "scope", "collapsedSidebarSections", "syncsLibraryWithiCloud", "librarySyncedViews"],
         .appearance: ["appearance", "darkTheme", "lightTheme", "textSize", "sidebarStyle"],
         // The per-app language, under the key macOS itself uses (System Settings writes the same one).
         .language: [LanguageSetting.key],

@@ -96,6 +96,21 @@ tag. Pushes made with such a token *do* start workflows, so the loop guard above
 then, and the explicit `gh workflow run release.yml` would need to go, since the tag push would
 start Release by itself.
 
+## Signing for real, and iCloud sync
+
+The releases are ad-hoc signed, and that is enough for everything but one setting: **Sync my
+views between Macs with iCloud** (Settings › Views) uses iCloud's Key-Value Store, which macOS
+only grants to an app signed with a Developer ID and carrying the entitlement in
+`Resources/Beady.entitlements`. An ad-hoc build runs without it and says so under the toggle.
+To build one that has it:
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" TEAM_ID=TEAMID scripts/bundle.sh
+```
+
+`scripts/bundle.sh` fills the team id into the entitlements and signs with them. The Release
+workflow doesn't do this: it has no certificate.
+
 ## When something goes wrong
 
 **The Release size check is red.** The pull request has two `release:*` labels, or one that isn't
