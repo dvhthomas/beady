@@ -29,6 +29,11 @@ The code reads them the standard way: SwiftUI text in the app target (`Text("Fil
 `String(localized: "…", bundle: .module)`. Nothing is wrapped in a helper, so Xcode's own
 tooling understands all of it.
 
+Beside each catalog sits an empty `en.lproj/Localizable.strings`. English is the source
+language, so the catalog compiles it to a `Localizable.stringsdict` (the plural forms) and
+nothing else, and macOS 15 reads a stringsdict only next to a strings file of the same name.
+Leave the file empty: a key written there would override the catalog.
+
 `scripts/bundle.sh` ships the compiled catalogs inside `Beady.app`: the modules' resource
 bundles whole, and the app target's `.lproj` folders directly under `Contents/Resources`, which
 is also what tells macOS the app is localised.

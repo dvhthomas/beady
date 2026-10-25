@@ -1,0 +1,5 @@
+/* English is the source language: its strings are the keys in Localizable.xcstrings, so the
+   catalog compiles English to a Localizable.stringsdict (the plural forms) and nothing else.
+   macOS 15 only reads a .stringsdict that sits beside a .strings of the same name, and without
+   this file "1 workspace" came out as "1 workspaces" there. It stays empty: a key written here
+   would override the catalog. */
