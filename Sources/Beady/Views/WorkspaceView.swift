@@ -98,14 +98,14 @@ struct WorkspaceView: View {
             }
             Button("Cancel", role: .cancel) { ui.renamingView = nil }
         }
-        .onAppear {
-            guard persistsPreferences else { return }
-            if !legacyScope.isEmpty {
-                if let id = ViewLibrary.builtIn(forScope: legacyScope) { storedView = id.rawValue }
-                legacyScope = ""
-            }
-            let id = IssueView.ID(rawValue: storedView)
-            if model.views.contains(where: { $0.id == id }) { model.viewID = id }
+        .onAppear(perform: restoreStoredView)
+        .onChange(of: ObjectIdentifier(model)) {
+            // A switched workspace arrives as a new model in the same hierarchy (RootView says
+            // why there is no remount), so whatever captured the old model re-arms here.
+            restoreStoredView()
+            if let monitor = escapeMonitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+            escapeMonitor.wrappedValue = nil
+            watchEscape()
         }
         .onChange(of: model.viewID) {
             if persistsPreferences { storedView = model.viewID.rawValue }
@@ -119,7 +119,7 @@ struct WorkspaceView: View {
             if let monitor = escapeMonitor.wrappedValue { NSEvent.removeMonitor(monitor) }
             escapeMonitor.wrappedValue = nil
         }
-        .task {
+        .task(id: ObjectIdentifier(model)) {
             await model.load()
             // FSEvents on the .beads folder is the real trigger (AppSession). This is only a
             // backstop for changes it can't see, such as a database on a network volume.
@@ -220,6 +220,17 @@ struct WorkspaceView: View {
             model.selection = nil
             return nil
         }
+    }
+
+    /// The last-used view, remembered across launches and applied to each workspace as it opens.
+    private func restoreStoredView() {
+        guard persistsPreferences else { return }
+        if !legacyScope.isEmpty {
+            if let id = ViewLibrary.builtIn(forScope: legacyScope) { storedView = id.rawValue }
+            legacyScope = ""
+        }
+        let id = IssueView.ID(rawValue: storedView)
+        if model.views.contains(where: { $0.id == id }) { model.viewID = id }
     }
 
     /// The whole backup UI: one word about whether this database could be recovered, and a click

@@ -242,6 +242,98 @@ enum SnapshotMode {
         ProcessInfo.processInfo.environment["BEADY_SNAPSHOT_DIR"].map { URL(fileURLWithPath: $0) }
     }
 
+    /// `BEADY_VERIFY_SWITCH=/tmp/shots Beady --workspace /path/a --switch-to /path/b`: hosts the
+    /// app's root content offscreen the way RootView does, lets workspace A settle, switches to
+    /// B, and captures the window at intervals — so "does the theme hold through a workspace
+    /// switch?" is answerable by machine. Dracula is previewed first, because the glitch is the
+    /// difference between a chosen theme and the colours a freshly made hierarchy falls back to.
+    static var switchDirectory: URL? {
+        if let path = ProcessInfo.processInfo.environment["BEADY_VERIFY_SWITCH"] { return URL(fileURLWithPath: path) }
+        // As an argument too, because `open` (which is what gets the harness real window
+        // activation) passes arguments and not environment.
+        if let index = CommandLine.arguments.firstIndex(of: "--verify-switch"),
+           CommandLine.arguments.indices.contains(index + 1) {
+            return URL(fileURLWithPath: CommandLine.arguments[index + 1])
+        }
+        return nil
+    }
+
+    static func verifySwitch(to directory: URL) -> Never {
+        // A real, key window, as verifyKeys hosts: the sidebar's selection emphasis and tint
+        // follow the window's key state — the very thing under test.
+        let session = AppSession(preferences: nil)
+        guard session.model != nil else { fail(session.openError ?? "no workspace; pass --workspace") }
+        guard let argumentIndex = CommandLine.arguments.firstIndex(of: "--switch-to"),
+              CommandLine.arguments.indices.contains(argumentIndex + 1) else { fail("pass --switch-to <path>") }
+        let target = URL(fileURLWithPath: CommandLine.arguments[argumentIndex + 1])
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            fail("can't create \(directory.path): \(error.localizedDescription)")
+        }
+
+        // Mirrors RootView.content: same hosting, same (absence of) remounting, but with
+        // preferences off, as snapshots keep them.
+        struct Harness: View {
+            let session: AppSession
+            var body: some View {
+                Group {
+                    if let model = session.model {
+                        WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run, persistsPreferences: false)
+                    }
+                }
+                .themed(session.themes)
+            }
+        }
+
+        session.themes.preview(Theme.dark(named: "Dracula"))
+        let hosting = NSHostingView(rootView: Harness(session: session))
+        let window = NSWindow(
+            contentRect: CGRect(x: 100, y: 100, width: 1200, height: 800),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        // The selected sidebar row's emphasis is the machine-readable form of the glitch: an
+        // emphasized row draws the accent selection, an unemphasized one the grey.
+        func emphasis() -> String {
+            guard let sidebar = allTables(in: hosting).first(where: { $0.tableColumns.count < 3 }) else { return "no sidebar table" }
+            var states: [String] = []
+            sidebar.enumerateAvailableRowViews { row, index in
+                if row.isSelected { states.append("row \(index) selected, emphasized=\(row.isEmphasized)") }
+            }
+            return states.isEmpty ? "no selected row" : states.joined(separator: "; ")
+        }
+        let log = directory.appendingPathComponent("log.txt")
+        func snap(_ name: String) {
+            capture(hosting, to: directory.appendingPathComponent("\(name).png"))
+            let line = "\(name).png loadState=\(String(describing: session.model?.loadState)) key=\(window.isKeyWindow) \(emphasis())\n"
+            print(line, terminator: "")
+            if let handle = try? FileHandle(forWritingTo: log) { handle.seekToEndOfFile(); handle.write(Data(line.utf8)); try? handle.close() }
+        }
+        FileManager.default.createFile(atPath: log.path, contents: nil)
+
+        pump(timeout: 60) { session.model?.loadState != .idle && session.model?.loadState != .loading }
+        pump(seconds: 1.0)
+        snap("1-settled-a")
+        session.open(target)
+        pump(seconds: 0.05)
+        snap("2-switch+0.05s")
+        pump(seconds: 0.25)
+        snap("3-switch+0.3s")
+        pump(seconds: 0.7)
+        snap("4-switch+1s")
+        pump(timeout: 60) { session.model?.loadState != .idle && session.model?.loadState != .loading }
+        pump(seconds: 2.0)
+        snap("5-switch-settled")
+        window.close()
+        exit(0)
+    }
+
     static func run(to directory: URL) -> Never {
         NSApplication.shared.setActivationPolicy(.prohibited)
         let session = AppSession(preferences: nil)

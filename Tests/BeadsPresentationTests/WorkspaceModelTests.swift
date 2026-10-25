@@ -169,7 +169,7 @@ struct WorkspaceViewStateTests {
     func sidebarCounts() async {
         let model = await loadedModel()
         // Pipeline keeps everything live plus a week of done; Recent is a day of updates; nothing is starred.
-        let expected = ["Ready 2", "In Flight 2", "Stuck 1", "Pipeline 6", "Recent 6", "Landed 2", "Deferred 0", "Everything 6"]
+        let expected = ["Pipeline 6", "Ready 2", "In Flight 2", "Stuck 1", "Recent 6", "Landed 2", "Deferred 0", "Everything 6"]
         #expect(model.sidebarViews.map { "\($0.title) \($0.count)" } == expected)
         model.toggleFilterValue("ui", in: .labels)
         #expect(model.sidebarViews.map { "\($0.title) \($0.count)" } == expected)
@@ -368,7 +368,7 @@ struct ViewSavingTests {
         let mine = model.saveAsNewView(name: "Mine")
         #expect(model.removeView(mine.id))
         #expect(!model.views.contains { $0.id == mine.id })
-        #expect(model.viewID == .frontier, "back to the first built-in")
+        #expect(model.viewID == .pipeline, "back to the first built-in")
         #expect(!model.removeView(.frontier))
         #expect(model.views.count == IssueView.builtIns.count)
     }

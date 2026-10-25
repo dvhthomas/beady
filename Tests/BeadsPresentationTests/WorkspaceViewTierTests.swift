@@ -70,9 +70,10 @@ struct WorkspaceViewTierTests {
         #expect(!again, "already there")
         let builtIn = views.moveView(.frontier, to: .workspace)
         #expect(!builtIn, "a built-in stays in the Library")
-        var frontier = views.views[0]
+        let ready = views.views.firstIndex { $0.id == .frontier }!
+        var frontier = views.views[ready]
         frontier.presentation.layout = .board
-        views.views[0] = frontier
+        views.views[ready] = frontier
         views.save(to: library, workspaceDirectory: workspace, preferences: nil)
         #expect(files(in: library) == ["frontier.beadyview", "mine.beadyview"], "a built-in's remembered presentation is the user's, not the workspace's")
     }
