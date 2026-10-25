@@ -54,6 +54,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case resetView
     case exportView(IssueView.ID)
     case importViews
+    /// Puts the view's filter and ordering on the pasteboard as a `bd query` line.
+    case copyAsBDCommand(IssueView.ID)
     case setLayout(WorkspaceModel.Layout)
     case setGrouping(IssueGrouping)
     case setOrdering(IssueSort)
@@ -97,6 +99,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveViewAs: "save-view-as"
         case .resetView: "reset-view"
         case .exportView(let id): "export-\(id.rawValue)"
+        case .copyAsBDCommand(let id): "copy-bd-\(id.rawValue)"
         case .importViews: "import-views"
         case .setLayout(let layout): "layout-\(layout.rawValue)"
         case .setGrouping(let grouping): "group-\(grouping.rawValue)"
@@ -142,6 +145,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveViewAs: String(localized: "Save as New View…", bundle: .module, comment: "Command")
         case .resetView: String(localized: "Reset View", bundle: .module, comment: "Command: back to the view as saved")
         case .exportView: String(localized: "Export View…", bundle: .module, comment: "Command")
+        case .copyAsBDCommand: String(localized: "Copy as bd Command", bundle: .module, comment: "Command: the view's filter and ordering as a bd query line, to the pasteboard")
         case .importViews: String(localized: "Import Views…", bundle: .module, comment: "Command")
         case .setLayout(let layout): String(localized: "Show as \(DisplayText.layout(layout))", bundle: .module, comment: "Command; the value is List, Board or Tree")
         case .setGrouping(let grouping): String(localized: "Group by \(DisplayText.grouping(grouping))", bundle: .module, comment: "Command; the value is a grouping such as Status")
@@ -190,6 +194,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveViewAs: ["save as", "new view", "duplicate", "copy", "keep", "filters"]
         case .resetView: ["reset", "revert", "discard", "undo changes", "back to saved"]
         case .exportView: ["export", "share", "save as file", "beadyview", "send"]
+        case .copyAsBDCommand: ["copy", "bd query", "command", "terminal", "clipboard", "pasteboard", "cli"]
         case .importViews: ["import", "open view", "beadyview", "file", "receive"]
         case .setLayout(let layout): layout == .board ? ["kanban", "columns", "swimlanes"] : ["view as", layout.rawValue]
         case .setGrouping: ["group", "section", "break down"]
@@ -228,7 +233,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
              .expandAll, .collapseAll, .toggleColumn, .resetColumns: String(localized: "Display", bundle: .module, comment: "Command group")
-        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews: Self.viewsGroup
+        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews, .copyAsBDCommand: Self.viewsGroup
         case .openSettings, .setSidebarStyle, .resetConfiguration: Self.appearanceGroup
         case .showShortcuts: String(localized: "Help", bundle: .module, comment: "Command group")
         case .showView, .goBack, .goForward: Self.viewsGroup
@@ -268,7 +273,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .resetView: [KeyBinding("r", [.command, .option])]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
-             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage: []
+             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand: []
         }
     }
 
@@ -338,7 +343,7 @@ public enum CommandCatalog {
             if model.canSave { commands.append(.saveView) }
             commands += [.saveViewAs, .resetView]
         }
-        commands += [.exportView(model.viewID), .importViews]
+        commands += [.exportView(model.viewID), .copyAsBDCommand(model.viewID), .importViews]
         if model.presentedLayout == .tree { commands += [.expandAll, .collapseAll] }
         if model.presentedLayout == .list {
             commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }

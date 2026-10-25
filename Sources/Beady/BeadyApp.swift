@@ -210,6 +210,8 @@ struct AppCommands: Commands {
             Divider()
             Button("Export View…") { if let id = session.model?.viewID { session.run(.exportView(id)) } }
                 .disabled(session.model == nil)
+            Button(AppCommand.copyAsBDCommand(.everything).title) { if let id = session.model?.viewID { session.run(.copyAsBDCommand(id)) } }
+                .disabled(session.model == nil)
             item(.importViews, needsWorkspace: true)
         }
         CommandMenu("Beads") {
