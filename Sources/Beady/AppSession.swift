@@ -111,6 +111,9 @@ final class AppSession {
                 store: store,
                 preferences: preferences,
                 viewsDirectory: viewsDirectory,
+                // The workspace tier: views committed next to the database. Nothing is written
+                // there until a view is moved in.
+                workspaceViewsDirectory: gateway.workspace.beadsDirectory.appendingPathComponent("beady/views", isDirectory: true),
                 journalPolicy: JournalPolicy(
                     turnsOnAutomatically: turnsOnJournal,
                     wasTurnedOffByHand: journalsTurnedOn.contains(path),
@@ -127,7 +130,11 @@ final class AppSession {
             // held open for as long as the window is, and FSEvents costs nothing. The events
             // journal is read after the wake-up, to say who made the change.
             watcher = gateway.watchChanges { [weak self] in
-                Task { @MainActor in await self?.model?.refreshIfChanged() }
+                Task { @MainActor in
+                    // The same folder holds the workspace's views: a pull or a hand edit shows up.
+                    self?.model?.reloadViews()
+                    await self?.model?.refreshIfChanged()
+                }
             }
             remember(gateway.workspace.projectDirectory.path)
             if !pendingImports.isEmpty {

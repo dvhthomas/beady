@@ -76,7 +76,7 @@ public final class WorkspaceModel {
     /// The saved views and what is live on top of each, written back on every change: views to
     /// the Library folder, what's live to preferences.
     private var library = ViewLibrary() {
-        didSet { library.save(to: viewsDirectory, preferences: preferences) }
+        didSet { library.save(to: viewsDirectory, workspaceDirectory: workspaceViewsDirectory, preferences: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
@@ -85,6 +85,9 @@ public final class WorkspaceModel {
     @ObservationIgnored private let preferences: UserDefaults?
     /// The Library tier: one .beadyview per view. Nil keeps views in preferences.
     @ObservationIgnored private let viewsDirectory: URL?
+    /// The workspace tier: `.beads/beady/views` next to the database, shared through git. Nil
+    /// when there is no workspace folder to share through.
+    @ObservationIgnored private let workspaceViewsDirectory: URL?
     @ObservationIgnored private let allowsWriting: Bool
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let staleAfter: TimeInterval
@@ -121,6 +124,8 @@ public final class WorkspaceModel {
         preferences: UserDefaults? = nil,
         /// The folder of .beadyview files; nil keeps views in preferences.
         viewsDirectory: URL? = nil,
+        /// The workspace's own folder of .beadyview files, `.beads/beady/views`; nil for none.
+        workspaceViewsDirectory: URL? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600,
@@ -132,19 +137,37 @@ public final class WorkspaceModel {
         self.allowsWriting = allowsWriting
         self.preferences = preferences
         self.viewsDirectory = viewsDirectory
+        self.workspaceViewsDirectory = workspaceViewsDirectory
         self.now = now
         self.staleAfter = staleAfter
         self.activityWindow = activityWindow
         self.journalPolicy = journalPolicy
-        library = ViewLibrary.load(from: viewsDirectory, preferences: preferences)
+        library = ViewLibrary.load(from: viewsDirectory, workspaceDirectory: workspaceViewsDirectory, preferences: preferences)
     }
 
-    /// Picks up views that changed on disk — a file dropped in, a sync, a hand edit. What's live
-    /// here stays; the folder only ever says what's saved.
+    /// Picks up views that changed on disk — a file dropped in, a sync, a hand edit, a pull that
+    /// brought a workspace view. What's live here stays; the folders only ever say what's saved.
     public func reloadViews() {
-        guard let viewsDirectory else { return }
-        let onDisk = ViewLibrary.load(from: viewsDirectory, preferences: nil).views
-        if onDisk != library.views { library.views = onDisk }
+        guard viewsDirectory != nil || workspaceViewsDirectory != nil else { return }
+        let onDisk = ViewLibrary.load(from: viewsDirectory, workspaceDirectory: workspaceViewsDirectory, preferences: nil)
+        if onDisk.views != library.views || onDisk.workspaceViewIDs != library.workspaceViewIDs {
+            library.views = onDisk.views
+            library.workspaceViewIDs = onDisk.workspaceViewIDs
+        }
+    }
+
+    /// Whether views can be shared through this workspace: it has a folder to keep them in.
+    public var canShareViews: Bool { workspaceViewsDirectory != nil }
+
+    /// Where a view lives.
+    public func tier(of id: IssueView.ID) -> ViewTier { library.tier(of: id) }
+
+    /// Moves a user view between My Views and This Workspace; its file follows. Returns whether
+    /// anything moved: a built-in stays, and a workspace without a folder takes nothing.
+    @discardableResult
+    public func moveView(_ id: IssueView.ID, to tier: ViewTier) -> Bool {
+        guard tier == .library || canShareViews else { return false }
+        return library.moveView(id, to: tier)
     }
 
     /// Adds the views in a .beadyview or .beadyviews document under My Views and shows the last
@@ -605,11 +628,17 @@ public final class WorkspaceModel {
     /// and Starred once something is starred.
     public var sidebarSections: [SidebarSection] {
         let builtIns = library.views.filter { $0.isBuiltIn && $0.id != .starred }
-        let mine = library.views.filter { !$0.isBuiltIn }
+        let mine = library.views.filter { !$0.isBuiltIn && library.tier(of: $0.id) == .library }
+        let shared = library.views.filter { !$0.isBuiltIn && library.tier(of: $0.id) == .workspace }
         var sections = [
             SidebarSection(kind: .views, title: String(localized: "Views", bundle: .module, comment: "Sidebar section: the built-in views"), entries: builtIns.map(sidebarEntry), canAdd: false),
             SidebarSection(kind: .mine, title: String(localized: "My Views", bundle: .module, comment: "Sidebar section: the user's own views"), entries: mine.map(sidebarEntry), canAdd: true),
         ]
+        // Views kept in the workspace itself, for everyone who opens it; the section is there
+        // whenever there is a folder to move a view into, so it can be dropped on.
+        if canShareViews {
+            sections.append(SidebarSection(kind: .workspace, title: String(localized: "This Workspace", bundle: .module, comment: "Sidebar section: views kept in the workspace's own .beads folder, shared through git"), entries: shared.map(sidebarEntry), canAdd: false))
+        }
         if let starred = library.view(.starred), total(in: starred) > 0 {
             sections.append(SidebarSection(kind: .starred, title: "", entries: [sidebarEntry(starred)], canAdd: false))
         }
@@ -626,7 +655,8 @@ public final class WorkspaceModel {
             count: total(in: view),
             isModified: live.map { $0 != ViewState(of: view) } ?? false,
             isBuiltIn: view.isBuiltIn,
-            help: DisplayText.help(forView: view.id)
+            help: DisplayText.help(forView: view.id),
+            tier: library.tier(of: view.id)
         )
     }
 

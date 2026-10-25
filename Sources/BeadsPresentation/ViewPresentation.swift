@@ -55,6 +55,12 @@ public struct IssueGroupModel: Identifiable, Equatable, Sendable {
     public var id: String { key }
 }
 
+/// Where a user view's file lives: the user's own Library, or the open workspace's
+/// `.beads/beady/views`, which travels with the repository.
+public enum ViewTier: String, Sendable {
+    case library, workspace
+}
+
 /// A view in the sidebar.
 public struct SidebarEntry: Identifiable, Equatable, Sendable {
     public let id: IssueView.ID
@@ -70,12 +76,14 @@ public struct SidebarEntry: Identifiable, Equatable, Sendable {
     public let isBuiltIn: Bool
     /// What the view means in bd, for hovering the row; empty when the name says it all.
     public let help: String
+    /// Where the view lives; a built-in counts as the Library's.
+    public var tier: ViewTier = .library
 }
 
 /// One section of the sidebar: the built-ins, the user's own views, or Starred.
 public struct SidebarSection: Identifiable, Equatable, Sendable {
     public enum Kind: String, Sendable {
-        case views, mine, starred
+        case views, mine, workspace, starred
     }
 
     public let kind: Kind
@@ -87,8 +95,34 @@ public struct SidebarSection: Identifiable, Equatable, Sendable {
 
     public var id: Kind { kind }
 
+    /// The tier a view dropped on this section moves to; nil where a drop means nothing.
+    public var dropTier: ViewTier? {
+        switch kind {
+        case .mine: .library
+        case .workspace: .workspace
+        case .views, .starred: nil
+        }
+    }
+
     /// Whether collapsing the section would hide anything. The disclosure is always drawn, so the
     /// header never changes shape under the pointer; it is merely disabled when there is nothing
     /// to fold away.
     public var canCollapse: Bool { !entries.isEmpty }
+}
+
+/// What a dragged sidebar view carries. The private prefix means text dragged in from elsewhere
+/// is never mistaken for a view being moved between tiers.
+public enum ViewDragPayload {
+    private static let prefix = "beady-view:"
+
+    public static func encode(_ id: IssueView.ID) -> String {
+        prefix + id.rawValue
+    }
+
+    /// The dragged view, only when exactly one of this app's payloads was dropped.
+    public static func decode(_ items: [String]) -> IssueView.ID? {
+        guard items.count == 1, let item = items.first, item.hasPrefix(prefix) else { return nil }
+        let raw = String(item.dropFirst(prefix.count))
+        return raw.isEmpty ? nil : IssueView.ID(raw)
+    }
 }

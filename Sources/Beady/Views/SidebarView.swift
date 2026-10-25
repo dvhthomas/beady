@@ -29,10 +29,12 @@ struct SidebarView: View {
             ForEach(model.sidebarSections) { section in
                 if !section.title.isEmpty {
                     header(section)
+                        .background(dropTarget(section.dropTier))
                 }
                 if isExpanded(section) {
                     ForEach(section.entries) { entry in
                         row(entry)
+                            .background(dropTarget(section.dropTier))
                     }
                 }
             }
@@ -86,6 +88,18 @@ struct SidebarView: View {
         .padding(.top, section.kind == .views ? 4 : 10)
         .selectionDisabled()
         .listRowSeparator(.hidden)
+        .help(section.kind == .workspace ? Text("Views kept in this workspace's .beads/beady/views, for everyone who opens it; drag a view here to share it") : Text(verbatim: ""))
+    }
+
+    /// A view dragged from the other tier lands here: the file moves with it.
+    @ViewBuilder
+    private func dropTarget(_ tier: ViewTier?) -> some View {
+        if let tier {
+            Color.clear.dropDestination(for: String.self) { items, _ in
+                guard let id = ViewDragPayload.decode(items) else { return false }
+                return model.moveView(id, to: tier)
+            }
+        }
     }
 
     private func disclosureHelp(_ section: SidebarSection) -> String {
@@ -126,6 +140,7 @@ struct SidebarView: View {
         .badge(entry.count)
         .tag(entry.id)
         .help(entry.help)
+        .draggableView(entry.id, when: !entry.isBuiltIn)
         .contextMenu {
             if entry.isBuiltIn {
                 // A built-in is locked; a copy is how you get a variation of it.
@@ -136,6 +151,14 @@ struct SidebarView: View {
                 Button("Rename…") { ui.promptRename(view) }
                 Button("Change Icon…") { ui.promptChangeIcon(of: view) }
                 Button("Duplicate") { model.duplicateView(entry.id) }
+                if model.canShareViews {
+                    Divider()
+                    if entry.tier == .workspace {
+                        Button("Move to My Views") { model.moveView(entry.id, to: .library) }
+                    } else {
+                        Button("Move to This Workspace") { model.moveView(entry.id, to: .workspace) }
+                    }
+                }
                 Divider()
                 Button("Export…") { run(.exportView(entry.id)) }
                 if let file = exportFile(for: view) {
@@ -165,6 +188,18 @@ struct SidebarView: View {
 
     private var selection: Binding<IssueView.ID?> {
         Binding(get: { model.viewID }, set: { if let id = $0 { model.viewID = id } })
+    }
+}
+
+extension View {
+    /// Makes a sidebar row draggable as its view, so it can be dropped on the other tier.
+    @ViewBuilder
+    func draggableView(_ id: IssueView.ID, when enabled: Bool) -> some View {
+        if enabled {
+            draggable(ViewDragPayload.encode(id))
+        } else {
+            self
+        }
     }
 }
 
