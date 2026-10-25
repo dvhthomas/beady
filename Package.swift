@@ -7,7 +7,9 @@ import PackageDescription
 //
 // Every target with on-screen text carries its own String Catalog (Localizable.xcstrings): the
 // modules look their strings up in `Bundle.module`, and scripts/bundle.sh ships each compiled
-// catalog inside the app. docs/LOCALIZATION.md says how to add or improve a translation.
+// catalog inside the app. docs/LOCALIZATION.md says how to add or improve a translation. The
+// empty en.lproj/Localizable.strings beside each catalog is for macOS 15, which reads the
+// English plural forms (a .stringsdict) only next to a .strings file.
 let package = Package(
     name: "Beady",
     defaultLocalization: "en",
@@ -16,13 +18,13 @@ let package = Package(
         .executable(name: "Beady", targets: ["Beady"]),
     ],
     targets: [
-        .target(name: "BeadsCore", resources: [.process("Localizable.xcstrings")]),
-        .target(name: "BeadsData", dependencies: ["BeadsCore"], resources: [.process("Localizable.xcstrings")]),
-        .target(name: "BeadsPresentation", dependencies: ["BeadsCore"], resources: [.process("Localizable.xcstrings")]),
+        .target(name: "BeadsCore", resources: [.process("Localizable.xcstrings"), .process("en.lproj")]),
+        .target(name: "BeadsData", dependencies: ["BeadsCore"], resources: [.process("Localizable.xcstrings"), .process("en.lproj")]),
+        .target(name: "BeadsPresentation", dependencies: ["BeadsCore"], resources: [.process("Localizable.xcstrings"), .process("en.lproj")]),
         .executableTarget(
             name: "Beady",
             dependencies: ["BeadsCore", "BeadsData", "BeadsPresentation"],
-            resources: [.process("Localizable.xcstrings")]
+            resources: [.process("Localizable.xcstrings"), .process("en.lproj")]
         ),
         .testTarget(name: "BeadsCoreTests", dependencies: ["BeadsCore"]),
         .testTarget(name: "BeadsDataTests", dependencies: ["BeadsData"]),
