@@ -34,6 +34,14 @@ language, so the catalog compiles it to a `Localizable.stringsdict` (the plural 
 nothing else, and macOS 15 reads a stringsdict only next to a strings file of the same name.
 Leave the file empty: a key written there would override the catalog.
 
+**The build system matters.** Only SwiftPM's Swift Build backend compiles a catalog into
+`.lproj` folders; the older build system copies the `.xcstrings` file into the bundle untouched,
+which Foundation can't read, and the app comes up in English with no plural forms. Swift 6.4
+uses Swift Build by default; Swift 6.1 to 6.3 have it behind `--build-system swiftbuild`, which
+`scripts/test.sh`, `scripts/bundle.sh` and `scripts/sync-strings.sh` pass whenever the toolchain
+knows the flag (`scripts/swift-flags.sh`). The release workflow builds on macos-26 for the same
+reason, and a test fails with a message saying so if a build ever ships uncompiled catalogs.
+
 `scripts/bundle.sh` ships the compiled catalogs inside `Beady.app`: the modules' resource
 bundles whole, and the app target's `.lproj` folders directly under `Contents/Resources`, which
 is also what tells macOS the app is localised.

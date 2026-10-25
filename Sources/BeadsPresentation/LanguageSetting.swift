@@ -45,6 +45,14 @@ public enum LanguageSetting {
         return native == current ? native : String(localized: "\(native) — \(current)", bundle: .module, comment: "A language named in itself, then in the current language: “Deutsch — German”")
     }
 
+    /// Whether the build compiled the catalog for a language into this module's bundle. Only
+    /// SwiftPM's Swift Build backend does (scripts/swift-flags.sh); an older build system copies
+    /// the .xcstrings file untouched, which Foundation can't read, and the app would come up in
+    /// English with no plural forms. A test holds every build to this.
+    public static func hasCompiledCatalog(for code: String) -> Bool {
+        Bundle.module.path(forResource: "Localizable", ofType: "strings", inDirectory: nil, forLocalization: code) != nil
+    }
+
     /// The picker's label for a choice: the language's name, or System Default.
     public static func title(for choice: String?, in locale: Locale = .current) -> String {
         guard let choice else { return String(localized: "System Default", bundle: .module, comment: "Language choice: follow macOS") }
