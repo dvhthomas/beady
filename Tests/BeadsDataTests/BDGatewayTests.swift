@@ -355,19 +355,21 @@ struct BDGatewayActivityTests {
 
     @Test("a burst of writes wakes the app once, not once per file")
     func watchCoalescesBursts() async throws {
-        let (workspace, gateway) = try makeWorkspace(interactions: "")
+        let (workspace, _) = try makeWorkspace(interactions: "")
         let hits = Mutable(0)
-        let watcher = gateway.watchChanges { hits.value += 1 }
+        // A settle well above the burst's own spread, so a slow machine (a shared CI runner)
+        // can't stretch six writes across two settle windows and make the test lie.
+        let watcher = BDChangeWatcher(path: workspace.beadsDirectory.path, settle: 1.5) { hits.value += 1 }
         defer { watcher.stop() }
         try await Task.sleep(for: .milliseconds(300))
 
         // What an agent writing several beads looks like on disk.
         for index in 0..<6 {
             try Data("write \(index)".utf8).write(to: workspace.beadsDirectory.appendingPathComponent("issues.jsonl"))
-            try await Task.sleep(for: .milliseconds(40))
+            try await Task.sleep(for: .milliseconds(20))
         }
-        #expect(await waitUntil(seconds: 5) { hits.value > 0 })
-        try await Task.sleep(for: .milliseconds(600))
+        #expect(await waitUntil(seconds: 8) { hits.value > 0 })
+        try await Task.sleep(for: .milliseconds(1800))
         #expect(hits.value == 1, "six file writes in a burst should mean one reload, not six")
     }
 }

@@ -165,9 +165,13 @@ private final class ProcessRun: @unchecked Sendable {
     }
 
     /// The one place a finished process is reported, so a timeout can never be overtaken by the
-    /// pipes closing a moment after exit and reported as success.
+    /// pipes closing a moment after exit and reported as success — and nor can a cancellation:
+    /// the SIGTERM it sends makes the process exit, and that exit must not read as a result.
     private func complete() {
         let outcome: Result<CommandResult, Error> = lock.withLock {
+            if cancelled {
+                return .failure(CancellationError())
+            }
             if timedOut {
                 return .failure(BeadsDataError.timedOut(seconds: timeoutSeconds))
             }
