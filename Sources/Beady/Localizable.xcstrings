@@ -8777,6 +8777,46 @@
         }
       }
     },
+    "Switch workspace (⌃⌘O cycles the recent ones)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeitsbereich wechseln (⌃⌘O geht die letzten durch)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar de espacio de trabajo (⌃⌘O recorre los recientes)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer d’espace de travail (⌃⌘O parcourt les récents)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワークスペースを切り替え（⌃⌘Oで最近のものを順に切り替え）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 공간 전환(⌃⌘O로 최근 항목 순환)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mudar de espaço de trabalho (⌃⌘O percorre os recentes)"
+          }
+        }
+      }
+    },
     "System Default follows macOS. This is the same per-app choice as System Settings › General › Language & Region › Applications." : {
       "localizations" : {
         "de" : {
@@ -8893,6 +8933,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tamanho do texto"
+          }
+        }
+      }
+    },
+    "The issue prefix bd uses in this workspace" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Issue-Präfix, das bd in diesem Arbeitsbereich verwendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El prefijo de incidencia que bd usa en este espacio de trabajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le préfixe d’identifiant que bd utilise dans cet espace de travail"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このワークスペースでbdが使う課題プレフィックス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 작업 공간에서 bd가 사용하는 이슈 접두사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O prefixo de item que o bd usa neste espaço de trabalho"
           }
         }
       }

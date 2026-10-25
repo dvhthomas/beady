@@ -66,6 +66,9 @@ final class AppSession {
     private(set) var viewFileError: String?
 
     private static let recentsKey = "recentWorkspaces"
+    /// The bd issue prefix seen in each remembered workspace, by path, so the switcher can show
+    /// it for workspaces that aren't open.
+    private static let prefixesKey = "workspacePrefixes"
     private static let turnsOnJournalKey = "turnsOnEventsJournal"
     /// Workspaces where Beady turned bd's change journal on. One found off again later was
     /// turned off by hand (an Undo here, or `bd config` elsewhere), and is left that way.
@@ -94,6 +97,7 @@ final class AppSession {
             .appendingPathComponent("Beady/views", isDirectory: true)
         recentPaths = (UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? [])
             .filter { FileManager.default.fileExists(atPath: $0) }
+        publishRecents()
         if let viewsDirectory {
             try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
             libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
@@ -178,6 +182,8 @@ final class AppSession {
                 )
             )
             openError = nil
+            ui.currentWorkspacePath = path
+            if let model { rememberPrefix(of: model, at: path) }
             watcher?.stop()
             // Passive FSEvents on bd's folder: every write touches a marker file and grows Dolt's
             // storage, so this fires within a moment of any agent's change. It stays the wake-up
@@ -389,6 +395,7 @@ final class AppSession {
         watcher = nil
         model = nil
         workspace = nil
+        ui.currentWorkspacePath = nil
     }
 
     /// A folder to back up into — anywhere Time Machine or a sync service already reaches.
@@ -428,11 +435,48 @@ final class AppSession {
     private func remember(_ path: String) {
         recentPaths = Array(([path] + recentPaths.filter { $0 != path }).prefix(8))
         UserDefaults.standard.set(recentPaths, forKey: Self.recentsKey)
+        publishRecents()
     }
 
     private func forget(_ path: String) {
         recentPaths.removeAll { $0 == path }
         UserDefaults.standard.set(recentPaths, forKey: Self.recentsKey)
+        publishRecents()
+    }
+
+    // MARK: The workspace switcher
+
+    /// What the sidebar's switcher and the palette list: the recents with the prefixes seen in them.
+    private func publishRecents() {
+        let prefixes = preferences?.dictionary(forKey: Self.prefixesKey) as? [String: String] ?? [:]
+        ui.recentWorkspaces = WorkspaceSwitching.recents(paths: recentPaths, prefixes: prefixes)
+    }
+
+    /// The prefix is read off the beads, which arrive after the open; watch the model's snapshot
+    /// and note the prefix once it's there, and again when it changes.
+    private func rememberPrefix(of model: WorkspaceModel, at path: String) {
+        withObservationTracking {
+            _ = model.snapshot
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.model === model else { return }
+                if let prefix = model.issuePrefix, let preferences = self.preferences {
+                    var prefixes = preferences.dictionary(forKey: Self.prefixesKey) as? [String: String] ?? [:]
+                    if prefixes[path] != prefix {
+                        prefixes[path] = prefix
+                        preferences.set(prefixes, forKey: Self.prefixesKey)
+                        self.publishRecents()
+                    }
+                }
+                self.rememberPrefix(of: model, at: path)
+            }
+        }
+    }
+
+    /// ⌃⌘O: the next recent workspace, round the list.
+    func switchToNextWorkspace() {
+        guard let next = WorkspaceSwitching.next(after: ui.currentWorkspacePath, in: recentPaths) else { return }
+        open(URL(fileURLWithPath: next))
     }
 
     /// The one place a command turns into an action, whether it came from the palette, a menu
@@ -443,6 +487,8 @@ final class AppSession {
         switch command {
         case .openWorkspace: chooseWorkspace()
         case .closeWorkspace: close()
+        case .switchWorkspace(let path): open(URL(fileURLWithPath: path))
+        case .nextWorkspace: switchToNextWorkspace()
         case .refresh: if let model { Task { await model.load() } }
         case .newBead: if model?.canEdit == true { ui.showsNewBead = true }
         case .editSelected: model?.beginEditingSelection()

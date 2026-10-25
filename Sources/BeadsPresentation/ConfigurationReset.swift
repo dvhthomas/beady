@@ -14,7 +14,7 @@ public struct ConfigurationInventory: Equatable, Sendable {
     /// Every preferences key Beady writes, by what it is for. Legacy keys stay listed as long as
     /// the code still reads them, so a reset clears them too.
     public static let knownKeys: [Group: Set<String>] = [
-        .workspaces: ["recentWorkspaces"],
+        .workspaces: ["recentWorkspaces", "workspacePrefixes"],
         .views: ["views", "liveViews", "offeredViews", "viewStates", "view", "scope", "collapsedSidebarSections"],
         .appearance: ["appearance", "darkTheme", "lightTheme", "textSize", "sidebarStyle"],
         // The per-app language, under the key macOS itself uses (System Settings writes the same one).

@@ -10,6 +10,7 @@ public struct KeyBinding: Equatable, Sendable {
         public static let command = Modifiers(rawValue: 1 << 0)
         public static let shift = Modifiers(rawValue: 1 << 1)
         public static let option = Modifiers(rawValue: 1 << 2)
+        public static let control = Modifiers(rawValue: 1 << 3)
     }
 
     public let key: Character
@@ -20,9 +21,10 @@ public struct KeyBinding: Equatable, Sendable {
         self.modifiers = modifiers
     }
 
-    /// Written the way macOS writes it: ⌥⇧⌘ in that order, then the key.
+    /// Written the way macOS writes it: ⌃⌥⇧⌘ in that order, then the key.
     public var display: String {
         var text = ""
+        if modifiers.contains(.control) { text += "⌃" }
         if modifiers.contains(.option) { text += "⌥" }
         if modifiers.contains(.shift) { text += "⇧" }
         if modifiers.contains(.command) { text += "⌘" }
@@ -39,6 +41,10 @@ public struct KeyBinding: Equatable, Sendable {
 public enum AppCommand: Equatable, Sendable, Identifiable {
     case openWorkspace
     case closeWorkspace
+    /// Opens a workspace Beady has opened before, by its path.
+    case switchWorkspace(path: String)
+    /// ⌃⌘O: the next recent workspace, round the list.
+    case nextWorkspace
     case refresh
     case newBead
     case editSelected
@@ -85,6 +91,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch self {
         case .openWorkspace: "open-workspace"
         case .closeWorkspace: "close-workspace"
+        case .switchWorkspace(let path): "switch-\(path)"
+        case .nextWorkspace: "next-workspace"
         case .refresh: "refresh"
         case .newBead: "new-bead"
         case .editSelected: "edit-selected"
@@ -131,6 +139,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch self {
         case .openWorkspace: String(localized: "Open Beads Workspace…", bundle: .module, comment: "Command")
         case .closeWorkspace: String(localized: "Close Workspace", bundle: .module, comment: "Command")
+        case .switchWorkspace(let path): String(localized: "Switch to \(RecentWorkspace(path: path).name)", bundle: .module, comment: "Command; the value is a workspace's folder name")
+        case .nextWorkspace: String(localized: "Next Workspace", bundle: .module, comment: "Command: the next recent workspace")
         case .refresh: String(localized: "Refresh from bd", bundle: .module, comment: "Command")
         case .newBead: String(localized: "New Bead", bundle: .module, comment: "Command")
         case .editSelected: String(localized: "Edit Selected Bead", bundle: .module, comment: "Command")
@@ -180,6 +190,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch self {
         case .openWorkspace: ["open", "workspace", "project", "database", "folder"]
         case .closeWorkspace: ["close", "quit workspace"]
+        case .switchWorkspace(let path): ["switch", "workspace", "open", "recent", RecentWorkspace(path: path).name, path]
+        case .nextWorkspace: ["switch", "workspace", "cycle", "recent", "next"]
         case .refresh: ["reload", "sync", "update", "fetch"]
         case .newBead: ["create", "add", "issue", "task"]
         case .editSelected: ["change", "rename", "modify", "title", "description"]
@@ -228,7 +240,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     /// The section it appears under in the palette and the shortcut sheet.
     public var group: String {
         switch self {
-        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: String(localized: "Workspace", bundle: .module, comment: "Command group")
+        case .openWorkspace, .closeWorkspace, .switchWorkspace, .nextWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: String(localized: "Workspace", bundle: .module, comment: "Command group")
         case .newBead, .editSelected, .toggleMark, .showGraph: Self.beadsGroup
         case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
         case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
@@ -252,6 +264,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch self {
         case .openWorkspace: [KeyBinding("o", .command)]
         case .closeWorkspace: [KeyBinding("w", [.command, .shift])]
+        case .nextWorkspace: [KeyBinding("o", [.control, .command])]
         case .refresh: [KeyBinding("r", .command)]
         case .newBead: [KeyBinding("n", .command)]
         case .editSelected: [KeyBinding("e", .command)]
@@ -273,7 +286,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .resetView: [KeyBinding("r", [.command, .option])]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
-             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand: []
+             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand, .switchWorkspace: []
         }
     }
 
@@ -322,9 +335,13 @@ public enum CommandCatalog {
     /// command that would do nothing — editing with no selection, creating in a read-only
     /// workspace — isn't offered, so nothing in the list is a dead end.
     @MainActor
-    public static func all(for model: WorkspaceModel) -> [AppCommand] {
+    public static func all(for model: WorkspaceModel, workspaces: [RecentWorkspace] = [], current: String? = nil) -> [AppCommand] {
         let backup = model.backup
-        var commands: [AppCommand] = [.openWorkspace, .refresh]
+        var commands: [AppCommand] = [.openWorkspace]
+        // The other recents, in Open Recent's order; ⌃⌘O only when there is somewhere to go.
+        commands += workspaces.filter { $0.path != current }.map { .switchWorkspace(path: $0.path) }
+        if WorkspaceSwitching.next(after: current, in: workspaces.map(\.path)) != nil { commands.append(.nextWorkspace) }
+        commands.append(.refresh)
         if model.canEdit { commands.append(.newBead) }
         if model.canEdit, model.selection != nil {
             commands.append(.editSelected)
@@ -371,14 +388,14 @@ public enum CommandCatalog {
 
     /// What to show for what the user has typed: matching commands first, then matching beads.
     @MainActor
-    public static func results(for query: String, model: WorkspaceModel, limit: Int = 8) -> [AppCommand] {
+    public static func results(for query: String, model: WorkspaceModel, workspaces: [RecentWorkspace] = [], current: String? = nil, limit: Int = 8) -> [AppCommand] {
         let words = query.lowercased().split(separator: " ").map(String.init)
-        guard !words.isEmpty else { return all(for: model) }
+        guard !words.isEmpty else { return all(for: model, workspaces: workspaces, current: current) }
 
         // One or two letters can't mean a word, so they filter on what's written on screen.
         // Any more, and aliases come into play — "fin" should find Find, "kanban" the board.
         let aliasesCount = query.trimmingCharacters(in: .whitespaces).count >= 3
-        let commands = all(for: model)
+        let commands = all(for: model, workspaces: workspaces, current: current)
             .compactMap { command -> (AppCommand, Int)? in
                 if let score = score(command.title, words) { return (command, score) }
                 guard aliasesCount else { return nil }
