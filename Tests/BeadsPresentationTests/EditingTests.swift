@@ -309,9 +309,11 @@ struct EditingTests {
         #expect(model.pendingChange == nil)
     }
 
-    @Test("a clean drop writes at once, with no sheet and an Undo in the journal")
+    @Test("a clean drop writes at once, with no sheet and an Undo on the window's stack")
     func cleanDropAppliesImmediately() async throws {
         let (model, store) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
         model.viewID = .everything
         model.layout = .board
         model.grouping = .status
@@ -320,14 +322,16 @@ struct EditingTests {
         #expect(store.applied == [.setStatus("epic.1", from: "open", to: "blocked", reason: nil)])
         #expect(model.pendingChange == nil, "nothing to decide, so no sheet")
         #expect(model.lastAppliedChange?.issueID == "epic.1")
-        let entry = try #require(model.activity.first)
-        #expect(entry.succeeded)
-        #expect(entry.undo == .issueChange(.setStatus("epic.1", from: "blocked", to: "open", reason: nil)))
+        #expect(model.activity.first?.succeeded == true)
+        #expect(undoManager.canUndo)
+        #expect(undoManager.undoActionName == "Move epic.1 to Blocked", "the Edit menu names the step")
     }
 
     @Test("the card moves the instant it is dropped; bd catches up in the background")
     func dropMovesInstantly() async throws {
         let (model, store) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
         model.viewID = .everything
         model.layout = .board
         model.grouping = .status
@@ -344,7 +348,8 @@ struct EditingTests {
         #expect(await drop.value)
         #expect(store.applied == [.setStatus("epic.1", from: "open", to: "blocked", reason: nil)])
         #expect(model.lastAppliedChange?.issueID == "epic.1")
-        #expect(model.activity.first?.undo != nil)
+        #expect(undoManager.canUndo, "the optimistic path lands on the undo stack too")
+        #expect(undoManager.undoActionName == "Move epic.1 to Blocked")
     }
 
     @Test("while one drop is writing, another bead can still be dropped; the writes queue up")
@@ -461,40 +466,107 @@ struct EditingTests {
         #expect(pending.failure != nil)
         let entry = try #require(model.activity.first)
         #expect(!entry.succeeded)
-        #expect(entry.undo == nil, "a failed write changed nothing to take back")
     }
 
-    @Test("Undo writes the opposite change, is spent once used, and can itself be undone")
-    func undoReversesTheChange() async throws {
+    @Test("⌘Z writes the opposite change, and ⇧⌘Z then applies the original again")
+    func undoAndRedoWalkTheStack() async {
         let (model, store) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
         model.viewID = .everything
         model.layout = .board
         model.grouping = .status
         #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
-        let entry = try #require(model.activity.first)
 
-        let failure = await model.undo(entry)
-        #expect(failure == nil)
+        undoManager.undo()
+        #expect(await waitUntil { store.applied.count == 2 })
         #expect(store.applied.last == .setStatus("epic.1", from: "blocked", to: "open", reason: nil))
-        #expect(model.activity.first(where: { $0.id == entry.id })?.undo == nil, "an Undo is spent once used")
-        let redo = try #require(model.activity.first)
-        #expect(redo.undo == .issueChange(.setStatus("epic.1", from: "open", to: "blocked", reason: nil)))
+        #expect(model.activity.first?.summary == "Undo Move epic.1 to Blocked", "the history says what happened")
+        #expect(!undoManager.canUndo)
+        #expect(undoManager.canRedo, "undoing files the step on the redo stack")
+        #expect(undoManager.redoActionName == "Move epic.1 to Blocked")
+
+        undoManager.redo()
+        #expect(await waitUntil { store.applied.count == 3 })
+        #expect(store.applied.last == .setStatus("epic.1", from: "open", to: "blocked", reason: nil))
+        #expect(model.activity.first?.summary == "Redo Move epic.1 to Blocked")
+        #expect(await waitUntil { undoManager.canUndo }, "a redone step can be undone again")
+        #expect(!undoManager.canRedo)
     }
 
-    @Test("undoing a close reopens; the reopen offers no Undo of its own")
-    func undoOfACloseIsAReopen() async throws {
+    @Test("undoing a close reopens at once; redoing closes again with the reason already given")
+    func undoOfACloseIsAReopen() async {
         let (model, store) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
         model.proposeStatusMove("epic.1.1", to: .done)
         model.pendingReason = "shipped"
         await model.confirmPendingChange()
-        let close = try #require(model.activity.first)
-        #expect(close.undo == .issueChange(.setStatus("epic.1.1", from: "closed", to: "open", reason: nil)))
+        #expect(undoManager.undoActionName == "Close epic.1.1")
 
-        let failure = await model.undo(close)
-        #expect(failure == nil)
+        undoManager.undo()
+        #expect(await waitUntil { store.applied.count == 2 })
         #expect(store.applied.last == .setStatus("epic.1.1", from: "closed", to: "open", reason: nil))
-        let reopen = try #require(model.activity.first)
-        #expect(reopen.undo == nil, "re-closing would need a fresh reason, so no Undo is offered")
+        #expect(model.pendingChange == nil, "the menu named the step; no sheet restates it")
+
+        undoManager.redo()
+        #expect(await waitUntil { store.applied.count == 3 })
+        #expect(store.applied.last == .setStatus("epic.1.1", from: "open", to: "closed", reason: "shipped"))
+    }
+
+    @Test("a step that can no longer apply raises the sheet with the problem instead of writing blind")
+    func staleUndoExplainsItself() async throws {
+        let (model, store) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .parent
+        #expect(await model.applyDrop("epic.1", onGroup: "other"))
+        #expect(store.applied.count == 1)
+
+        // Another session moves epic under epic.1; putting epic.1 back would now make a cycle.
+        store.add(makeIssue("epic", type: "epic", parent: "epic.1"))
+        await model.load()
+
+        undoManager.undo()
+        #expect(await waitUntil { model.pendingChange != nil })
+        let pending = try #require(model.pendingChange)
+        #expect(pending.summary == "Undo Move epic.1 to other")
+        #expect(pending.problems.contains { $0.severity == .error })
+        #expect(!pending.canConfirm)
+        #expect(store.applied.count == 1, "nothing was written")
+    }
+
+    @Test("a change with no reverse registers nothing, and a failed write registers nothing")
+    func onlyLandedReversibleChangesRegister() async {
+        let (model, store) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
+
+        model.propose(.create(NewIssue(title: "Brand new", parent: "epic")))
+        await model.confirmPendingChange()
+        #expect(!undoManager.canUndo, "a create has no safe reverse")
+
+        store.failure = CocoaError(.fileWriteNoPermission)
+        model.propose(.edit("epic.1", IssueEdit(title: "Renamed")))
+        await model.confirmPendingChange()
+        #expect(!undoManager.canUndo, "a failed write changed nothing to take back")
+    }
+
+    @Test("detaching takes the model's registrations with it")
+    func detachClearsTheStack() async {
+        let (model, _) = await makeModel()
+        let undoManager = UndoManager()
+        model.attachUndoManager(undoManager)
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
+        #expect(undoManager.canUndo)
+
+        model.detachUndoManager()
+        #expect(!undoManager.canUndo)
     }
 
     @Test("dropping a card on its own column proposes nothing")

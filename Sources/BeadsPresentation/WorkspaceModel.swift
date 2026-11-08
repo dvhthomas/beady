@@ -32,6 +32,13 @@ public final class WorkspaceModel {
     /// lands and the data reloads, so the acknowledgement plays on the refreshed board.
     public private(set) var lastAppliedChange: AppliedChange?
 
+    /// The window's undo manager, handed in by the app layer. Every reversible write this
+    /// session makes is registered here — the stack native macOS users already have, so ⌘Z and
+    /// ⇧⌘Z walk it, the Edit menu names each step ("Undo Move bdv-1 to In Progress"), and a
+    /// focused text field still gets its own typing undo first. Foundation's UndoManager, so
+    /// the model stays AppKit-free and tests supply their own.
+    @ObservationIgnored private weak var undoManager: UndoManager?
+
     /// The view picked in the sidebar.
     public var viewID: IssueView.ID = .frontier {
         didSet {
@@ -1250,19 +1257,83 @@ public final class WorkspaceModel {
             consumeUndo(of: entry)
             record(summary: String(localized: "Turned bd's change journal off in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"))
             await followJournal()
-        case .issueChange(let change):
-            // An undo is a bead change like any other: validated against today's data, written
-            // safely, journalled — and its own entry offers the reverse, so an undo can be undone.
-            guard let pending = makePending(change) else {
-                return String(localized: "This can't be taken back right now.", bundle: .module, comment: "Shown when an Undo is pressed while the workspace can't write")
-            }
-            if let problem = pending.problems.first(where: { $0.severity == .error }) {
-                return problem.message
-            }
-            await write(pending)
-            if activity.first?.succeeded == true { consumeUndo(of: entry) }
         }
         return nil
+    }
+
+    // MARK: Undo and redo
+
+    /// Hands this model the window's undo manager. Nothing already registered moves over: a
+    /// different manager means a different window, whose stack starts clean.
+    public func attachUndoManager(_ manager: UndoManager?) {
+        guard manager !== undoManager else { return }
+        undoManager?.removeAllActions(withTarget: self)
+        undoManager = manager
+    }
+
+    /// Lets go of the undo manager before this model does: registrations target this model
+    /// without retaining it, so they must not outlive it.
+    public func detachUndoManager() {
+        undoManager?.removeAllActions(withTarget: self)
+        undoManager = nil
+    }
+
+    /// Puts a landed change onto the window's undo stack, named so the Edit menu reads "Undo
+    /// Move bdv-1 to In Progress". Registration is optimistic: the database is shared, so each
+    /// invocation re-validates against that moment's data instead of pretending bd can be rolled
+    /// back blind — a step that can no longer apply explains itself when chosen (`perform`).
+    /// The explicit group makes each write one step even where no run loop turns, as in tests.
+    private func registerUndo(of step: UndoStep) {
+        guard let undoManager else { return }
+        undoManager.beginUndoGrouping()
+        undoManager.registerUndo(withTarget: self) { model in
+            MainActor.assumeIsolated { model.undoStepChosen(step) }
+        }
+        undoManager.setActionName(step.summary)
+        undoManager.endUndoGrouping()
+    }
+
+    /// Runs when the user picks Undo. Registering here, while the manager is undoing, files the
+    /// opposite entry on the redo stack — that is all redo is — and the write follows.
+    private func undoStepChosen(_ step: UndoStep) {
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { model in
+                MainActor.assumeIsolated { model.redoStepChosen(step) }
+            }
+            undoManager.setActionName(step.summary)
+        }
+        Task {
+            await perform(step.undoChange, titled: String(localized: "Undo \(step.summary)", bundle: .module, comment: "Changes menu entry and sheet title; the value is the original change's summary"))
+        }
+    }
+
+    /// Runs when the user picks Redo: files the undo back and applies the original change again.
+    private func redoStepChosen(_ step: UndoStep) {
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { model in
+                MainActor.assumeIsolated { model.undoStepChosen(step) }
+            }
+            undoManager.setActionName(step.summary)
+        }
+        Task {
+            await perform(step.redoChange, titled: String(localized: "Redo \(step.summary)", bundle: .module, comment: "Changes menu entry and sheet title; the value is the original change's summary"))
+        }
+    }
+
+    /// Writes one undo or redo step: a bead change like any other, validated against today's
+    /// data, written safely, journalled. Written at once when clean — the Edit menu named
+    /// exactly what would happen — but a step that can't apply any more (the bead moved on
+    /// since) raises the confirmation sheet with the problems spelled out and Apply disabled,
+    /// so it explains itself rather than failing silently; so does a write that fails.
+    private func perform(_ change: IssueChange, titled summary: String) async {
+        guard var pending = makePending(change) else { return }
+        pending.summary = summary
+        pending.registersUndo = false
+        if pending.problems.contains(where: { $0.severity == .error }) {
+            pendingChange = pending
+            return
+        }
+        await write(pending)
     }
 
     /// Spends an entry's one Undo, once it has been used successfully.
@@ -1539,6 +1610,10 @@ public final class WorkspaceModel {
                 noteOwnWrite(written)
                 optimisticIssues[id] = nil
                 record(pending, issueID: written, error: nil)
+                // The optimistic path lands on the undo stack just as write(_:) does (rule 12).
+                if pending.registersUndo, let reverse = pending.change.reversed(from: pending.base) {
+                    registerUndo(of: UndoStep(summary: pending.summary, undoChange: reverse, redoChange: pending.change))
+                }
                 if let fresh = try? await store.currentIssue(written), let current = snapshot {
                     snapshot = current.replacing(fresh)
                     reapplyDesiredMarks()
@@ -1595,6 +1670,11 @@ public final class WorkspaceModel {
             noteOwnWrite(id)
             record(pending, issueID: id, error: nil)
             if stillShowing { pendingChange = nil }
+            // A change that landed and has a reverse goes onto the window's undo stack; an undo
+            // or redo being written manages its own place there instead.
+            if pending.registersUndo, let reverse = pending.change.reversed(from: pending.base) {
+                registerUndo(of: UndoStep(summary: pending.summary, undoChange: reverse, redoChange: pending.change))
+            }
             await reloadAfterWrite()
             selection = id
             lastAppliedChange = AppliedChange(issueID: id, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
@@ -1618,11 +1698,7 @@ public final class WorkspaceModel {
     }
 
     private func record(_ pending: PendingChange, issueID: IssueID?, error: Error?) {
-        // A change that landed offers its reverse; one that failed changed nothing to take back.
-        let undo: ChangeRecord.Undo? = error == nil
-            ? pending.change.reversed(from: pending.base).map { .issueChange($0) }
-            : nil
-        record(summary: pending.summary, issueID: issueID, error: error, undo: undo)
+        record(summary: pending.summary, issueID: issueID, error: error)
     }
 
     private func record(summary: String, issueID: IssueID? = nil, error: Error? = nil, undo: ChangeRecord.Undo? = nil) {
