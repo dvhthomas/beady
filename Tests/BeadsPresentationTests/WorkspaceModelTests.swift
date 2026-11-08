@@ -83,6 +83,63 @@ struct WorkspaceModelLoadingTests {
 }
 
 @MainActor
+@Suite("Another session's writes reach the pipeline board through refreshIfChanged")
+struct ExternalWriteRefreshTests {
+    /// Before: an epic with two open sub-beads, and a lone open task.
+    /// After an external write: one sub-bead closed, the lone task started.
+    static let before = IssueSnapshot(issues: [
+        makeIssue("epic", type: "epic"),
+        makeIssue("epic.a", parent: "epic"),
+        makeIssue("epic.b", parent: "epic"),
+        makeIssue("solo"),
+        // A second lifecycle category, so the board has something to split into columns.
+        makeIssue("landed", status: "closed", closed: t0 + 10),
+    ])
+    static let after = IssueSnapshot(issues: [
+        makeIssue("epic", type: "epic"),
+        makeIssue("epic.a", status: "closed", parent: "epic", closed: t0 + 60),
+        makeIssue("epic.b", parent: "epic"),
+        makeIssue("solo", status: "in_progress", updated: t0 + 60),
+        makeIssue("landed", status: "closed", closed: t0 + 10),
+    ])
+
+    func cards(_ model: WorkspaceModel, _ category: StatusCategory) -> [IssueID] {
+        model.boardColumns.first { $0.key == category.rawValue }?.cards.map(\.id) ?? []
+    }
+
+    @Test("a status change moves the card's column and the sub-bead progress bar follows")
+    func statusChangeMovesCards() async {
+        let store = StubStore([.success(Self.before), .success(Self.after)])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 + 100 })
+        await model.load()
+        model.viewID = .pipeline
+        #expect(model.presentedLayout == .board)
+        #expect(cards(model, .active).contains("solo"))
+        #expect(model.progress(of: "epic") == Completion(closed: 0, total: 2))
+
+        // bd writes land in the store; the watcher or the 15 s poll calls refreshIfChanged.
+        store.setToken("v2")
+        await model.refreshIfChanged()
+
+        #expect(cards(model, .wip) == ["solo"], "the started card moved to In Flight")
+        #expect(!cards(model, .active).contains("solo"), "and left its old column")
+        #expect(cards(model, .done).contains("epic.a"), "the closed sub-bead reached Done")
+        #expect(model.progress(of: "epic") == Completion(closed: 1, total: 2), "the green bar shows 1 of 2")
+    }
+
+    @Test("without a token change or staleness, nothing reloads and the board stands still")
+    func noChangeNoReload() async {
+        let store = StubStore([.success(Self.before), .success(Self.after)])
+        let model = WorkspaceModel(title: "demo", store: store, now: { t0 + 100 })
+        await model.load()
+        model.viewID = .pipeline
+        await model.refreshIfChanged()
+        #expect(store.calls == 1)
+        #expect(cards(model, .active).contains("solo"))
+    }
+}
+
+@MainActor
 @Suite("Views keep their own filters and display, like Linear")
 struct WorkspaceViewStateTests {
     let issues = [

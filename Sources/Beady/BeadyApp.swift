@@ -20,6 +20,9 @@ struct BeadyApp: App {
         if let directory = SnapshotMode.switchDirectory {
             SnapshotMode.verifySwitch(to: directory)
         }
+        if let directory = SnapshotMode.refreshDirectory {
+            SnapshotMode.verifyRefresh(to: directory)
+        }
     }
 
     var body: some Scene {
