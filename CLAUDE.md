@@ -57,6 +57,24 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
+## Claude session authority (Team-maintainer opt-in)
+
+This repository **opts in to the Team-maintainer profile** for agent sessions working in a git
+worktree on a `claude/*` branch. In such a session, without asking first, an agent may:
+
+- claim, create and close beads;
+- run quality gates (`scripts/test.sh`, `swift build`);
+- commit to the session's `claude/*` branch and push it;
+- open a pull request — **unlabeled** (which means patch) or `release:none`.
+
+Still forbidden without an explicit user request: pushing to master, pushing tags,
+force-pushing, editing `VERSION`, applying `release:minor` or `release:major` (recommend one
+in the PR body and ask the user — a PreToolUse hook enforces this), and merging a minor/major
+pull request. **Patch releases are the norm and fully automated; minor and major releases are
+a human decision.**
+
+Project skills: `/next` picks and claims work, `/ship` runs the close-out pipeline,
+`/land` verifies that a merge released.
 
 ## Releases and the version number
 
@@ -73,19 +91,28 @@ Add it with `gh pr create --label release:minor` or `gh pr edit <number> --add-l
 Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
 [RELEASE.md](RELEASE.md).
 
+**Agents never apply `release:minor` or `release:major`** — open the PR as a **draft**,
+recommend the size in the PR body, and ask the user to label it, mark it ready and merge.
+Unlabeled and patch PRs merge themselves when CI is green (the Merge-when-green workflow);
+minor/major and draft PRs wait for a human.
+
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+scripts/test.sh        # the whole suite (Swift Testing); the gate before any PR
+swift build            # compile check
+scripts/bundle.sh      # build build/Beady.app — test THIS dev build, not /Applications
+scripts/dev-watch.sh   # rebuild and relaunch the app on source changes
 ```
+
+CI runs `scripts/test.sh` on every pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Pure logic (filtering, views, glossary, rendering) lives in `BeadsCore`, `BeadsData` and
+`BeadsPresentation`, each with its own test target. The `Beady` app target only wires those
+libraries to AppKit, the filesystem and the `bd` CLI. New logic goes in a library target,
+tests first.
 
 ## Conventions & Patterns
 

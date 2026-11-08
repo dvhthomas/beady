@@ -5,14 +5,21 @@
 # Release workflow, which builds the app and publishes the Homebrew cask.
 #
 # Why no loop: the commit this pushes is the tagged one, so a run that starts
-# from it finds master already released and stops. (A push made with
-# GITHUB_TOKEN doesn't start workflows anyway, which is also why the Release
-# workflow is dispatched here rather than left to the tag push.)
+# from it finds master already released and stops. That guard is what matters
+# when the VERSION_PUSH_TOKEN secret (a fine-grained PAT with contents write,
+# which also lets this push past branch protection) is set: pushes made with it
+# DO start workflows, so the tag push starts Release by itself and the master
+# push starts another Version run that exits at the guard. Without the secret,
+# pushes use GITHUB_TOKEN, which starts no workflows, so Release is dispatched
+# explicitly instead.
 name: Version
 
 on:
   push:
     branches: [master]
+  # The Merge-when-green workflow merges with GITHUB_TOKEN, whose push starts
+  # no workflows, so it dispatches this one explicitly after merging.
+  workflow_dispatch:
 
 permissions:
   contents: write # push the VERSION commit and the tag
@@ -32,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.VERSION_PUSH_TOKEN || github.token }}
 
       - name: Work out the next version
         id: next
@@ -83,6 +91,7 @@ jobs:
         if: steps.next.outputs.next != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          HAS_PUSH_TOKEN: ${{ secrets.VERSION_PUSH_TOKEN != '' }}
           NEXT: ${{ steps.next.outputs.next }}
         run: |
           echo "$NEXT" > VERSION
@@ -91,5 +100,8 @@ jobs:
           git commit --quiet -am "Version $NEXT"
           git tag -a "v$NEXT" -m "Beady $NEXT"
           git push --atomic origin "HEAD:$GITHUB_REF_NAME" "v$NEXT"
-          gh workflow run release.yml --ref "v$NEXT"
-          echo "Released **v$NEXT**: VERSION committed, tag pushed, Release workflow started." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$HAS_PUSH_TOKEN" != "true" ]; then
+            # GITHUB_TOKEN pushes start no workflows, so start Release by hand.
+            gh workflow run release.yml --ref "v$NEXT"
+          fi
+          echo "Released **v$NEXT**: VERSION committed, tag pushed, Release follows." >> "$GITHUB_STEP_SUMMARY"
