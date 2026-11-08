@@ -430,6 +430,14 @@ final class AppSession {
         NSPasteboard.general.setString(query.commandLine, forType: .string)
     }
 
+    /// SnapshotMode's refresh harness only: one status change made through a second gateway — a
+    /// separate bd process, the way an agent outside this app writes. Lives here because the
+    /// composition root is the one place that may touch the data layer.
+    func makeAgentWrite(settingStatusOf id: IssueID, to status: String) async throws {
+        guard let workspace else { return }
+        _ = try await BDGateway.open(workspace.projectDirectory).run(.setStatus(id, status))
+    }
+
     func close() {
         watcher?.stop()
         watcher = nil

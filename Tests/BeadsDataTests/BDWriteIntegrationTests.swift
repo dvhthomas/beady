@@ -136,4 +136,32 @@ struct BDWriteIntegrationTests {
         #expect(created.actor?.isEmpty == false)
         #expect(created.seq > checkpoint)
     }
+
+    @Test("a status change through the real bd wakes the watcher, moves the token, and lands in the next snapshot")
+    func statusChangeReachesAutoRefresh() async throws {
+        let path = try #require(writableWorkspace)
+        let gateway = try BDGateway.open(URL(fileURLWithPath: path))
+        let store = BDStore(gateway: gateway)
+        let runner = ChangeRunner(writer: store)
+        let stamp = UUID().uuidString.prefix(6)
+
+        let snapshot = try await store.loadSnapshot()
+        let id = try await runner.run(.create(NewIssue(title: "IT refresh \(stamp)")), seenIn: snapshot)
+        let seen = try await store.loadSnapshot()
+
+        // The same wiring the app uses: FSEvents on .beads wakes refreshIfChanged, which
+        // compares this token before reloading.
+        let hits = Mutable(0)
+        let watcher = gateway.watchChanges { hits.value += 1 }
+        defer { watcher.stop() }
+        try await Task.sleep(for: .milliseconds(300))
+        let tokenBefore = await store.changeToken()
+
+        try await runner.run(.setStatus(id, from: "open", to: "in_progress", reason: "auto-refresh test"), seenIn: seen)
+
+        #expect(await waitUntil(seconds: 10) { hits.value > 0 }, "bd's write never woke the FSEvents watcher")
+        #expect(await store.changeToken() != tokenBefore, "the token must move, or refreshIfChanged would skip the reload")
+        let after = try await store.loadSnapshot()
+        #expect(after.issue(id)?.status == "in_progress")
+    }
 }

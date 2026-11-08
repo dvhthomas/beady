@@ -580,6 +580,92 @@ enum SnapshotMode {
         exit(0)
     }
 
+    // MARK: Live refresh
+
+    /// `BEADY_VERIFY_REFRESH=/tmp/shots Beady --workspace <path> --flip <id>=<status>[,<id>=<status>…]`:
+    /// hosts the real window offscreen on the Pipeline board, lets it settle, then makes each
+    /// status change through a separate bd process — the way an agent would, from outside the
+    /// app — and captures the window before and after. Nothing in this harness nudges the model:
+    /// the FSEvents watcher (or the 15 s poll) has to carry the change to the view, so "does an
+    /// agent's write move the cards on screen?" is answerable by machine. Exits 1 unless every
+    /// change reached the model; the PNGs show whether the board followed.
+    static var refreshDirectory: URL? {
+        ProcessInfo.processInfo.environment["BEADY_VERIFY_REFRESH"].map { URL(fileURLWithPath: $0) }
+    }
+
+    static func verifyRefresh(to directory: URL) -> Never {
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        let session = AppSession(preferences: nil)
+        guard let model = session.model, session.workspace != nil else {
+            fail(session.openError ?? "no workspace; pass --workspace")
+        }
+        guard let flipIndex = CommandLine.arguments.firstIndex(of: "--flip"),
+              CommandLine.arguments.indices.contains(flipIndex + 1) else {
+            fail("pass --flip <id>=<status>[,<id>=<status>…]")
+        }
+        let flips: [(id: IssueID, status: String)] = CommandLine.arguments[flipIndex + 1]
+            .split(separator: ",")
+            .compactMap { entry in
+                let parts = entry.split(separator: "=", maxSplits: 1)
+                guard parts.count == 2 else { return nil }
+                return (IssueID(String(parts[0])), String(parts[1]))
+            }
+        guard !flips.isEmpty else { fail("pass --flip <id>=<status>[,<id>=<status>…]") }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            fail("can't create \(directory.path): \(error.localizedDescription)")
+        }
+
+        let hosting = NSHostingView(
+            rootView: WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run, persistsPreferences: false)
+                .themed(session.themes)
+        )
+        let window = NSWindow(
+            contentRect: CGRect(origin: CGPoint(x: -30_000, y: -30_000), size: CGSize(width: 1440, height: 880)),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+
+        Task { await model.load() }
+        pump(timeout: 60) { model.loadState != .idle && model.loadState != .loading }
+        if case .failed(let message) = model.loadState { fail(message) }
+        model.viewID = .pipeline
+        pump(seconds: 1.5)
+        capture(hosting, to: directory.appendingPathComponent("1-before.png"))
+        func states() -> String {
+            flips.map { "\($0.id.rawValue)=\(model.snapshot?.issue($0.id)?.status ?? "missing")" }.joined(separator: " ")
+        }
+        print("before: \(states()) — wrote 1-before.png")
+
+        final class Outcome { var error: String?; var done = false }
+        let outcome = Outcome()
+        Task {
+            do {
+                for flip in flips {
+                    try await session.makeAgentWrite(settingStatusOf: flip.id, to: flip.status)
+                }
+            } catch {
+                outcome.error = error.localizedDescription
+            }
+            outcome.done = true
+        }
+        pump(timeout: 60) { outcome.done }
+        if let error = outcome.error { fail("bd: \(error)") }
+
+        pump(timeout: 30) { flips.allSatisfy { model.snapshot?.issue($0.id)?.status == $0.status } }
+        // Let SwiftUI draw the new snapshot before the proof is taken.
+        pump(seconds: 1.0)
+        capture(hosting, to: directory.appendingPathComponent("2-after.png"))
+        let ok = flips.allSatisfy { model.snapshot?.issue($0.id)?.status == $0.status }
+        print("\(ok ? "ok  " : "FAIL") after: \(states()) — wrote 2-after.png")
+        window.close()
+        exit(ok ? 0 : 1)
+    }
+
     /// Renders one hosted view twice, mutating state in between, to see whether the live view
     /// actually reacts — which a fresh render of a new view can't tell you.
     static func renderLive<Content: View>(
