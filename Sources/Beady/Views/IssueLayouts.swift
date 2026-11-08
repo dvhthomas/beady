@@ -298,6 +298,7 @@ private struct TreeIssueRow: View {
 /// Columns follow the view's grouping (lifecycle when ungrouped). While editing, dropping a card
 /// on a column proposes that column's value, where the grouping allows it.
 struct IssueBoardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: WorkspaceModel
     let ui: WorkspaceUI
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
@@ -315,11 +316,15 @@ struct IssueBoardView: View {
             HStack(alignment: .top, spacing: 12) {
                 ForEach(model.boardColumns) { column in
                     BoardColumnView(column: column, model: model)
-                        .frame(width: 290)
+                        .frame(width: column.cards.isEmpty ? BoardColumnView.railWidth : BoardColumnView.fullWidth)
                 }
             }
             .padding(12)
             .frame(maxHeight: .infinity, alignment: .top)
+            .animation(
+                reduceMotion ? nil : .smooth(duration: 0.25),
+                value: model.boardColumns.map { $0.cards.isEmpty }
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: startWatchingKeys)
@@ -354,6 +359,11 @@ struct IssueBoardView: View {
 }
 
 private struct BoardColumnView: View {
+    /// An empty column shrinks to this: wide enough to hit with a dragged card, narrow enough
+    /// that a board of mostly empty columns is mostly board.
+    static let railWidth: CGFloat = 56
+    static let fullWidth: CGFloat = 290
+
     @Environment(\.theme) private var theme
     let column: BoardColumnModel
     let model: WorkspaceModel
@@ -365,7 +375,64 @@ private struct BoardColumnView: View {
         self.model = model
     }
 
+    private var isEmpty: Bool { column.cards.isEmpty }
+
     var body: some View {
+        Group {
+            if isEmpty {
+                emptyRail
+            } else {
+                cards
+            }
+        }
+        .padding(8)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(
+            isDropTarget.wrappedValue && isEmpty ? theme.accent.opacity(0.14) : theme.surface.opacity(isEmpty ? 0.55 : 1),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    isDropTarget.wrappedValue ? theme.accent : theme.border,
+                    style: StrokeStyle(
+                        lineWidth: isDropTarget.wrappedValue ? 2 : 1,
+                        dash: isEmpty && !isDropTarget.wrappedValue ? [5, 4] : []
+                    )
+                )
+                .opacity(isEmpty || isDropTarget.wrappedValue ? 1 : 0)
+        )
+        // Only proposes; the confirmation sheet has the final say.
+        .dropDestination(for: String.self) { items, _ in
+            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: column.key) else {
+                // Nothing to do: refuse at once so the card animates home without a pause.
+                return false
+            }
+            // Staging the change is work; let the drag finish its animation first.
+            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: column.key) }
+            return true
+        } isTargeted: { targeted in
+            isDropTarget.wrappedValue = targeted && model.canEdit
+        }
+    }
+
+    /// An empty column, shrunk to a rail with its title running down it. It exists to be
+    /// dropped on — that's why empty columns are on the board at all — so the whole strip
+    /// stays a drop target and lights up like a full column when a card is over it.
+    private var emptyRail: some View {
+        GeometryReader { proxy in
+            Text(column.title)
+                .font(.headline)
+                .foregroundStyle(isDropTarget.wrappedValue ? AnyShapeStyle(theme.accent) : AnyShapeStyle(.secondary))
+                .lineLimit(1)
+                .fixedSize()
+                .rotationEffect(.degrees(90))
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+        }
+        .accessibilityLabel(Text(column.title))
+    }
+
+    private var cards: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(column.title)
@@ -400,25 +467,6 @@ private struct BoardColumnView: View {
                 }
                 .padding(2)
             }
-        }
-        .padding(8)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(theme.accent, lineWidth: isDropTarget.wrappedValue ? 2 : 0)
-        )
-        // Only proposes; the confirmation sheet has the final say.
-        .dropDestination(for: String.self) { items, _ in
-            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: column.key) else {
-                // Nothing to do: refuse at once so the card animates home without a pause.
-                return false
-            }
-            // Staging the change is work; let the drag finish its animation first.
-            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: column.key) }
-            return true
-        } isTargeted: { targeted in
-            isDropTarget.wrappedValue = targeted && model.canEdit
         }
     }
 
