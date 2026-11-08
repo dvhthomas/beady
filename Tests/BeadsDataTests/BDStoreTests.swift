@@ -103,6 +103,24 @@ struct BDStoreWritingTests {
         ])
     }
 
+    @Test("a mark becomes its label added or removed; a blocker becomes its dep edge added or removed")
+    func marksAndBlockers() async throws {
+        let runner = FakeRunner { _ in ok("[]") }
+        let s = store(runner)
+        _ = try await s.apply(.setMark("demo-1", .pinned, on: true))
+        _ = try await s.apply(.setMark("demo-1", .pinned, on: false))
+        _ = try await s.apply(.setMark("demo-2", .starred, on: true))
+        _ = try await s.apply(.setBlocker("demo-3", blocker: "demo-4", on: true))
+        _ = try await s.apply(.setBlocker("demo-3", blocker: "demo-4", on: false))
+        #expect(commands(runner) == [
+            BDCommand.addLabel("demo-1", IssueMark.pinned.label).arguments,
+            BDCommand.removeLabel("demo-1", IssueMark.pinned.label).arguments,
+            BDCommand.addLabel("demo-2", IssueMark.starred.label).arguments,
+            BDCommand.addBlocker("demo-3", blocker: "demo-4").arguments,
+            BDCommand.removeBlocker("demo-3", blocker: "demo-4").arguments,
+        ])
+    }
+
     @Test("reparenting sets the parent, and removing it passes an empty parent")
     func parent() async throws {
         let runner = FakeRunner { _ in ok("[]") }
@@ -151,8 +169,13 @@ struct BDStoreWritingTests {
     func currentIssueMissing() async throws {
         let missing = FakeRunner { _ in CommandResult(exitCode: 1, stdout: Data(), stderr: "Error: no issue found matching \"demo-x\"") }
         #expect(try await store(missing).currentIssue("demo-x") == nil)
+        // bd 1.3.2 rephrased it; the integration suite checks the real binary's wording.
+        let rephrased = FakeRunner { _ in CommandResult(exitCode: 1, stdout: Data(), stderr: "Issue demo-x not found\nHint: this ID may have never existed") }
+        #expect(try await store(rephrased).currentIssue("demo-x") == nil)
         let broken = FakeRunner { _ in CommandResult(exitCode: 1, stdout: Data(), stderr: "Error: database locked") }
         await #expect(throws: BeadsDataError.self) { try await store(broken).currentIssue("demo-x") }
+        let otherMissing = FakeRunner { _ in CommandResult(exitCode: 1, stdout: Data(), stderr: "Error: config key not found") }
+        await #expect(throws: BeadsDataError.self) { try await store(otherMissing).currentIssue("demo-x") }
     }
 
     @Test("finding beads created since a moment matches the title exactly")

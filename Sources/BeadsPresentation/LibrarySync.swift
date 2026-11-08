@@ -138,24 +138,35 @@ public enum LibrarySyncFolder {
         for name in (try? manager.contentsOfDirectory(atPath: directory.path)) ?? [] where name.hasSuffix(".\(ViewLibrary.fileExtension)") {
             let url = directory.appendingPathComponent(name)
             guard let data = manager.contents(atPath: url.path),
-                  let view = (try? ViewLibrary.views(fromDocument: data))?.first, !view.isBuiltIn else { continue }
+                  let view = (try? ViewLibrary.views(fromDocument: data))?.first, !view.isBuiltIn,
+                  // The id comes from the file's content, not its name: one that couldn't be a
+                  // file name must never enter the store, where another Mac would write by it.
+                  ViewLibrary.isSafeFileStem(view.id) else { continue }
             let modified = (try? manager.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? .distantPast
             entries[view.id] = LibrarySync.Entry(document: data, modified: modified)
         }
         return LibrarySync.Side(entries: entries)
     }
 
-    /// Carries a plan out: files in the folder, records and tombstones in the store.
+    /// Carries a plan out: files in the folder, records and tombstones in the store. Store
+    /// records are someone else's bytes, so each is written only if it parses as a user view
+    /// whose id matches its key, at a path inside the folder.
     public static func apply(_ plan: LibrarySync.Plan, to directory: URL, store: LibrarySyncStore, now: Date) {
         let manager = FileManager.default
         try? manager.createDirectory(at: directory, withIntermediateDirectories: true)
         for (id, entry) in plan.writeLocal {
+            guard ViewLibrary.isSafeFileStem(id),
+                  let view = (try? ViewLibrary.views(fromDocument: entry.document))?.first,
+                  view.id == id, !view.isBuiltIn else { continue }
             let url = directory.appendingPathComponent("\(id.rawValue).\(ViewLibrary.fileExtension)")
+            guard ViewLibrary.contains(directory, url) else { continue }
             try? entry.document.write(to: url, options: .atomic)
             try? manager.setAttributes([.modificationDate: entry.modified], ofItemAtPath: url.path)
         }
-        for id in plan.deleteLocal {
-            try? manager.removeItem(at: directory.appendingPathComponent("\(id.rawValue).\(ViewLibrary.fileExtension)"))
+        for id in plan.deleteLocal where ViewLibrary.isSafeFileStem(id) {
+            let url = directory.appendingPathComponent("\(id.rawValue).\(ViewLibrary.fileExtension)")
+            guard ViewLibrary.contains(directory, url) else { continue }
+            try? manager.removeItem(at: url)
         }
         for (id, entry) in plan.writeRemote { store.write(entry, for: id) }
         for id in plan.tombstoneRemote {

@@ -426,6 +426,12 @@ enum SnapshotMode {
         model.reset()
         model.viewID = .pipeline
         captureWorkspace("21-pipeline-board")
+        // The whole board, inspector closed: on a workspace whose beads sit in few statuses,
+        // this is where the empty columns — kept as drop targets while editing — are visible.
+        model.selection = nil
+        session.ui.showsInspector = false
+        capture("21c-pipeline-board-columns", WorkspaceView(model: model, ui: session.ui, persistsPreferences: false))
+        session.ui.showsInspector = true
         // The same board with sub-tasks folded into their parents' cards, the biggest one open.
         model.nestsSubtasks = true
         if let parent = model.boardColumns.flatMap(\.cards).max(by: { $0.children.count < $1.children.count }), !parent.children.isEmpty {

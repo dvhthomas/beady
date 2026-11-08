@@ -80,7 +80,25 @@ struct BDQueryRenderingTests {
         #expect(render([], ordering: .recentlyClosed).sort == "closed")
         #expect(render([], ordering: .issueID).sort == "id")
         let open = render([FilterRule(field: .status, op: .isAnyOf, values: ["open", "in_progress"])], ordering: .priority)
-        #expect(open.commandLine == "bd query \"(status=in_progress OR status=open)\" --sort priority")
+        #expect(open.commandLine == "bd query '(status=in_progress OR status=open)' --sort priority")
+    }
+
+    @Test("the pasted line is inert in a shell, whatever the database put in a value")
+    func shellSafety() {
+        // Labels come from the workspace database: inside double quotes the shell would still
+        // expand these, so the whole expression must ride in single quotes.
+        for payload in ["$(touch /tmp/pwned)", "`touch /tmp/pwned`", "$HOME", #"ends-with-backslash\"#] {
+            let query = render([FilterRule(field: .labels, op: .includesAll, values: [payload])])
+            let line = query.commandLine
+            #expect(line.hasPrefix("bd query '"), Comment(rawValue: line))
+            // Nothing between the single quotes may close them: a single quote in a value
+            // becomes the '\'' dance, and everything else stays literal.
+            let body = line.dropFirst("bd query '".count)
+            #expect(body.contains("' --sort"), Comment(rawValue: line))
+        }
+        // A value with a single quote is escaped so the line still reads back as one argument.
+        let quoted = render([FilterRule(field: .labels, op: .includesAll, values: ["it's"])]).commandLine
+        #expect(quoted.contains(#"it'\''s"#), Comment(rawValue: quoted))
     }
 
     @Test("every built-in view renders to a line bd can be given")

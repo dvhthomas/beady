@@ -86,6 +86,43 @@ struct EditDraftTests {
         let model = await makeModel()
         #expect(model.editDraft(for: "nope") == nil)
     }
+
+    @Test("label helpers trim, refuse blanks and duplicates, and keep the list sorted")
+    func labelHelpers() async throws {
+        let model = await makeModel()
+        var draft = try #require(model.editDraft(for: "a"))
+        draft.addLabel("  urgent  ")
+        #expect(draft.labels == ["offline", "tiles", "urgent"])
+        draft.addLabel("urgent")
+        draft.addLabel("   ")
+        #expect(draft.labels == ["offline", "tiles", "urgent"], "duplicates and blanks are refused")
+        draft.addLabel("a-first")
+        #expect(draft.labels == ["a-first", "offline", "tiles", "urgent"], "kept sorted")
+        draft.removeLabel("tiles")
+        draft.removeLabel("not-there")
+        #expect(draft.labels == ["a-first", "offline", "urgent"])
+    }
+
+    @Test("labels to offer are the database's, minus what the bead already has")
+    func labelOffers() async throws {
+        let model = await makeModel()
+        let draft = try #require(model.editDraft(for: "a"))
+        #expect(draft.labelsToOffer(from: model.knownLabels) == ["search"])
+    }
+
+    @Test("a title edited only by whitespace is no change; a real change sends the text as typed")
+    func titleTrimming() async throws {
+        let model = await makeModel()
+        var draft = try #require(model.editDraft(for: "a"))
+        draft.title = "  Tile cache  "
+        #expect(draft.change == nil, "whitespace alone isn't an edit")
+        draft.title = "  Tile cache, rebuilt  "
+        guard case .edit(_, let edit)? = draft.change else {
+            Testing.Issue.record("expected an edit")
+            return
+        }
+        #expect(edit.title == "  Tile cache, rebuilt  ", "sent as typed; normalized() trims on write")
+    }
 }
 
 @MainActor

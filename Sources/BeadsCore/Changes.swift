@@ -85,6 +85,38 @@ public enum IssueChange: Equatable, Sendable {
         return true
     }
 
+    /// The issue as it will look once this change lands: the preview a board shows while bd
+    /// catches up. Nil where one issue can't carry it — creates, blocker changes (they touch
+    /// the dependency graph), and a change to some other bead. Dates and bd's own bookkeeping
+    /// are left alone; the read-back after the write brings those.
+    public func applied(to issue: Issue) -> Issue? {
+        guard issueID == issue.id else { return nil }
+        var updated = issue
+        switch self {
+        case .edit(_, let edit):
+            if let title = edit.title { updated.title = title }
+            if let description = edit.description { updated.description = description }
+            if let notes = edit.notes { updated.notes = notes }
+            if let priority = edit.priority { updated.priority = priority }
+            if let type = edit.type { updated.type = type }
+            if let assignee = edit.assignee { updated.assignee = assignee.isEmpty ? nil : assignee }
+            updated.labels = updated.labels.filter { !edit.removedLabels.contains($0) }
+                + edit.addedLabels.subtracting(updated.labels).sorted()
+        case .setStatus(_, _, let to, let reason):
+            updated.status = to
+            if let reason { updated.closeReason = reason }
+        case .setParent(_, _, let to):
+            updated.parentID = to
+        case .setMark(_, let mark, let on):
+            var labels = updated.labels.filter { $0 != mark.label }
+            if on { labels.append(mark.label) }
+            updated.labels = labels
+        case .create, .setBlocker:
+            return nil
+        }
+        return updated
+    }
+
     /// The change that takes this one back, built from the issue as it was before (`base`).
     /// Nil where no safe reverse exists: creating a bead, an edit whose before-state wasn't
     /// kept, and anything whose reverse would close a bead, since bd only accepts a close

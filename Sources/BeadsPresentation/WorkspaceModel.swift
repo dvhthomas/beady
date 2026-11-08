@@ -19,7 +19,9 @@ public final class WorkspaceModel {
     }
 
     public let title: String
-    public private(set) var snapshot: IssueSnapshot?
+    public private(set) var snapshot: IssueSnapshot? {
+        didSet { dataGeneration &+= 1 }
+    }
     public private(set) var loadState: LoadState = .idle
     public private(set) var lastLoaded: Date?
     /// Set when a reload fails while older data is still on screen.
@@ -84,10 +86,10 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    /// The saved views and what is live on top of each, written back on every change: views to
-    /// the Library folder, what's live to preferences.
+    /// The saved views and what is live on top of each, written back on every change — but only
+    /// the parts that changed: a search keystroke touches what's live, never the Library folder.
     private var library = ViewLibrary() {
-        didSet { library.save(to: viewsDirectory, preferences: preferences) }
+        didSet { library.save(changedFrom: oldValue, to: viewsDirectory, preferences: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
@@ -197,6 +199,7 @@ public final class WorkspaceModel {
         do {
             snapshot = try await store.loadSnapshot()
             reapplyDesiredMarks()
+            reapplyOptimisticDrops()
             loadState = .loaded
             lastLoaded = now()
             refreshError = nil
@@ -404,15 +407,56 @@ public final class WorkspaceModel {
 
     // MARK: What the view shows
 
+    /// One body pass reads the filtered list many times over — the subtitle count, the board,
+    /// the split check, the tree — so each derived value below remembers its last answer and
+    /// the inputs it came from. A key carries everything the value derives from (the snapshot
+    /// by generation, the live filter, the ordering…), so a stale entry simply never matches.
+    /// Time-window rules re-evaluate with the next load rather than on every read, which the
+    /// staleness reload bounds at a few minutes.
+    @ObservationIgnored private var dataGeneration = 0
+
+    private struct VisibleKey: Equatable {
+        let generation: Int
+        let filter: ViewFilter
+        let ordering: IssueSort
+    }
+
+    @ObservationIgnored private var visibleCache: (key: VisibleKey, issues: [Issue])?
+    @ObservationIgnored private var treeCache: (key: VisibleKey, tree: [IssueTreeNode])?
+
+    private struct BoardKey: Equatable {
+        let generation: Int
+        let filter: ViewFilter
+        let ordering: IssueSort
+        let grouping: IssueGrouping
+        let canEdit: Bool
+    }
+
+    @ObservationIgnored private var boardGroupsCache: (key: BoardKey, groups: [IssueGroupModel])?
+    @ObservationIgnored private var boardColumnsCache: (key: BoardKey, nests: Bool, columns: [BoardColumnModel])?
+    @ObservationIgnored private var boardSplitCache: (key: BoardKey, split: BoardSplit?)?
+
+    private var visibleKey: VisibleKey {
+        VisibleKey(generation: dataGeneration, filter: filter, ordering: ordering)
+    }
+
+    private var boardKey: BoardKey {
+        BoardKey(generation: dataGeneration, filter: filter, ordering: ordering, grouping: boardGrouping, canEdit: canEdit)
+    }
+
     public var visibleIssues: [Issue] {
         guard let snapshot else { return [] }
+        let key = visibleKey
+        if let cached = visibleCache, cached.key == key { return cached.issues }
         let now = now()
-        let filter = filter
-        return ordering.sorted(
+        let filter = key.filter
+        let issues = ordering.sorted(
             snapshot.issues.filter { filter.matches($0, in: snapshot, now: now) },
             // A pin is a request to see something first, wherever it appears.
             pinnedFirst: true
         )
+        visibleCache = (key, issues)
+        return issues
     }
 
     public var groups: [IssueGroupModel] {
@@ -422,8 +466,11 @@ public final class WorkspaceModel {
     /// Board columns. A board needs columns, so no grouping means lifecycle columns. While editing,
     /// every value a card could be dropped into has a column, even when empty.
     public var boardGroups: [IssueGroupModel] {
-        let grouping = boardGrouping
-        return makeGroups(grouping, including: canEdit ? dropKeys(for: grouping) : [])
+        let key = boardKey
+        if let cached = boardGroupsCache, cached.key == key { return cached.groups }
+        let groups = makeGroups(key.grouping, including: key.canEdit ? dropKeys(for: key.grouping) : [])
+        boardGroupsCache = (key, groups)
+        return groups
     }
 
     /// The board's per-view option: fold sub-tasks into their parent's card. Reads off under
@@ -437,7 +484,12 @@ public final class WorkspaceModel {
     /// What the board actually draws: `boardGroups` with nesting applied.
     public var boardColumns: [BoardColumnModel] {
         guard let snapshot else { return [] }
-        return BoardNesting.columns(from: boardGroups, in: snapshot, nesting: nestsSubtasks)
+        let key = boardKey
+        let nests = nestsSubtasks
+        if let cached = boardColumnsCache, cached.key == key, cached.nests == nests { return cached.columns }
+        let columns = BoardNesting.columns(from: boardGroups, in: snapshot, nesting: nests)
+        boardColumnsCache = (key, nests, columns)
+        return columns
     }
 
     /// Cards expanded to show their folded children. This session's, like `collapsed`, but its
@@ -454,10 +506,18 @@ public final class WorkspaceModel {
     /// cards out, so the board never silently shows one column again.
     public var boardNeedsSplitting: BoardSplit? {
         guard layout == .board, let snapshot else { return nil }
+        let key = boardKey
+        if let cached = boardSplitCache, cached.key == key { return cached.split }
+        let split: BoardSplit?
         let issues = visibleIssues
-        guard issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 else { return nil }
-        let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
-        return BoardSplit(groupings: candidates.filter { $0 != boardGrouping && $0.groups(issues, in: snapshot).count > 1 })
+        if issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 {
+            let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
+            split = BoardSplit(groupings: candidates.filter { $0 != key.grouping && $0.groups(issues, in: snapshot).count > 1 })
+        } else {
+            split = nil
+        }
+        boardSplitCache = (key, split)
+        return split
     }
 
     public struct BoardSplit: Equatable, Sendable {
@@ -467,7 +527,11 @@ public final class WorkspaceModel {
 
     public var tree: [IssueTreeNode] {
         guard let snapshot else { return [] }
-        return IssueTree.build(matches: visibleIssues, in: snapshot)
+        let key = visibleKey
+        if let cached = treeCache, cached.key == key { return cached.tree }
+        let tree = IssueTree.build(matches: visibleIssues, in: snapshot)
+        treeCache = (key, tree)
+        return tree
     }
 
     /// Resolved from the whole snapshot, so following a link to a filtered-out issue still works.
@@ -990,11 +1054,24 @@ public final class WorkspaceModel {
         snapshot?.issue(id)?.has(mark) ?? false
     }
 
+    /// The sidebar badges depend only on the saved filters and the data, so typing in search
+    /// must not recount them: one pass fills every view's total, remembered until the data or
+    /// the saved views change.
+    @ObservationIgnored private var totalsCache: (generation: Int, views: [IssueView], totals: [IssueView.ID: Int])?
+
     /// What a view's own filter matches, for the sidebar badge.
     private func total(in view: IssueView) -> Int {
         guard let snapshot else { return 0 }
+        if let cached = totalsCache, cached.generation == dataGeneration, cached.views == library.views {
+            return cached.totals[view.id] ?? 0
+        }
         let now = now()
-        return snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
+        var totals: [IssueView.ID: Int] = [:]
+        for view in library.views {
+            totals[view.id] = snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
+        }
+        totalsCache = (dataGeneration, library.views, totals)
+        return totals[view.id] ?? 0
     }
 
     // MARK: Focus
@@ -1113,10 +1190,18 @@ public final class WorkspaceModel {
 
     /// Loaded only when asked for: reading a bead's history runs another bd command.
     public private(set) var history: [IssueID: HistoryState] = [:]
+    /// The beads whose history is kept, oldest first, so a long session can't grow it forever.
+    @ObservationIgnored private var historyOrder: [IssueID] = []
+    private static let maxHistoryEntries = 50
 
     public func loadHistory(for id: IssueID, limit: Int = 50) async {
         if case .loading = history[id] { return }
         history[id] = .loading
+        historyOrder.removeAll { $0 == id }
+        historyOrder.append(id)
+        while historyOrder.count > Self.maxHistoryEntries {
+            history[historyOrder.removeFirst()] = nil
+        }
         do {
             let versions = try await store.versions(of: id, limit: limit)
             // The cached activity only covers the last few minutes; history reaches back further,
@@ -1372,7 +1457,10 @@ public final class WorkspaceModel {
     /// staging a change, so a drag can be accepted or refused while the cursor is still moving.
     /// Dropping a card back where it started must snap straight home, not wait on validation.
     public func canDrop(_ id: IssueID, onGroup key: String) -> Bool {
-        guard canEdit, !isWriting, let snapshot, let issue = snapshot.issue(id) else { return false }
+        // A bead whose own drop is still writing can't be dropped again (the retry would race
+        // the write), but every other bead stays droppable while writes queue up behind.
+        guard canEdit, !isWriting, optimisticIssues[id] == nil,
+              let snapshot, let issue = snapshot.issue(id) else { return false }
         switch boardGrouping {
         case .category:
             guard let category = StatusCategory(rawValue: key) else { return false }
@@ -1463,18 +1551,97 @@ public final class WorkspaceModel {
         await write(pending)
     }
 
-    /// Stages the drop and, when there is nothing for the user to decide, writes it at once:
-    /// the drag was the decision, the card's travel and glow are the acknowledgement, and the
-    /// journal entry's Undo is the way back. The confirmation sheet still appears when something
-    /// needs the user — a close or reopen (bd stores a reason), a warning or error from the
-    /// checks, or a write that fails. Returns whether the drop was accepted at all.
+    /// Stages the drop and, when there is nothing for the user to decide, applies it at once:
+    /// the drag was the decision, so the card moves this instant — the snapshot previews the
+    /// change while bd (the best part of a second across several processes) catches up in the
+    /// background, the glow confirms the write landing, and the journal entry's Undo is the way
+    /// back. The confirmation sheet still appears when something needs the user — a close or
+    /// reopen (bd stores a reason), a warning or error from the checks, or a write that fails,
+    /// which also puts the card back. Returns whether the drop was accepted at all.
     @discardableResult
     public func applyDrop(_ id: IssueID, onGroup key: String) async -> Bool {
         guard proposeDrop(id, onGroup: key), let pending = pendingChange else { return false }
         guard !pending.asksForReason, pending.problems.isEmpty else { return true }
         pendingChange = nil
-        await write(pending)
+        guard let seenIn = snapshot, let base = pending.base,
+              let preview = pending.change.applied(to: base) else {
+            // No one-bead preview for this change; the slower, known-good path.
+            await write(pending)
+            return true
+        }
+        optimisticIssues[id] = preview
+        snapshot = seenIn.replacing(preview)
+        selection = id
+        dropQueue.append(QueuedDrop(pending: pending, seenIn: seenIn))
+        await drainDrops()
         return true
+    }
+
+    /// A drop already shown on the board, waiting for its bd write.
+    private struct QueuedDrop {
+        let pending: PendingChange
+        /// The data the change was validated against, before the board showed it early.
+        let seenIn: IssueSnapshot
+    }
+
+    @ObservationIgnored private var dropQueue: [QueuedDrop] = []
+    @ObservationIgnored private var isDrainingDrops = false
+    /// Previews shown ahead of bd, keyed by bead: re-applied after a reload so a refresh landing
+    /// mid-write doesn't snap the card back (`reapplyDesiredMarks` is the same idea for marks),
+    /// and the marker that keeps the bead from being dropped again before its write settles.
+    @ObservationIgnored private var optimisticIssues: [IssueID: Issue] = [:]
+
+    /// Writes queued drops one at a time, never alongside a confirmed change's write. On
+    /// success, only the changed bead is read back — the full reload costs three more bd
+    /// processes and the file watcher covers anything else. On failure the preview is taken
+    /// back, so the card visibly returns, and the sheet says why.
+    private func drainDrops() async {
+        guard !isDrainingDrops else { return }
+        isDrainingDrops = true
+        defer { isDrainingDrops = false }
+        while !dropQueue.isEmpty {
+            while isWriting { try? await Task.sleep(for: .milliseconds(25)) }
+            let drop = dropQueue.removeFirst()
+            let pending = drop.pending
+            guard let id = pending.change.issueID else { continue }
+            noteOwnWrite(id)
+            do {
+                let written = try await ChangeRunner(writer: store).run(pending.change, seenIn: drop.seenIn, base: pending.base)
+                noteOwnWrite(written)
+                optimisticIssues[id] = nil
+                record(pending, issueID: written, error: nil)
+                // The optimistic path lands on the undo stack just as write(_:) does (rule 12).
+                if pending.registersUndo, let reverse = pending.change.reversed(from: pending.base) {
+                    registerUndo(of: UndoStep(summary: pending.summary, undoChange: reverse, redoChange: pending.change))
+                }
+                if let fresh = try? await store.currentIssue(written), let current = snapshot {
+                    snapshot = current.replacing(fresh)
+                    reapplyDesiredMarks()
+                    reapplyOptimisticDrops()
+                }
+                lastAppliedChange = AppliedChange(issueID: written, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
+            } catch {
+                optimisticIssues[id] = nil
+                // Put the card back as bd has it (one cheap read), or as it was before the drop.
+                let truth = (try? await store.currentIssue(id)) ?? pending.base
+                if let truth, let current = snapshot {
+                    snapshot = current.replacing(truth)
+                }
+                record(pending, issueID: id, error: error)
+                if pendingChange == nil {
+                    var failed = pending
+                    failed.failure = error.localizedDescription
+                    pendingChange = failed
+                }
+            }
+        }
+    }
+
+    /// Puts in-flight previews back on top of a freshly loaded snapshot.
+    private func reapplyOptimisticDrops() {
+        guard var updated = snapshot else { return }
+        for issue in optimisticIssues.values { updated = updated.replacing(issue) }
+        snapshot = updated
     }
 
     /// Runs the safe write and settles the outcome: the journal entry (with its Undo where the
@@ -1482,7 +1649,10 @@ public final class WorkspaceModel {
     /// failure keeps the sheet up when it was showing — and raises it when the write had skipped
     /// the sheet, so a drop never fails silently.
     private func write(_ pending: PendingChange) async {
-        guard !isWriting, allowsWriting, let snapshot else { return }
+        guard !isWriting, allowsWriting else { return }
+        // Queued drops write one at a time; a confirmed change waits its turn like any of them.
+        while isDrainingDrops { try? await Task.sleep(for: .milliseconds(25)) }
+        guard let snapshot else { return }
         var pending = pending
         isWriting = true
         noteOwnWrite(pending.change.issueID)

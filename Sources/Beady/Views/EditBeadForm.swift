@@ -265,7 +265,7 @@ struct EditBeadForm: View {
     /// Says what would be written, so Review Changes isn't a leap.
     private var summary: String {
         guard case .edit(_, let edit)? = draft.wrappedValue.change else {
-            return String(localized: "Nothing changed yet. Only the fields you touch are sent.")
+            return String(localized: "Nothing changed yet.")
         }
         var parts: [String] = []
         if edit.title != nil { parts.append(String(localized: "title", comment: "A field, in a list of what an edit will change")) }
@@ -276,7 +276,7 @@ struct EditBeadForm: View {
         if !edit.removedLabels.isEmpty { parts.append("−\(edit.removedLabels.sorted().joined(separator: ", −"))") }
         if edit.description != nil { parts.append(String(localized: "description", comment: "A field, in a list of what an edit will change")) }
         if edit.notes != nil { parts.append(String(localized: "notes", comment: "A field, in a list of what an edit will change")) }
-        return String(localized: "Will change \(parts.joined(separator: ", ")). Nothing is written until you confirm.", comment: "The value is a list of fields, and labels prefixed + or −")
+        return String(localized: "Will change \(parts.joined(separator: ", ")).", comment: "The value is a list of fields, and labels prefixed + or −")
     }
 
     private func field(_ title: LocalizedStringKey, @ViewBuilder content: () -> some View) -> some View {
