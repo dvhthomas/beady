@@ -7326,6 +7326,7 @@
     },
     "This Workspace" : {
       "comment" : "Sidebar section: views kept in the workspace's own .beads folder, shared through git",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

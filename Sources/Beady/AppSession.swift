@@ -193,9 +193,6 @@ final class AppSession {
                 store: store,
                 preferences: preferences,
                 viewsDirectory: viewsDirectory,
-                // The workspace tier: views committed next to the database. Nothing is written
-                // there until a view is moved in.
-                workspaceViewsDirectory: gateway.workspace.beadsDirectory.appendingPathComponent("beady/views", isDirectory: true),
                 journalPolicy: JournalPolicy(
                     turnsOnAutomatically: turnsOnJournal,
                     wasTurnedOffByHand: journalsTurnedOn.contains(path),
