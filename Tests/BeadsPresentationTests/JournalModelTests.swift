@@ -50,6 +50,13 @@ struct JournalPolicyTests {
         ))
     }
 
+    @Test("a workspace is remembered as turned-on once, however often Beady turns it on")
+    func rememberedOnce() {
+        #expect(JournalPolicy.remembering("/a", in: []) == ["/a"])
+        #expect(JournalPolicy.remembering("/b", in: ["/a"]) == ["/a", "/b"])
+        #expect(JournalPolicy.remembering("/a", in: ["/a", "/b"]) == ["/a", "/b"], "no duplicate: one would read as turned-off-by-hand forever")
+    }
+
     @Test("the manual policy never turns it on by itself")
     func manual() {
         #expect(!JournalPolicy.manual.turnsOnAutomatically)

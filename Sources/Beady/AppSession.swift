@@ -233,8 +233,8 @@ final class AppSession {
     }
 
     private func rememberJournalTurnedOn(at path: String) {
-        guard let preferences, !journalsTurnedOn.contains(path) else { return }
-        preferences.set(journalsTurnedOn + [path], forKey: Self.journalsTurnedOnKey)
+        guard let preferences else { return }
+        preferences.set(JournalPolicy.remembering(path, in: journalsTurnedOn), forKey: Self.journalsTurnedOnKey)
     }
 
     /// ⌘P, for a workspace the setting left alone: the same write, listed under Changes with
@@ -481,13 +481,13 @@ final class AppSession {
     }
 
     private func remember(_ path: String) {
-        recentPaths = Array(([path] + recentPaths.filter { $0 != path }).prefix(8))
+        recentPaths = WorkspaceSwitching.remembering(path, in: recentPaths)
         UserDefaults.standard.set(recentPaths, forKey: Self.recentsKey)
         publishRecents()
     }
 
     private func forget(_ path: String) {
-        recentPaths.removeAll { $0 == path }
+        recentPaths = WorkspaceSwitching.forgetting(path, in: recentPaths)
         UserDefaults.standard.set(recentPaths, forKey: Self.recentsKey)
         publishRecents()
     }

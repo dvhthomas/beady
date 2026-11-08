@@ -83,6 +83,16 @@ public enum ListColumn: String, CaseIterable, Identifiable, Sendable {
         return customized ?? isVisibleByDefault
     }
 
+    /// The whole precedence in one place: what the user has dragged wins; otherwise the view
+    /// says which columns it shows (Stuck turns Blocked-by on); a view that doesn't say takes
+    /// the defaults.
+    public func isVisible(customized: Bool?, in presentation: ViewPresentation) -> Bool {
+        if isAlwaysVisible { return true }
+        if let customized { return customized }
+        if let columns = presentation.columns { return columns.contains(id) }
+        return isVisibleByDefault
+    }
+
     /// `nil` lets the column take the space left over; only the title should.
     public var maximumWidth: Double? {
         switch self {

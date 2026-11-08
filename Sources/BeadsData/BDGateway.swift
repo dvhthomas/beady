@@ -114,12 +114,12 @@ public enum BDCommand: Equatable, Sendable {
         case .blocked:
             return Self.readOnly(["blocked", "--json"])
         case .history(let id, let limit):
-            return Self.readOnly(["history", id.rawValue, "--limit", String(limit), "--json"])
+            return Self.readOnly(["history", "--limit", String(limit), "--json", "--", id.rawValue])
         case .backupStatus:
             // Not --readonly: bd rejects that flag here, and reading status writes nothing.
             return ["backup", "status", "--json"]
         case .backupInit(let path):
-            return ["backup", "init", path]
+            return ["backup", "init", "--", path]
         case .backupSync:
             return ["backup", "sync"]
         case .version:
@@ -155,9 +155,9 @@ public enum BDCommand: Equatable, Sendable {
             return ["update", "--remove-label=\(label)", "--json", "--", id.rawValue]
         case .addBlocker(let id, let blocker):
             // bd's own wording: this bead depends on that one.
-            return ["dep", "add", id.rawValue, blocker.rawValue]
+            return ["dep", "add", "--", id.rawValue, blocker.rawValue]
         case .removeBlocker(let id, let blocker):
-            return ["dep", "remove", id.rawValue, blocker.rawValue]
+            return ["dep", "remove", "--", id.rawValue, blocker.rawValue]
         case .close(let id, let reason):
             // --force: bd refuses a plain close when the bead's assignee isn't its actor, and the
             // actor is whatever the environment supplies ($USER under Finder, git user.name in a
@@ -318,9 +318,7 @@ public struct BDGateway: Sendable {
     }
 
     static func shellQuoted(_ argument: String) -> String {
-        let safe = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-")
-        if !argument.isEmpty, argument.allSatisfy(safe.contains) { return argument }
-        return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        ShellQuoting.quoted(argument)
     }
 
     private static func describe(_ url: URL, includeModificationDate: Bool) -> String {

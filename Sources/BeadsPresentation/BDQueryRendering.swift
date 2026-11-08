@@ -21,10 +21,12 @@ public struct BDQuery: Equatable, Sendable {
         self.notes = notes
     }
 
-    /// The line to paste into a terminal: `bd query "…" --sort priority --all  # …`.
+    /// The line to paste into a terminal: `bd query '…' --sort priority --all  # …`. The
+    /// expression is shell-quoted whole: its values come from the workspace database, so
+    /// nothing in it may reach the shell as syntax.
     public var commandLine: String {
         var parts = ["bd query"]
-        if !expression.isEmpty { parts.append("\"\(expression.replacingOccurrences(of: "\"", with: "\\\""))\"") }
+        if !expression.isEmpty { parts.append(ShellQuoting.quoted(expression)) }
         parts.append("--sort \(sort)")
         if includesClosed { parts.append("--all") }
         let command = parts.joined(separator: " ")

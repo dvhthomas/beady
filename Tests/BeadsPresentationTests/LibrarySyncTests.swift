@@ -127,4 +127,39 @@ struct LibrarySyncTests {
         #expect(store.read().tombstones[IssueView.ID("theirs")] == t0.addingTimeInterval(180))
         #expect(files() == ["pipeline.beadyview"])
     }
+
+    @Test("applying a plan writes and deletes only inside the folder, and only records that parse as the view they claim to be")
+    func applyRefusesHostileRecords() throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent("beady-sync-\(UUID().uuidString)", isDirectory: true)
+        let folder = parent.appendingPathComponent("views", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let victim = parent.appendingPathComponent("victim.beadyview")
+        try Data("mine".utf8).write(to: victim)
+        func document(_ name: String, id: String) throws -> Data {
+            try IssueView(id: IssueView.ID(id), name: name, symbol: "bookmark", filter: ViewFilter(), presentation: ViewPresentation()).documentData()
+        }
+
+        var plan = LibrarySync.Plan()
+        // A key that names a path, raw bytes that aren't a view, and a document whose own id
+        // doesn't match its key: none of them may touch the disk.
+        plan.writeLocal[IssueView.ID("../victim")] = LibrarySync.Entry(document: try document("Escape", id: "../victim"), modified: t0)
+        plan.writeLocal[IssueView.ID("garbage")] = LibrarySync.Entry(document: Data("not a view".utf8), modified: t0)
+        plan.writeLocal[IssueView.ID("mismatch")] = LibrarySync.Entry(document: try document("Other", id: "other"), modified: t0)
+        plan.writeLocal[IssueView.ID("good")] = LibrarySync.Entry(document: try document("Good", id: "good"), modified: t0)
+        plan.deleteLocal = [IssueView.ID("../victim")]
+        LibrarySyncFolder.apply(plan, to: folder, store: FakeStore(), now: t0)
+
+        let written = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).sorted()
+        #expect(written == ["good.beadyview"])
+        #expect(FileManager.default.contents(atPath: victim.path) == Data("mine".utf8), "nothing outside the folder was replaced or removed")
+    }
+
+    @Test("a folder file whose content claims an id that couldn't be a file name never enters the store")
+    func readRefusesHostileIDs() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("beady-sync-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let evil = IssueView(id: IssueView.ID("../escape"), name: "Evil", symbol: "bookmark", filter: ViewFilter(), presentation: ViewPresentation())
+        try evil.documentData().write(to: folder.appendingPathComponent("innocent-name.beadyview"))
+        #expect(LibrarySyncFolder.read(folder).entries.isEmpty)
+    }
 }
