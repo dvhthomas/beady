@@ -23,7 +23,11 @@ struct NewDatabaseOffer {
 @MainActor
 @Observable
 final class AppSession {
-    private(set) var model: WorkspaceModel?
+    private(set) var model: WorkspaceModel? {
+        // The window's undo manager holds unretained references into the model; a model being
+        // replaced or closed must take its registrations with it.
+        didSet { if oldValue !== model { oldValue?.detachUndoManager() } }
+    }
     private(set) var workspace: BeadsWorkspace?
     private(set) var openError: String?
     private(set) var recentPaths: [String]

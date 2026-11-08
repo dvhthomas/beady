@@ -7,7 +7,10 @@ public struct PendingChange: Identifiable, Sendable {
     public var change: IssueChange
     /// The issue as the user saw it when they started, for the live conflict check.
     public let base: Issue?
-    public let summary: String
+    public internal(set) var summary: String
+    /// False for an undo or redo being written: its place on the stack is managed by the
+    /// UndoManager itself, so landing must not register a fresh step.
+    var registersUndo = true
     /// The bead being changed, by id and title.
     public let subject: String?
     public let details: [String]
@@ -31,14 +34,24 @@ public struct AppliedChange: Equatable, Sendable {
     public let sequence: Int
 }
 
+/// One step of the session's undo history: a change this session wrote, the change that takes
+/// it back, and the original to apply again. The window's UndoManager owns the stack — ⌘Z walks
+/// it, the Edit menu names each step — and its closures carry the step.
+struct UndoStep: Equatable, Sendable {
+    /// The original change's summary — "Move bdv-1 to In Progress" — which the Edit menu shows
+    /// after "Undo" or "Redo".
+    let summary: String
+    let undoChange: IssueChange
+    let redoChange: IssueChange
+}
+
 /// One entry in the session's change history.
 public struct ChangeRecord: Identifiable, Sendable {
-    /// How to take a change back.
+    /// How to take a change back. Only the writes Beady makes on its own behalf offer one here;
+    /// a bead's change goes onto the window's undo stack instead (⌘Z).
     public enum Undo: Equatable, Sendable {
         /// Writes these settings to the workspace's bd config.
         case journalSettings([ConfigSetting])
-        /// Writes the opposite change to the bead, validated and safe-written like any other.
-        case issueChange(IssueChange)
     }
 
     public let id = UUID()

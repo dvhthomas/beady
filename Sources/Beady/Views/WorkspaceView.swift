@@ -5,6 +5,9 @@ import SwiftUI
 
 struct WorkspaceView: View {
     @Environment(\.theme) private var theme
+    /// The window's undo manager: bead changes register on it, so ⌘Z and the Edit menu work
+    /// the way they do everywhere on the Mac. Nil in offscreen snapshots.
+    @Environment(\.undoManager) private var windowUndoManager
     @Bindable var model: WorkspaceModel
     /// Panels and sheets, shared with the menu bar so both run the same commands.
     let ui: WorkspaceUI
@@ -99,9 +102,14 @@ struct WorkspaceView: View {
             Button("Cancel", role: .cancel) { ui.renamingView = nil }
         }
         .onAppear(perform: restoreStoredView)
+        .onAppear { model.attachUndoManager(windowUndoManager) }
+        // The environment's undo manager can arrive after the first appearance.
+        .onChange(of: windowUndoManager.map(ObjectIdentifier.init)) { model.attachUndoManager(windowUndoManager) }
         .onChange(of: ObjectIdentifier(model)) {
             // A switched workspace arrives as a new model in the same hierarchy (RootView says
-            // why there is no remount), so whatever captured the old model re-arms here.
+            // why there is no remount), so whatever captured the old model re-arms here. The
+            // session detached the old model; the window's undo stack starts over with the new.
+            model.attachUndoManager(windowUndoManager)
             restoreStoredView()
             if let monitor = escapeMonitor.wrappedValue { NSEvent.removeMonitor(monitor) }
             escapeMonitor.wrappedValue = nil
@@ -342,23 +350,14 @@ struct WorkspaceView: View {
                         )
                     }
                     .help(record.message ?? String(localized: "Applied and verified", comment: "Tooltip on a change that landed"))
-                    switch record.undo {
-                    case .journalSettings:
+                    // Bead changes are taken back with ⌘Z, not here: this menu is the history.
+                    if record.undo != nil {
                         Button {
                             undo(record)
                         } label: {
                             Label("Undo: turn the journal back off", systemImage: "arrow.uturn.backward")
                         }
                         .help("Writes the journal settings back to off, in this workspace's bd config")
-                    case .issueChange:
-                        Button {
-                            undo(record)
-                        } label: {
-                            Label("Undo This Change", systemImage: "arrow.uturn.backward")
-                        }
-                        .help("Writes the opposite change back to bd, checked and verified like any other")
-                    case nil:
-                        EmptyView()
                     }
                 }
             } label: {

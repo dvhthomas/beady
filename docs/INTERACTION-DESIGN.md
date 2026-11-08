@@ -53,15 +53,28 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
    nothing needs the user, and show the confirmation sheet only when something does: a reason to
    type (close/reopen), a warning or error from the checks, a conflict found at write time, or a
    failure — a skipped sheet must come back rather than let a write fail silently. Three things
-   make the immediate path safe, and all are required: the change validates clean, the journal
-   entry carries an **Undo** (`IssueChange.reversed(from:)`), and the acknowledgement (rule 1)
-   shows the write landed. `WorkspaceModel.applyDrop` is the worked example.
+   make the immediate path safe, and all are required: the change validates clean, the step lands
+   on the window's undo stack (rule 12), and the acknowledgement (rule 1) shows the write landed.
+   `WorkspaceModel.applyDrop` is the worked example.
 
 10. **Feedback must survive the sheet when it does appear.** The acknowledgement can't ride on
     the gesture (the drop is long over by the confirm). Tie it to the model's applied-change
     record, which fires after write → reload, on both the immediate and the confirmed path.
 
-11. **Progressive disclosure for mechanics.** The sheet leads with what changes in plain words;
+12. **Undo is the system's undo, not a menu of levers.** Every reversible write this session
+    makes registers on the window's `UndoManager` (`WorkspaceModel.registerUndo(of:)`), so taking
+    a change back works the way it does everywhere on the Mac: ⌘Z walks a stack, ⇧⌘Z walks back
+    up it, the Edit menu names each step ("Undo Move bdv-1 to In Progress"), and a focused text
+    field keeps its own typing undo. Never scatter per-item Undo buttons through a list — the
+    Changes menu is history, not a control panel. Two things keep this honest over a *shared*
+    database that cannot be rolled back blind: each invocation is re-validated against that
+    moment's data, and a step that can no longer apply raises the confirmation sheet with the
+    problems spelled out and Apply disabled, so it explains itself instead of writing or dying
+    silently. Registration is optimistic (the manager flips a step to its redo stack before the
+    validated write runs), which is the honest trade: the menu may rarely offer a step that, when
+    chosen, explains why it can't apply — never one that applies something it didn't name.
+
+13. **Progressive disclosure for mechanics.** The sheet leads with what changes in plain words;
     the exact `bd` commands and safe-write caveats live behind a closed disclosure ("How this
     will be written") for whoever wants them. Never delete the mechanics — agents and the
     curious rely on them — but never make a person read them to click Apply.
@@ -71,6 +84,7 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
 - [ ] Does the user see *where* the change landed? (move and/or glow at the destination)
 - [ ] Does a refused action communicate refusal instantly? (no staged work before refusing)
 - [ ] Does it confirm only on risk? (immediate when clean + Undo; sheet for reasons/problems/failures)
+- [ ] Does a reversible write land on the window's undo stack, named for the Edit menu? (never a per-item Undo button)
 - [ ] Is the animation keyed to derived data, so undo/refresh animate the same way?
 - [ ] Is any "what just happened" state in BeadsPresentation with a test?
 - [ ] Is it consumed once, with a sequence so repeats still fire?
