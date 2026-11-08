@@ -94,7 +94,7 @@ struct WaitingMark: View {
             showsDetail.wrappedValue = true
         } label: {
             Image(systemName: "pause.circle")
-                .foregroundStyle(prominence == .increased ? .primary : theme.color(.frozen))
+                .foregroundStyle(prominence == .increased ? SystemSelection.foreground : theme.color(.frozen))
         }
         .buttonStyle(.plain)
         .help(tooltip)
@@ -208,7 +208,7 @@ struct CompletionMeter: View {
         HStack(spacing: 6) {
             ProgressView(value: completion.fraction)
                 .progressViewStyle(.linear)
-                .tint(prominence == .increased ? Color.primary : theme.color(.done))
+                .tint(prominence == .increased ? SystemSelection.foreground : theme.color(.done))
                 .frame(width: 56)
             Text("\(completion.closed)/\(completion.total)")
                 .font(.caption.monospacedDigit())
@@ -278,16 +278,17 @@ struct MarkGlyphs: View {
     }
 
     private func color(for mark: IssueMark) -> Color {
-        guard prominence != .increased else { return .primary }
+        guard prominence != .increased else { return SystemSelection.foreground }
         return mark == .pinned ? theme.pinned : theme.starred
     }
 }
 
 
-/// macOS paints a highlighted row in the colour the user chose, and everything on top of it
-/// should be the single colour the system picked to sit there — white on most accents, dark on
-/// pale ones. `backgroundProminence` is how SwiftUI says "this row is highlighted"; asking the
-/// model which row is selected doesn't work, because table cells aren't re-evaluated for it.
+/// macOS paints a highlighted row with the system accent, and everything on top of it should be
+/// the one colour that reads there — `SystemSelection.foreground`, derived by contrast, rather
+/// than the system's `.primary`, which is white whatever the accent. `backgroundProminence` is
+/// how SwiftUI says "this row is highlighted"; asking the model which row is selected doesn't
+/// work, because table cells aren't re-evaluated for it.
 private struct RowForeground: ViewModifier {
     @Environment(\.backgroundProminence) private var prominence
     let color: Color
@@ -299,7 +300,9 @@ private struct RowForeground: ViewModifier {
 
     private var style: AnyShapeStyle {
         guard prominence == .increased else { return AnyShapeStyle(color) }
-        return secondary ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+        // Secondary content keeps its place in the hierarchy; 0.85 of the colour still reads.
+        let foreground = SystemSelection.foreground
+        return secondary ? AnyShapeStyle(foreground.opacity(0.85)) : AnyShapeStyle(foreground)
     }
 }
 

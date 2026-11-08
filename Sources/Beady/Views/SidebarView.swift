@@ -117,20 +117,7 @@ struct SidebarView: View {
     }
 
     private func row(_ entry: SidebarEntry) -> some View {
-        Label {
-            HStack(spacing: 5) {
-                Text(entry.title)
-                if entry.isModified {
-                    Circle()
-                        .fill(theme.accent)
-                        .frame(width: 6, height: 6)
-                        .help("Unsaved changes")
-                }
-            }
-        } icon: {
-            Image(systemName: entry.symbol)
-        }
-        .badge(entry.count)
+        SidebarRowLabel(entry: entry, isSelected: entry.id == model.viewID)
         .tag(entry.id)
         .help(entry.help)
         .contextMenu {
@@ -173,6 +160,55 @@ struct SidebarView: View {
     private var selection: Binding<IssueView.ID?> {
         Binding(get: { model.viewID }, set: { if let id = $0 { model.viewID = id } })
     }
+}
+
+/// One sidebar row's content. In a key window the selected row is painted with the *system*
+/// accent — any of Apple's eight, nothing any theme colour was chosen against — so that row
+/// draws everything — title, icon, count and the unsaved-changes dot — in the contrast-derived
+/// colour that reads on it (`SystemSelection.foreground`). The count is our own text rather
+/// than `.badge`, because a badge keeps its own secondary colour and goes illegible with the
+/// rest. Selection comes from the model and key-ness from `appearsActive`, because the
+/// sidebar List never raises `backgroundProminence` the way a Table does.
+private struct SidebarRowLabel: View {
+    let entry: SidebarEntry
+    let isSelected: Bool
+    @Environment(\.theme) private var theme
+    @Environment(\.appearsActive) private var appearsActive
+
+    var body: some View {
+        // A prominent row forces its one legible colour; otherwise the row draws as it always
+        // has — inherited text, the sidebar's own icon tinting. (An inactive window's selection
+        // is a quiet grey the theme colours already read on.)
+        if prominent {
+            content.foregroundStyle(SystemSelection.foreground)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
+        HStack(spacing: 5) {
+            Label {
+                Text(entry.title)
+            } icon: {
+                Image(systemName: entry.symbol)
+            }
+            if entry.isModified {
+                Circle()
+                    .fill(prominent ? SystemSelection.foreground : theme.accent)
+                    .frame(width: 6, height: 6)
+                    .help("Unsaved changes")
+            }
+            Spacer(minLength: 8)
+            if entry.count > 0 {
+                Text(entry.count, format: .number)
+                    .monospacedDigit()
+                    .foregroundStyle(prominent ? SystemSelection.foreground.opacity(0.85) : theme.secondaryText)
+            }
+        }
+    }
+
+    private var prominent: Bool { isSelected && appearsActive }
 }
 
 /// The top of the sidebar: which database this is, and a way to another one. Clicking opens

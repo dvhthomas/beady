@@ -339,6 +339,157 @@ enum SnapshotMode {
         exit(0)
     }
 
+    /// `BEADY_VERIFY_CONTRAST=/tmp/shots Beady --workspace <path>` (or `--verify-contrast
+    /// <dir>`, for `open`, which passes arguments and not environment): hosts the app in a real
+    /// key window with the sidebar focused — the selected view row is painted with the accent
+    /// only then — and captures the window once per built-in theme, so "is the selected row
+    /// legible in every theme?" is answerable by eye from one PNG each.
+    static var contrastDirectory: URL? {
+        if let path = ProcessInfo.processInfo.environment["BEADY_VERIFY_CONTRAST"] { return URL(fileURLWithPath: path) }
+        if let index = CommandLine.arguments.firstIndex(of: "--verify-contrast"),
+           CommandLine.arguments.indices.contains(index + 1) {
+            return URL(fileURLWithPath: CommandLine.arguments[index + 1])
+        }
+        return nil
+    }
+
+    static func verifyContrast(to directory: URL) -> Never {
+        let session = AppSession(preferences: nil)
+        guard session.model != nil else { fail(session.openError ?? "no workspace; pass --workspace") }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            fail("can't create \(directory.path): \(error.localizedDescription)")
+        }
+
+        // Real activation is flaky under `open` (another app usually keeps focus), and without a
+        // key window only the grey unemphasized selection — the easy case — gets drawn. So the
+        // emphasized state is forced on both halves: `appearsActive` for the SwiftUI side here,
+        // and `isEmphasized` on the AppKit row views in the loop below.
+        struct Harness: View {
+            let session: AppSession
+            var body: some View {
+                Group {
+                    if let model = session.model {
+                        WorkspaceView(model: model, ui: session.ui, themes: session.themes, run: session.run, persistsPreferences: false)
+                    }
+                }
+                .themed(session.themes)
+                .environment(\.appearsActive, true)
+            }
+        }
+
+        let hosting = NSHostingView(rootView: Harness(session: session))
+        let window = NSWindow(
+            contentRect: CGRect(x: 100, y: 100, width: 1200, height: 800),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        pump(timeout: 60) { session.model?.loadState != .idle && session.model?.loadState != .loading }
+        pump(seconds: 1.0)
+        // The sidebar gets the keyboard, as a click there would leave it. A bead stays selected
+        // in the centre pane too, for the emphasized table selection alongside.
+        session.model?.selection = session.model?.visibleIssues.first?.id
+        if let sidebar = allTables(in: hosting).first(where: { $0.tableColumns.count < 3 }) {
+            window.makeFirstResponder(sidebar)
+        }
+
+        // Besides the PNGs, measure: sample the selected sidebar row's pixels and report the
+        // worst text-on-selection contrast per theme, so legibility is a number, not a squint.
+        let log = directory.appendingPathComponent("log.txt")
+        FileManager.default.createFile(atPath: log.path, contents: nil)
+        func append(_ line: String) {
+            print(line)
+            if let handle = try? FileHandle(forWritingTo: log) {
+                handle.seekToEndOfFile()
+                handle.write(Data((line + "\n").utf8))
+                try? handle.close()
+            }
+        }
+        func hex(_ rgb: RGB) -> String {
+            String(format: "#%02X%02X%02X", Int(rgb.red * 255 + 0.5), Int(rgb.green * 255 + 0.5), Int(rgb.blue * 255 + 0.5))
+        }
+
+        var failures = 0
+        for theme in Theme.all {
+            session.themes.preview(theme)
+            pump(seconds: 0.5)
+            if let sidebar = allTables(in: hosting).first(where: { $0.tableColumns.count < 3 }) {
+                sidebar.enumerateAvailableRowViews { row, _ in row.isEmphasized = true }
+            }
+            pump(seconds: 0.2)
+            let name = theme.name.lowercased().replacingOccurrences(of: " ", with: "-")
+            guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { fail("no bitmap") }
+            hosting.cacheDisplay(in: hosting.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?
+                .write(to: directory.appendingPathComponent("\(name).png"))
+
+            func sample(_ x: CGFloat, _ y: CGFloat) -> RGB? {
+                let px = Int(x * CGFloat(rep.pixelsWide) / hosting.bounds.width)
+                let py = Int(y * CGFloat(rep.pixelsHigh) / hosting.bounds.height)
+                guard let color = rep.colorAt(x: px, y: py)?.usingColorSpace(.sRGB) else { return nil }
+                return RGB(Double(color.redComponent), Double(color.greenComponent), Double(color.blueComponent))
+            }
+
+            var line = "\(name): key=\(window.isKeyWindow)"
+            var resolvedSelection = RGB(0, 0, 0)
+            var resolvedAccent = RGB(0, 0, 0)
+            window.effectiveAppearance.performAsCurrentDrawingAppearance {
+                if let c = NSColor.selectedContentBackgroundColor.usingColorSpace(.sRGB) {
+                    resolvedSelection = RGB(Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent))
+                }
+                if let c = NSColor.controlAccentColor.usingColorSpace(.sRGB) {
+                    resolvedAccent = RGB(Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent))
+                }
+            }
+            line += " selectedContentBackground=\(hex(resolvedSelection)) controlAccent=\(hex(resolvedAccent))"
+            if let sidebar = allTables(in: hosting).first(where: { $0.tableColumns.count < 3 }),
+               sidebar.selectedRow >= 0 {
+                let emphasized = sidebar.rowView(atRow: sidebar.selectedRow, makeIfNecessary: false)?.isEmphasized
+                let rect = sidebar.convert(sidebar.rect(ofRow: sidebar.selectedRow), to: hosting)
+                let midY = hosting.isFlipped ? rect.midY : hosting.bounds.height - rect.midY
+                if let background = sample(rect.midX, midY) {
+                    // The glyphs sit left of centre; the most contrasting pixel in that band is
+                    // the core of a letter, antialiasing notwithstanding.
+                    var text = background
+                    var sampledContrast = 1.0
+                    for x in stride(from: rect.minX + 18, through: rect.minX + 160, by: 1) {
+                        for y in stride(from: midY - 7, through: midY + 7, by: 1) {
+                            if let pixel = sample(x, y), pixel.contrast(with: background) > sampledContrast {
+                                (text, sampledContrast) = (pixel, pixel.contrast(with: background))
+                            }
+                        }
+                    }
+                    // An emphasized pill is translucent accent-glass that offscreen rendering
+                    // composites over a missing backdrop, so the sampled pill is paler than what
+                    // a screen shows; the resolved selection colour is the honest reference
+                    // there. The grey unemphasized pill samples truthfully.
+                    let reference = emphasized == true ? resolvedSelection : background
+                    let contrast = text.contrast(with: reference)
+                    let verdict = contrast >= 4.5 ? "PASS" : "FAIL"
+                    if contrast < 4.5 { failures += 1 }
+                    line += " emphasized=\(emphasized.map(String.init(describing:)) ?? "?")"
+                        + " sampled(selection=\(hex(background)) text=\(hex(text)) contrast=\(String(format: "%.2f", sampledContrast)):1)"
+                        + " vsReference=\(String(format: "%.2f", contrast)):1 \(verdict)"
+                } else {
+                    line += " (couldn't sample)"
+                }
+            } else {
+                line += " (no selected sidebar row)"
+            }
+            append(line)
+        }
+        append(failures == 0 ? "All themes legible on the selected row." : "\(failures) theme(s) FAILED.")
+        window.close()
+        exit(failures == 0 ? 0 : 1)
+    }
+
     static func run(to directory: URL) -> Never {
         NSApplication.shared.setActivationPolicy(.prohibited)
         let session = AppSession(preferences: nil)

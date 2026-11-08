@@ -147,6 +147,28 @@ extension EnvironmentValues {
     }
 }
 
+/// What macOS actually paints an emphasized selection with: the user's *system* accent — any of
+/// Apple's eight, chosen in System Settings — not the theme's accent and not the window's tint.
+/// It's a dynamic colour, so it's resolved at draw time against the app's current appearance,
+/// and the foreground to sit on it is derived by contrast rather than assumed white: the stock
+/// blue wants white, but graphite, yellow or a pale accent wants dark.
+@MainActor
+enum SystemSelection {
+    static var background: RGB {
+        var resolved = RGB(0, 0.4, 1)
+        let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
+        appearance.performAsCurrentDrawingAppearance {
+            if let color = NSColor.selectedContentBackgroundColor.usingColorSpace(.sRGB) {
+                resolved = RGB(color.redComponent, color.greenComponent, color.blueComponent)
+            }
+        }
+        return resolved
+    }
+
+    /// The one colour everything on an emphasized row — text, icons, badges, meters — is drawn in.
+    static var foreground: Color { Color(RGB.legibleForeground(on: background)) }
+}
+
 extension Theme {
     var background: Color { Color(colors.background) }
     var surface: Color { Color(colors.surface) }

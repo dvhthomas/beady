@@ -35,6 +35,17 @@ public struct RGB: Equatable, Sendable {
         let b = other.luminance
         return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
+
+    /// The foreground for content drawn over a colour no theme colour was chosen against — the
+    /// system accent that macOS paints the focused selection with, or the theme's own accent.
+    /// White or black, whichever reads better: the worst background for the better of the two is
+    /// a mid-luminance one, where it still clears WCAG's 4.5:1 (≈4.58:1), so the result is
+    /// legible on anything.
+    public static func legibleForeground(on background: RGB) -> RGB {
+        let white = RGB(1, 1, 1)
+        let black = RGB(0, 0, 0)
+        return white.contrast(with: background) >= black.contrast(with: background) ? white : black
+    }
 }
 
 /// Every colour the app draws, named for what it means rather than what it looks like.
