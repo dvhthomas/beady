@@ -1182,7 +1182,7 @@ public final class WorkspaceModel {
     /// Takes back a change that offered it. Returns the failure, if any, for the caller to show.
     @discardableResult
     public func undo(_ entry: ChangeRecord) async -> String? {
-        guard let undo = entry.undo, let index = activity.firstIndex(where: { $0.id == entry.id }) else { return nil }
+        guard let undo = entry.undo, activity.contains(where: { $0.id == entry.id }) else { return nil }
         switch undo {
         case .journalSettings(let settings):
             do {
@@ -1190,11 +1190,29 @@ public final class WorkspaceModel {
             } catch {
                 return error.localizedDescription
             }
-            activity[index].undo = nil
+            consumeUndo(of: entry)
             record(summary: String(localized: "Turned bd's change journal off in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"))
             await followJournal()
+        case .issueChange(let change):
+            // An undo is a bead change like any other: validated against today's data, written
+            // safely, journalled — and its own entry offers the reverse, so an undo can be undone.
+            guard let pending = makePending(change) else {
+                return String(localized: "This can't be taken back right now.", bundle: .module, comment: "Shown when an Undo is pressed while the workspace can't write")
+            }
+            if let problem = pending.problems.first(where: { $0.severity == .error }) {
+                return problem.message
+            }
+            await write(pending)
+            if activity.first?.succeeded == true { consumeUndo(of: entry) }
         }
         return nil
+    }
+
+    /// Spends an entry's one Undo, once it has been used successfully.
+    private func consumeUndo(of entry: ChangeRecord) {
+        if let index = activity.firstIndex(where: { $0.id == entry.id }) {
+            activity[index].undo = nil
+        }
     }
 
     /// Re-reads the journal's settings after writing them, and starts over from whichever
@@ -1233,7 +1251,14 @@ public final class WorkspaceModel {
     /// - Parameter base: the issue as the user saw it when they started, if earlier than the
     ///   current snapshot (an edit form opened before an auto-refresh, for example).
     public func propose(_ change: IssueChange, basedOn base: Issue? = nil) {
-        guard canEdit, !isWriting, let snapshot else { return }
+        // A refused proposal (mid-write, say) leaves whatever is staged alone.
+        guard let pending = makePending(change, basedOn: base) else { return }
+        pendingChange = pending
+    }
+
+    /// A change with everything needed to judge it: normalized, validated, described.
+    private func makePending(_ change: IssueChange, basedOn base: Issue? = nil) -> PendingChange? {
+        guard canEdit, !isWriting, let snapshot else { return nil }
         let normalized = change.normalized()
         let asksForReason: Bool = if case .setStatus(_, let from, let to, _) = normalized {
             to == "closed" || from == "closed"
@@ -1248,7 +1273,7 @@ public final class WorkspaceModel {
                 message: String(localized: "\(recent.actor) changed \(recent.field ?? String(localized: "this bead", bundle: .module, comment: "Stands in for a field name when bd didn't record one")) \(ChangeDescriber.ago(recent.date, from: now())). Refresh if you're not sure you're looking at the latest.", bundle: .module, comment: "Warning: who changed what, and a relative time such as ‘2 minutes ago’")
             ))
         }
-        pendingChange = PendingChange(
+        return PendingChange(
             change: normalized,
             base: base ?? normalized.issueID.flatMap { snapshot.issue($0) },
             summary: ChangeDescriber.summary(normalized),
@@ -1392,6 +1417,30 @@ public final class WorkspaceModel {
         pending.isApplying = true
         pending.notice = nil
         pendingChange = pending
+        await write(pending)
+    }
+
+    /// Stages the drop and, when there is nothing for the user to decide, writes it at once:
+    /// the drag was the decision, the card's travel and glow are the acknowledgement, and the
+    /// journal entry's Undo is the way back. The confirmation sheet still appears when something
+    /// needs the user — a close or reopen (bd stores a reason), a warning or error from the
+    /// checks, or a write that fails. Returns whether the drop was accepted at all.
+    @discardableResult
+    public func applyDrop(_ id: IssueID, onGroup key: String) async -> Bool {
+        guard proposeDrop(id, onGroup: key), let pending = pendingChange else { return false }
+        guard !pending.asksForReason, pending.problems.isEmpty else { return true }
+        pendingChange = nil
+        await write(pending)
+        return true
+    }
+
+    /// Runs the safe write and settles the outcome: the journal entry (with its Undo where the
+    /// change has a reverse), the reload, the selection and the on-screen acknowledgement. A
+    /// failure keeps the sheet up when it was showing — and raises it when the write had skipped
+    /// the sheet, so a drop never fails silently.
+    private func write(_ pending: PendingChange) async {
+        guard !isWriting, allowsWriting, let snapshot else { return }
+        var pending = pending
         isWriting = true
         noteOwnWrite(pending.change.issueID)
         let outcome: Result<IssueID, Error>
@@ -1413,7 +1462,7 @@ public final class WorkspaceModel {
             lastAppliedChange = AppliedChange(issueID: id, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
         case .failure(let error):
             record(pending, issueID: pending.change.issueID, error: error)
-            if stillShowing {
+            if stillShowing || pendingChange == nil {
                 pending.isApplying = false
                 pending.failure = error.localizedDescription
                 pendingChange = pending
@@ -1431,7 +1480,11 @@ public final class WorkspaceModel {
     }
 
     private func record(_ pending: PendingChange, issueID: IssueID?, error: Error?) {
-        record(summary: pending.summary, issueID: issueID, error: error)
+        // A change that landed offers its reverse; one that failed changed nothing to take back.
+        let undo: ChangeRecord.Undo? = error == nil
+            ? pending.change.reversed(from: pending.base).map { .issueChange($0) }
+            : nil
+        record(summary: pending.summary, issueID: issueID, error: error, undo: undo)
     }
 
     private func record(summary: String, issueID: IssueID? = nil, error: Error? = nil, undo: ChangeRecord.Undo? = nil) {

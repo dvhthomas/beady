@@ -309,6 +309,99 @@ struct EditingTests {
         #expect(model.pendingChange == nil)
     }
 
+    @Test("a clean drop writes at once, with no sheet and an Undo in the journal")
+    func cleanDropAppliesImmediately() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+
+        #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
+        #expect(store.applied == [.setStatus("epic.1", from: "open", to: "blocked", reason: nil)])
+        #expect(model.pendingChange == nil, "nothing to decide, so no sheet")
+        #expect(model.lastAppliedChange?.issueID == "epic.1")
+        let entry = try #require(model.activity.first)
+        #expect(entry.succeeded)
+        #expect(entry.undo == .issueChange(.setStatus("epic.1", from: "blocked", to: "open", reason: nil)))
+    }
+
+    @Test("a drop into Done still asks: bd stores a close reason")
+    func dropIntoDoneKeepsTheSheet() async {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .category
+
+        #expect(await model.applyDrop("epic.1.1", onGroup: StatusCategory.done.rawValue))
+        #expect(model.pendingChange != nil)
+        #expect(model.pendingChange?.asksForReason == true)
+        #expect(store.applied.isEmpty, "nothing written until the reason is given and confirmed")
+    }
+
+    @Test("a drop with a warning keeps the sheet, so the warning is read before the write")
+    func dropWithWarningKeepsTheSheet() async {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        model.noteActivity(ActivityLog(entries: [
+            ActivityEntry(issueID: "epic.1", actor: "agent-7", date: t0 - 60, field: "status"),
+        ]))
+
+        #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
+        #expect(model.pendingChange != nil)
+        #expect(store.applied.isEmpty)
+    }
+
+    @Test("a clean drop that fails raises the sheet, so the drop never fails silently")
+    func failedDropRaisesTheSheet() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        store.failure = CocoaError(.fileWriteNoPermission)
+
+        #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
+        let pending = try #require(model.pendingChange)
+        #expect(pending.failure != nil)
+        let entry = try #require(model.activity.first)
+        #expect(!entry.succeeded)
+        #expect(entry.undo == nil, "a failed write changed nothing to take back")
+    }
+
+    @Test("Undo writes the opposite change, is spent once used, and can itself be undone")
+    func undoReversesTheChange() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
+        let entry = try #require(model.activity.first)
+
+        let failure = await model.undo(entry)
+        #expect(failure == nil)
+        #expect(store.applied.last == .setStatus("epic.1", from: "blocked", to: "open", reason: nil))
+        #expect(model.activity.first(where: { $0.id == entry.id })?.undo == nil, "an Undo is spent once used")
+        let redo = try #require(model.activity.first)
+        #expect(redo.undo == .issueChange(.setStatus("epic.1", from: "open", to: "blocked", reason: nil)))
+    }
+
+    @Test("undoing a close reopens; the reopen offers no Undo of its own")
+    func undoOfACloseIsAReopen() async throws {
+        let (model, store) = await makeModel()
+        model.proposeStatusMove("epic.1.1", to: .done)
+        model.pendingReason = "shipped"
+        await model.confirmPendingChange()
+        let close = try #require(model.activity.first)
+        #expect(close.undo == .issueChange(.setStatus("epic.1.1", from: "closed", to: "open", reason: nil)))
+
+        let failure = await model.undo(close)
+        #expect(failure == nil)
+        #expect(store.applied.last == .setStatus("epic.1.1", from: "closed", to: "open", reason: nil))
+        let reopen = try #require(model.activity.first)
+        #expect(reopen.undo == nil, "re-closing would need a fresh reason, so no Undo is offered")
+    }
+
     @Test("dropping a card on its own column proposes nothing")
     func dropOnSameColumn() async {
         let (model, _) = await makeModel()

@@ -48,14 +48,29 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
    - Panes and reveals (inspector, graph focus): `.smooth(duration: 0.25)` – `.easeInOut(0.35)`
    - Acknowledgement glow: appear with the landing, hold ~0.5s, fade `.easeOut(duration: 0.9)`
 
-9. **Feedback must survive the confirmation sheet.** Beady stages changes and confirms them in
-   a sheet, so the acknowledgement can't ride on the gesture (the drop is long over). Tie it to
-   the model's applied-change record, which fires after confirm → write → reload.
+9. **Confirm on risk, never on everything.** A direct-manipulation gesture (a drag, a toggle) is
+   already the decision; a modal that restates it is confirmation theater. Apply immediately when
+   nothing needs the user, and show the confirmation sheet only when something does: a reason to
+   type (close/reopen), a warning or error from the checks, a conflict found at write time, or a
+   failure — a skipped sheet must come back rather than let a write fail silently. Three things
+   make the immediate path safe, and all are required: the change validates clean, the journal
+   entry carries an **Undo** (`IssueChange.reversed(from:)`), and the acknowledgement (rule 1)
+   shows the write landed. `WorkspaceModel.applyDrop` is the worked example.
+
+10. **Feedback must survive the sheet when it does appear.** The acknowledgement can't ride on
+    the gesture (the drop is long over by the confirm). Tie it to the model's applied-change
+    record, which fires after write → reload, on both the immediate and the confirmed path.
+
+11. **Progressive disclosure for mechanics.** The sheet leads with what changes in plain words;
+    the exact `bd` commands and safe-write caveats live behind a closed disclosure ("How this
+    will be written") for whoever wants them. Never delete the mechanics — agents and the
+    curious rely on them — but never make a person read them to click Apply.
 
 ## Checklist for a new interaction
 
 - [ ] Does the user see *where* the change landed? (move and/or glow at the destination)
 - [ ] Does a refused action communicate refusal instantly? (no staged work before refusing)
+- [ ] Does it confirm only on risk? (immediate when clean + Undo; sheet for reasons/problems/failures)
 - [ ] Is the animation keyed to derived data, so undo/refresh animate the same way?
 - [ ] Is any "what just happened" state in BeadsPresentation with a test?
 - [ ] Is it consumed once, with a sequence so repeats still fire?

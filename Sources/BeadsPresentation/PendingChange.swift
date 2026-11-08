@@ -33,11 +33,12 @@ public struct AppliedChange: Equatable, Sendable {
 
 /// One entry in the session's change history.
 public struct ChangeRecord: Identifiable, Sendable {
-    /// How to take a change back. Only the writes Beady makes on its own behalf offer one:
-    /// a bead's change is confirmed first and reversed by another change.
+    /// How to take a change back.
     public enum Undo: Equatable, Sendable {
         /// Writes these settings to the workspace's bd config.
         case journalSettings([ConfigSetting])
+        /// Writes the opposite change to the bead, validated and safe-written like any other.
+        case issueChange(IssueChange)
     }
 
     public let id = UUID()

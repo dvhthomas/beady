@@ -296,7 +296,8 @@ private struct TreeIssueRow: View {
 // MARK: Board
 
 /// Columns follow the view's grouping (lifecycle when ungrouped). While editing, dropping a card
-/// on a column proposes that column's value, where the grouping allows it.
+/// on a column gives it that column's value, where the grouping allows it — written at once when
+/// clean, through the confirmation sheet when anything needs the user.
 struct IssueBoardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: WorkspaceModel
@@ -424,14 +425,15 @@ private struct BoardColumnView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(theme.accent, lineWidth: isDropTarget.wrappedValue ? 2 : 0)
         )
-        // Only proposes; the confirmation sheet has the final say.
+        // A clean drop writes at once, with Undo in the Changes menu as the way back; the
+        // confirmation sheet appears only when something needs the user (a reason, a problem).
         .dropDestination(for: String.self) { items, _ in
             guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: column.key) else {
                 // Nothing to do: refuse at once so the card animates home without a pause.
                 return false
             }
             // Staging the change is work; let the drag finish its animation first.
-            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: column.key) }
+            Task { @MainActor in await model.applyDrop(dragged, onGroup: column.key) }
             return true
         } isTargeted: { targeted in
             isDropTarget.wrappedValue = targeted && model.canEdit
