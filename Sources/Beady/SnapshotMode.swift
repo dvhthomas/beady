@@ -426,6 +426,13 @@ enum SnapshotMode {
         model.reset()
         model.viewID = .pipeline
         captureWorkspace("21-pipeline-board")
+        // The same board with sub-tasks folded into their parents' cards, the biggest one open.
+        model.nestsSubtasks = true
+        if let parent = model.boardColumns.flatMap(\.cards).max(by: { $0.children.count < $1.children.count }), !parent.children.isEmpty {
+            model.toggleBoardCard(parent.id)
+        }
+        captureWorkspace("25-pipeline-board-nested")
+        model.nestsSubtasks = false
         // On a workspace whose live beads sit in one lifecycle column, 21 is a list; asking for
         // the board anyway shows what there is to split.
         model.chooseLayout(.board)
@@ -544,6 +551,8 @@ enum SnapshotMode {
         // future, so bold upstream and tinted downstream both show.
         let graph = DependencyGraph(snapshot)
         session.ui.graphFocus = nil
+        // Whole means whole: the graph follows the view by default now.
+        session.ui.graphFollowsView = false
         capture("17-graph-whole", DependencyGraphView(model: model, ui: session.ui))
         if let middle = graph.nodes.max(by: {
             min(graph.upstream(of: $0.id).count, graph.downstream(of: $0.id).count)

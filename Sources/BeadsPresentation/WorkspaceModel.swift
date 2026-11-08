@@ -436,6 +436,28 @@ public final class WorkspaceModel {
         return makeGroups(grouping, including: canEdit ? dropKeys(for: grouping) : [])
     }
 
+    /// The board's per-view option: fold sub-tasks into their parent's card. Reads off under
+    /// parent grouping, where the columns are the parents already.
+    public var nestsSubtasks: Bool {
+        get { boardGrouping != .parent && (state.presentation.nestsSubtasks ?? false) }
+        // Nil rather than false keeps the field out of files that never turned it on.
+        set { present { $0.nestsSubtasks = newValue ? true : nil } }
+    }
+
+    /// What the board actually draws: `boardGroups` with nesting applied.
+    public var boardColumns: [BoardColumnModel] {
+        guard let snapshot else { return [] }
+        return BoardNesting.columns(from: boardGroups, in: snapshot, nesting: nestsSubtasks)
+    }
+
+    /// Cards expanded to show their folded children. This session's, like `collapsed`, but its
+    /// own set: the tree starts expanded, cards start collapsed.
+    public private(set) var boardExpanded: Set<IssueID> = []
+
+    public func toggleBoardCard(_ id: IssueID) {
+        if !boardExpanded.insert(id).inserted { boardExpanded.remove(id) }
+    }
+
     /// What would split a board that has collapsed to one column. Nil when the board already has
     /// more than one column with cards in it, when this isn't a board, or when there is nothing
     /// to split (one card or none). Groupings are offered only if they would actually spread the
@@ -671,29 +693,41 @@ public final class WorkspaceModel {
     /// this — otherwise the arrows wander off into the sidebar.
     public func moveSelection(_ direction: MoveDirection) {
         guard layout == .board else { return }
-        let columns = boardGroups.filter { !$0.issues.isEmpty }
+        let columns = boardColumns.filter { !$0.cards.isEmpty }
         guard !columns.isEmpty else { return }
+        // Each column flattened to what can be landed on: cards, and the children of expanded
+        // cards, in drawn order.
+        let rows = columns.map { BoardNesting.selectableIDs(in: $0, expanded: boardExpanded) }
 
-        guard let selection,
-              let column = columns.firstIndex(where: { $0.issues.contains { $0.id == selection } }),
-              let row = columns[column].issues.firstIndex(where: { $0.id == selection })
-        else {
+        // Where an id stands. A selected child inside a collapsed card stands where its card
+        // does, so the arrows always have somewhere to start from.
+        func place(of id: IssueID) -> (column: Int, row: Int)? {
+            for (column, ids) in rows.enumerated() {
+                if let row = ids.firstIndex(of: id) { return (column, row) }
+            }
+            for (column, list) in columns.enumerated() {
+                if let card = list.cards.first(where: { $0.children.contains { $0.id == id } }),
+                   let row = rows[column].firstIndex(of: card.id) { return (column, row) }
+            }
+            return nil
+        }
+
+        guard let selection, let (column, row) = place(of: selection) else {
             // Nothing selected yet: start at the top of the first column with anything in it.
-            self.selection = columns[0].issues.first?.id
+            self.selection = rows.first?.first
             return
         }
 
         switch direction {
         case .up:
-            self.selection = columns[column].issues[max(row - 1, 0)].id
+            self.selection = rows[column][max(row - 1, 0)]
         case .down:
-            self.selection = columns[column].issues[min(row + 1, columns[column].issues.count - 1)].id
+            self.selection = rows[column][min(row + 1, rows[column].count - 1)]
         case .left, .right:
             let next = direction == .left ? column - 1 : column + 1
-            guard columns.indices.contains(next) else { return }
-            // Keep your place down the column, or land on the last card of a shorter one.
-            let issues = columns[next].issues
-            self.selection = issues[min(row, issues.count - 1)].id
+            guard rows.indices.contains(next) else { return }
+            // Keep your place down the column, or land on the last row of a shorter one.
+            self.selection = rows[next][min(row, rows[next].count - 1)]
         }
     }
 
