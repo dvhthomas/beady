@@ -89,4 +89,6 @@ _Add a brief overview of your project architecture_
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **Interaction design**: any change that moves or acknowledges something on screen follows
+  [docs/INTERACTION-DESIGN.md](docs/INTERACTION-DESIGN.md) — read it before adding or touching
+  animations, drag-and-drop, or any visual feedback for a user action.

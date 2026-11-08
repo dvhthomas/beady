@@ -2,12 +2,22 @@ import BeadsCore
 import BeadsPresentation
 import SwiftUI
 
-/// Shown before any write: what changes, problems, the exact bd commands, and the outcome.
+/// Shown before a write that needs the user — a reason to give, a problem to read, a failure to
+/// understand. What changes stays front and centre; the exact bd commands and the safe-write
+/// mechanics sit behind a closed disclosure for whoever wants them.
 struct ChangeConfirmationView: View {
     @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
     let pending: PendingChange
     let onCancel: () -> Void
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var showsMechanics = State(initialValue: false)
+
+    init(model: WorkspaceModel, pending: PendingChange, onCancel: @escaping () -> Void) {
+        self.model = model
+        self.pending = pending
+        self.onCancel = onCancel
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -47,19 +57,27 @@ struct ChangeConfirmationView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            box("bd will run", comment: "Heading on the confirmation sheet: the exact bd commands") {
-                ForEach(Array(model.pendingCommands.enumerated()), id: \.offset) { _, command in
-                    Text(command)
-                        .font(.callout.monospaced())
-                        .textSelection(.enabled)
+            DisclosureGroup(isExpanded: showsMechanics.projectedValue) {
+                VStack(alignment: .leading, spacing: 8) {
+                    box("bd will run", comment: "Heading on the confirmation sheet: the exact bd commands") {
+                        ForEach(Array(model.pendingCommands.enumerated()), id: \.offset) { _, command in
+                            Text(command)
+                                .font(.callout.monospaced())
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Text("Right before writing, the bead is read again from bd, and nothing is written if a field you're changing has moved since you started. bd has no atomic check-and-write, so another session writing in that same instant can't be stopped; the read-back afterwards reports anything unexpected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.top, 6)
+            } label: {
+                Text("How this will be written", comment: "Disclosure on the confirmation sheet hiding the bd commands and safe-write details")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-
-            Text("Right before writing, the bead is read again from bd, and nothing is written if a field you're changing has moved since you started. bd has no atomic check-and-write, so another session writing in that same instant can't be stopped; the read-back afterwards reports anything unexpected.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             if let notice = pending.notice {
                 Label(notice, systemImage: "arrow.triangle.2.circlepath")
