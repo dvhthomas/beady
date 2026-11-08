@@ -85,37 +85,41 @@ defaults read /Applications/Beady.app/Contents/Info.plist CFBundleShortVersionSt
 The Open Anyway approval from the first install carries across upgrades, so the new build opens
 without another trip to System Settings.
 
-## Making it stick: protection and auto-merge
+## Merging itself: the Merge-when-green workflow
 
-The checks only bind if master requires them, and patch releases only merge themselves once
-three pieces are in place. All three hang off one secret.
+Patch pull requests merge themselves. The Merge-when-green workflow
+([.github/workflows/merge-when-green.yml](.github/workflows/merge-when-green.yml)) runs when
+CI or the Release size check finishes (and when labels change): if both checks passed on the
+head commit and the pull request carries no `release:minor` or `release:major` label and is
+not a draft, it merges, deletes the branch, and dispatches the Version workflow — a merge
+made by `GITHUB_TOKEN` starts no workflows on its own, which is why the dispatch is explicit.
+It needs **no secret, no branch protection, and no repository setting**; it ships in the repo
+and works as soon as it is on master.
 
-1. **The `VERSION_PUSH_TOKEN` secret.** A fine-grained personal access token of the repository
-   owner, scoped to this repository with **Contents: read and write** and **Pull requests:
-   read and write**, stored as a repository secret. Two workflows read it: Version pushes the
-   bump commit and tag with it (an admin's token passes branch protection while "include
-   administrators" is off, and its pushes *do* start workflows, so the tag push starts Release
-   by itself — the loop guard in version.yml is what prevents a cycle), and Auto-merge enables
-   auto-merge with it (a merge made by `GITHUB_TOKEN` would start no Version run).
-   Create it at github.com/settings/personal-access-tokens, then:
+A `release:minor` or `release:major` label makes the workflow stand aside, so those always
+wait for a human to label and merge. Agents are forbidden from applying minor/major labels
+(CLAUDE.md, enforced by a hook) and open a pull request that deserves one as a **draft**,
+which the workflow also skips — so a bigger release never slips through as a patch while you
+read the recommendation. Label it, mark it ready, and merge; or disagree, mark it ready
+unlabeled, and it ships as a patch.
 
-   ```bash
-   gh secret set VERSION_PUSH_TOKEN --repo dvhthomas/beady
-   ```
+### Optional hardening: branch protection
 
-2. **Branch protection on master** requiring the `Tests` (CI workflow) and `check` (Release
-   size) status checks, with enforce_admins off so the Version push passes. Without the secret
-   in place first, the next merge's Version push would be blocked — add the secret, then
-   protect.
+Master is otherwise unprotected: nothing stops an accidental direct push (which releases as a
+patch). To also close that, protect master requiring the `Tests` and `check` status checks
+with enforce_admins off — **but** protection blocks the Version workflow's own push, which
+uses `GITHUB_TOKEN`. So protection needs the `VERSION_PUSH_TOKEN` secret first: a fine-grained
+personal access token of the repository owner, scoped to this repository with **Contents:
+read and write** (an admin's token passes protection while "include administrators" is off,
+and its pushes *do* start workflows — the loop guard in version.yml prevents a cycle).
 
-3. **Allow auto-merge** in the repository settings
-   (`gh api -X PATCH repos/dvhthomas/beady -f allow_auto_merge=true`).
+```bash
+gh secret set VERSION_PUSH_TOKEN --repo dvhthomas/beady   # the PAT, then
+# protect master requiring Tests + check, enforce_admins off
+```
 
-With all three live: a pull request with no `release:*` label (or `release:patch` /
-`release:none`) merges itself when the checks go green and releases automatically; a
-`release:minor` or `release:major` label switches auto-merge off, so those always wait for a
-human to label and merge. Agents are forbidden from applying minor/major labels (CLAUDE.md,
-enforced by a hook), which keeps that decision human.
+Without protection the secret is unnecessary; version.yml falls back to `GITHUB_TOKEN` and
+dispatches Release by hand.
 
 ## Signing for real, and iCloud sync
 

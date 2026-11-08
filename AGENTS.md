@@ -62,9 +62,10 @@ Add it with `gh pr create --label release:minor` or `gh pr edit <number> --add-l
 Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
 [RELEASE.md](RELEASE.md).
 
-**Agents never apply `release:minor` or `release:major`** — recommend the size in the PR body
-and ask the user to add the label. Unlabeled and patch PRs auto-merge when CI is green;
-minor/major PRs wait for a human to label and merge them.
+**Agents never apply `release:minor` or `release:major`** — open the PR as a **draft**,
+recommend the size in the PR body, and ask the user to label it, mark it ready and merge.
+Unlabeled and patch PRs merge themselves when CI is green (the Merge-when-green workflow);
+minor/major and draft PRs wait for a human.
 
 ## Claude session authority (Team-maintainer opt-in)
 

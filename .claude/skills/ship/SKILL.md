@@ -26,10 +26,12 @@ unlabeled, which the Version workflow reads as a patch. You never apply `release
      "Release size: patch (the default — no label)" in the PR body.
    - **Repo-only change nobody needs shipped** (CI, agent config, README typo):
      `gh pr create --label release:none`.
-   - **New feature or visible behaviour change**: still ship unlabeled, write
-     "Release size: I recommend `release:minor` because ..." in the PR body, and ask the
-     user to run `gh pr edit <n> --add-label release:minor`. Same pattern for `major`.
-     Never add those labels yourself; the hook enforces this.
+   - **New feature or visible behaviour change**: ship as a **draft** (`gh pr create --draft`),
+     write "Release size: I recommend `release:minor` because ..." in the PR body, and ask the
+     user to label it (`gh pr edit <n> --add-label release:minor`), mark it ready, and merge.
+     Same pattern for `major`. Never add those labels yourself; the hook enforces this. The
+     draft matters: Merge-when-green skips drafts, so the PR cannot ship as a patch while the
+     user reads the recommendation.
 
 5. **PR.** `gh pr create` with a body covering: what changed and why, test evidence, bead
    ids, and the release size line. End the body with the standard attribution line.
@@ -37,6 +39,6 @@ unlabeled, which the Version workflow reads as a patch. You never apply `release
 6. **Bind.** In the Claude desktop app, bind the PR (ccd_pr `get_status`, then `bind_pr` if
    it is not reported) so Auto-fix handles CI failures, merge conflicts and review comments.
 
-7. **Report.** Unlabeled and patch PRs auto-merge once the required checks pass (when branch
-   protection and the `VERSION_PUSH_TOKEN` secret are live) and the merge releases itself —
-   tell the user whether this PR will self-merge or waits on their label and merge.
+7. **Report.** Unlabeled, patch and `release:none` PRs merge themselves once CI and the
+   Release size check pass (the Merge-when-green workflow), and the merge releases itself —
+   tell the user whether this PR will self-merge or waits on their label, ready-up and merge.

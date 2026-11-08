@@ -1,0 +1,89 @@
+# Merges a pull request by itself once everything is green: the Tests check
+# (CI) and the Release size check (check) both passed on its head commit, and
+# no release:minor / release:major label asks for a human. Patch releases are
+# the norm and need nobody; minor and major are a human decision, so a PR
+# carrying one of those labels is left for a person to merge. Drafts are left
+# alone too — a PR recommending a bigger size opens as a draft.
+#
+# GitHub's native auto-merge needs branch protection; this replaces it so
+# master can stay unprotected and no personal access token is needed. The
+# merge is made with GITHUB_TOKEN, whose pushes start no workflows, so the
+# Version workflow (which releases) is dispatched explicitly after the merge.
+#
+# The workflow_run events fire from this file on master; the pull_request
+# events (labels changing, a draft marked ready) run the PR branch's copy.
+name: Merge when green
+
+on:
+  workflow_run:
+    workflows: [CI, Release size]
+    types: [completed]
+  pull_request:
+    types: [labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: write # merge the pull request, delete its branch
+  pull-requests: write # merge via the PR API
+  actions: write # dispatch the Version workflow
+  checks: read # read the check runs on the head commit
+
+# CI finishing and Release size finishing both evaluate the same PR; queue
+# them so the second sees the first's merge instead of racing it.
+concurrency:
+  group: merge-when-green-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge if the checks passed and no label asks for a human
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            pr=$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")
+          else
+            sha=$(jq -r '.workflow_run.head_sha' "$GITHUB_EVENT_PATH")
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
+                   --jq '[.[] | select(.state == "open")][0].number // empty')
+          fi
+          if [ -z "$pr" ]; then
+            echo "No open pull request for this run; nothing to do."
+            exit 0
+          fi
+
+          info=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" \
+                   --json state,isDraft,baseRefName,headRefOid,labels,headRepositoryOwner)
+          state=$(jq -r '.state' <<<"$info")
+          draft=$(jq -r '.isDraft' <<<"$info")
+          base=$(jq -r '.baseRefName' <<<"$info")
+          sha=$(jq -r '.headRefOid' <<<"$info")
+          head_owner=$(jq -r '.headRepositoryOwner.login' <<<"$info")
+
+          if [ "$state" != "OPEN" ] || [ "$draft" = "true" ] || [ "$base" != "master" ] \
+             || [ "$head_owner" != "${GITHUB_REPOSITORY%%/*}" ]; then
+            echo "#$pr: state=$state draft=$draft base=$base head owner=$head_owner; not mine to merge."
+            exit 0
+          fi
+          if jq -r '.labels[].name' <<<"$info" | grep -qxE 'release:(minor|major)'; then
+            echo "#$pr is labeled release:minor/major; a human merges it." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          for name in Tests check; do
+            conclusion=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/check-runs?check_name=$name" \
+                           --jq '.check_runs[0].conclusion // "missing"')
+            if [ "$conclusion" != "success" ]; then
+              echo "#$pr: $name is $conclusion; waiting for green."
+              exit 0
+            fi
+          done
+
+          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --merge --delete-branch
+          echo "Merged #$pr; branch deleted." >> "$GITHUB_STEP_SUMMARY"
+
+          # A GITHUB_TOKEN merge starts no workflows, so start the release by
+          # hand. Version's own guard makes a duplicate dispatch harmless.
+          gh workflow run version.yml --repo "$GITHUB_REPOSITORY" --ref master
+          echo "Version workflow dispatched; the release follows." >> "$GITHUB_STEP_SUMMARY"

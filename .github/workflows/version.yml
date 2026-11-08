@@ -17,6 +17,9 @@ name: Version
 on:
   push:
     branches: [master]
+  # The Merge-when-green workflow merges with GITHUB_TOKEN, whose push starts
+  # no workflows, so it dispatches this one explicitly after merging.
+  workflow_dispatch:
 
 permissions:
   contents: write # push the VERSION commit and the tag
