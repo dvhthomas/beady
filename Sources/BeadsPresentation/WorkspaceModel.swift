@@ -211,6 +211,7 @@ public final class WorkspaceModel {
         do {
             snapshot = try await store.loadSnapshot()
             reapplyDesiredMarks()
+            reapplyOptimisticDrops()
             loadState = .loaded
             lastLoaded = now()
             refreshError = nil
@@ -1329,7 +1330,10 @@ public final class WorkspaceModel {
     /// staging a change, so a drag can be accepted or refused while the cursor is still moving.
     /// Dropping a card back where it started must snap straight home, not wait on validation.
     public func canDrop(_ id: IssueID, onGroup key: String) -> Bool {
-        guard canEdit, !isWriting, let snapshot, let issue = snapshot.issue(id) else { return false }
+        // A bead whose own drop is still writing can't be dropped again (the retry would race
+        // the write), but every other bead stays droppable while writes queue up behind.
+        guard canEdit, !isWriting, optimisticIssues[id] == nil,
+              let snapshot, let issue = snapshot.issue(id) else { return false }
         switch boardGrouping {
         case .category:
             guard let category = StatusCategory(rawValue: key) else { return false }
@@ -1420,18 +1424,93 @@ public final class WorkspaceModel {
         await write(pending)
     }
 
-    /// Stages the drop and, when there is nothing for the user to decide, writes it at once:
-    /// the drag was the decision, the card's travel and glow are the acknowledgement, and the
-    /// journal entry's Undo is the way back. The confirmation sheet still appears when something
-    /// needs the user — a close or reopen (bd stores a reason), a warning or error from the
-    /// checks, or a write that fails. Returns whether the drop was accepted at all.
+    /// Stages the drop and, when there is nothing for the user to decide, applies it at once:
+    /// the drag was the decision, so the card moves this instant — the snapshot previews the
+    /// change while bd (the best part of a second across several processes) catches up in the
+    /// background, the glow confirms the write landing, and the journal entry's Undo is the way
+    /// back. The confirmation sheet still appears when something needs the user — a close or
+    /// reopen (bd stores a reason), a warning or error from the checks, or a write that fails,
+    /// which also puts the card back. Returns whether the drop was accepted at all.
     @discardableResult
     public func applyDrop(_ id: IssueID, onGroup key: String) async -> Bool {
         guard proposeDrop(id, onGroup: key), let pending = pendingChange else { return false }
         guard !pending.asksForReason, pending.problems.isEmpty else { return true }
         pendingChange = nil
-        await write(pending)
+        guard let seenIn = snapshot, let base = pending.base,
+              let preview = pending.change.applied(to: base) else {
+            // No one-bead preview for this change; the slower, known-good path.
+            await write(pending)
+            return true
+        }
+        optimisticIssues[id] = preview
+        snapshot = seenIn.replacing(preview)
+        selection = id
+        dropQueue.append(QueuedDrop(pending: pending, seenIn: seenIn))
+        await drainDrops()
         return true
+    }
+
+    /// A drop already shown on the board, waiting for its bd write.
+    private struct QueuedDrop {
+        let pending: PendingChange
+        /// The data the change was validated against, before the board showed it early.
+        let seenIn: IssueSnapshot
+    }
+
+    @ObservationIgnored private var dropQueue: [QueuedDrop] = []
+    @ObservationIgnored private var isDrainingDrops = false
+    /// Previews shown ahead of bd, keyed by bead: re-applied after a reload so a refresh landing
+    /// mid-write doesn't snap the card back (`reapplyDesiredMarks` is the same idea for marks),
+    /// and the marker that keeps the bead from being dropped again before its write settles.
+    @ObservationIgnored private var optimisticIssues: [IssueID: Issue] = [:]
+
+    /// Writes queued drops one at a time, never alongside a confirmed change's write. On
+    /// success, only the changed bead is read back — the full reload costs three more bd
+    /// processes and the file watcher covers anything else. On failure the preview is taken
+    /// back, so the card visibly returns, and the sheet says why.
+    private func drainDrops() async {
+        guard !isDrainingDrops else { return }
+        isDrainingDrops = true
+        defer { isDrainingDrops = false }
+        while !dropQueue.isEmpty {
+            while isWriting { try? await Task.sleep(for: .milliseconds(25)) }
+            let drop = dropQueue.removeFirst()
+            let pending = drop.pending
+            guard let id = pending.change.issueID else { continue }
+            noteOwnWrite(id)
+            do {
+                let written = try await ChangeRunner(writer: store).run(pending.change, seenIn: drop.seenIn, base: pending.base)
+                noteOwnWrite(written)
+                optimisticIssues[id] = nil
+                record(pending, issueID: written, error: nil)
+                if let fresh = try? await store.currentIssue(written), let current = snapshot {
+                    snapshot = current.replacing(fresh)
+                    reapplyDesiredMarks()
+                    reapplyOptimisticDrops()
+                }
+                lastAppliedChange = AppliedChange(issueID: written, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
+            } catch {
+                optimisticIssues[id] = nil
+                // Put the card back as bd has it (one cheap read), or as it was before the drop.
+                let truth = (try? await store.currentIssue(id)) ?? pending.base
+                if let truth, let current = snapshot {
+                    snapshot = current.replacing(truth)
+                }
+                record(pending, issueID: id, error: error)
+                if pendingChange == nil {
+                    var failed = pending
+                    failed.failure = error.localizedDescription
+                    pendingChange = failed
+                }
+            }
+        }
+    }
+
+    /// Puts in-flight previews back on top of a freshly loaded snapshot.
+    private func reapplyOptimisticDrops() {
+        guard var updated = snapshot else { return }
+        for issue in optimisticIssues.values { updated = updated.replacing(issue) }
+        snapshot = updated
     }
 
     /// Runs the safe write and settles the outcome: the journal entry (with its Undo where the
@@ -1439,7 +1518,10 @@ public final class WorkspaceModel {
     /// failure keeps the sheet up when it was showing — and raises it when the write had skipped
     /// the sheet, so a drop never fails silently.
     private func write(_ pending: PendingChange) async {
-        guard !isWriting, allowsWriting, let snapshot else { return }
+        guard !isWriting, allowsWriting else { return }
+        // Queued drops write one at a time; a confirmed change waits its turn like any of them.
+        while isDrainingDrops { try? await Task.sleep(for: .milliseconds(25)) }
+        guard let snapshot else { return }
         var pending = pending
         isWriting = true
         noteOwnWrite(pending.change.issueID)

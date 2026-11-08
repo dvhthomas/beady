@@ -325,6 +325,101 @@ struct EditingTests {
         #expect(entry.undo == .issueChange(.setStatus("epic.1", from: "blocked", to: "open", reason: nil)))
     }
 
+    @Test("the card moves the instant it is dropped; bd catches up in the background")
+    func dropMovesInstantly() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        store.holdsApply = true
+
+        let drop = Task { await model.applyDrop("epic.1", onGroup: "blocked") }
+        #expect(await waitUntil { store.applyStarted })
+        #expect(model.snapshot?.issue("epic.1")?.status == "blocked", "shown before bd confirms")
+        #expect(model.selection == "epic.1")
+        #expect(model.pendingChange == nil)
+        #expect(model.lastAppliedChange == nil, "the glow waits for bd's confirmation")
+
+        store.release()
+        #expect(await drop.value)
+        #expect(store.applied == [.setStatus("epic.1", from: "open", to: "blocked", reason: nil)])
+        #expect(model.lastAppliedChange?.issueID == "epic.1")
+        #expect(model.activity.first?.undo != nil)
+    }
+
+    @Test("while one drop is writing, another bead can still be dropped; the writes queue up")
+    func dropsOfOtherBeadsQueue() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        store.holdsApply = true
+
+        let first = Task { await model.applyDrop("epic.1", onGroup: "blocked") }
+        #expect(await waitUntil { store.applyStarted })
+        #expect(model.canDrop("epic.1.1", onGroup: "blocked"), "a different bead is still droppable")
+        let second = Task { await model.applyDrop("epic.1.1", onGroup: "blocked") }
+        #expect(await waitUntil { model.snapshot?.issue("epic.1.1")?.status == "blocked" }, "the second card moves while the first is writing")
+
+        store.holdsApply = false
+        store.release()
+        #expect(await first.value)
+        _ = await second.value
+        #expect(await waitUntil { store.applied.count == 2 })
+        #expect(store.applied == [
+            .setStatus("epic.1", from: "open", to: "blocked", reason: nil),
+            .setStatus("epic.1.1", from: "open", to: "blocked", reason: nil),
+        ], "one bd write at a time, in drop order")
+    }
+
+    @Test("re-dragging the bead that is still being written is refused, so the write isn't disrupted")
+    func sameBeadRefusedWhileWriting() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        store.holdsApply = true
+
+        let drop = Task { await model.applyDrop("epic.1", onGroup: "blocked") }
+        #expect(await waitUntil { store.applyStarted })
+        #expect(!model.canDrop("epic.1", onGroup: "open"))
+        store.release()
+        _ = await drop.value
+        #expect(model.canDrop("epic.1", onGroup: "open"), "droppable again once the write settles")
+    }
+
+    @Test("a refresh landing mid-write doesn't snap the card back")
+    func refreshKeepsTheOptimisticMove() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        store.holdsApply = true
+
+        let drop = Task { await model.applyDrop("epic.1", onGroup: "blocked") }
+        #expect(await waitUntil { store.applyStarted })
+        await model.load()
+        #expect(model.snapshot?.issue("epic.1")?.status == "blocked", "the reload brought the old status; the preview is re-applied over it")
+        store.release()
+        _ = await drop.value
+        #expect(model.snapshot?.issue("epic.1")?.status == "blocked")
+    }
+
+    @Test("a failed optimistic drop puts the card back and says why")
+    func failedOptimisticDropReverts() async throws {
+        let (model, store) = await makeModel()
+        model.viewID = .everything
+        model.layout = .board
+        model.grouping = .status
+        store.failure = CocoaError(.fileWriteNoPermission)
+
+        #expect(await model.applyDrop("epic.1", onGroup: "blocked"))
+        #expect(model.snapshot?.issue("epic.1")?.status == "open", "the preview is taken back")
+        #expect(model.pendingChange?.failure != nil, "the sheet explains why the card bounced")
+        #expect(model.lastAppliedChange == nil)
+        #expect(model.activity.first?.succeeded == false)
+    }
+
     @Test("a drop into Done still asks: bd stores a close reason")
     func dropIntoDoneKeepsTheSheet() async {
         let (model, store) = await makeModel()

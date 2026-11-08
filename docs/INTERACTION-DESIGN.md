@@ -61,7 +61,17 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
     the gesture (the drop is long over by the confirm). Tie it to the model's applied-change
     record, which fires after write → reload, on both the immediate and the confirmed path.
 
-11. **Progressive disclosure for mechanics.** The sheet leads with what changes in plain words;
+11. **The screen never waits for bd.** A bd write costs the best part of a second across several
+    processes; a UI that waits for it reads as broken, and users retry mid-write. Show the
+    change on the snapshot the instant the gesture lands (`IssueChange.applied(to:)` +
+    `snapshot.replacing`), write in the background one change at a time, then read back only
+    the changed bead (`store.currentIssue`), never the full reload — the file watcher covers
+    the rest. A failure takes the preview back (the card visibly returns) and says why. Keep
+    previews re-applied over mid-write reloads, and keep everything else interactive while one
+    write is in flight — only the bead being written is off-limits. `toggleMark` and
+    `drainDrops` in WorkspaceModel are the worked examples.
+
+12. **Progressive disclosure for mechanics.** The sheet leads with what changes in plain words;
     the exact `bd` commands and safe-write caveats live behind a closed disclosure ("How this
     will be written") for whoever wants them. Never delete the mechanics — agents and the
     curious rely on them — but never make a person read them to click Apply.
@@ -71,6 +81,7 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
 - [ ] Does the user see *where* the change landed? (move and/or glow at the destination)
 - [ ] Does a refused action communicate refusal instantly? (no staged work before refusing)
 - [ ] Does it confirm only on risk? (immediate when clean + Undo; sheet for reasons/problems/failures)
+- [ ] Does the screen move before the write? (preview + targeted read-back; revert visibly on failure)
 - [ ] Is the animation keyed to derived data, so undo/refresh animate the same way?
 - [ ] Is any "what just happened" state in BeadsPresentation with a test?
 - [ ] Is it consumed once, with a sequence so repeats still fire?
