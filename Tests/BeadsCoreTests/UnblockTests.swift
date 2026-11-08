@@ -28,6 +28,45 @@ struct UnblockTests {
         #expect(UnblockPath.to("a", in: snapshot).layers.isEmpty)
     }
 
+    @Test("a diamond lands the shared blocker once, in the layer it can actually start")
+    func diamond() {
+        let diamond = IssueSnapshot(issues: [
+            makeIssue("root"),
+            makeIssue("left", blockedBy: ["root"]),
+            makeIssue("right", blockedBy: ["root"]),
+            makeIssue("goal", blockedBy: ["left", "right"]),
+        ])
+        let path = UnblockPath.to("goal", in: diamond)
+        #expect(path.layers.map { $0.map(\.id) } == [["root"], ["left", "right"]])
+        #expect(!path.hasCycle)
+        #expect(path.work.map(\.id) == ["root", "left", "right"], "nearest first")
+    }
+
+    @Test("a blocker reached again by a longer route waits for that route, and appears once")
+    func longerRoute() {
+        // goal waits on a directly and through b: a must land in the farther layer.
+        let graph = IssueSnapshot(issues: [
+            makeIssue("a"),
+            makeIssue("b", blockedBy: ["a"]),
+            makeIssue("goal", blockedBy: ["a", "b"]),
+        ])
+        let path = UnblockPath.to("goal", in: graph)
+        #expect(path.layers.map { $0.map(\.id) } == [["a"], ["b"]])
+        #expect(!path.hasCycle)
+    }
+
+    @Test("a cycle among the blockers, not through the bead itself, is reported and terminates")
+    func cycleBelowSubject() {
+        let graph = IssueSnapshot(issues: [
+            makeIssue("goal", blockedBy: ["p"]),
+            makeIssue("p", blockedBy: ["q"]),
+            makeIssue("q", blockedBy: ["p"]),
+        ])
+        let path = UnblockPath.to("goal", in: graph)
+        #expect(path.hasCycle)
+        #expect(Set(path.work.map(\.id)) == ["p", "q"], "each bead appears once")
+    }
+
     @Test("a cycle is reported, not looped over")
     func cycles() {
         let looped = IssueSnapshot(issues: [

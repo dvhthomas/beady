@@ -31,6 +31,12 @@ struct BDCommandTests {
         #expect(BDCommand.close("demo-1", reason: "shipped").arguments == ["close", "--reason=shipped", "--force", "--json", "--", "demo-1"])
         #expect(BDCommand.close("demo-1", reason: nil).arguments == ["close", "--force", "--json", "--", "demo-1"])
         #expect(BDCommand.reopen("demo-1", reason: nil).arguments == ["reopen", "--json", "--", "demo-1"])
+        // Marks ride on labels and blockers on dep edges; their values and ids must be as
+        // injection-proof as every other write.
+        #expect(BDCommand.addLabel("demo-1", "pinned").arguments == ["update", "--add-label=pinned", "--json", "--", "demo-1"])
+        #expect(BDCommand.removeLabel("demo-1", "starred").arguments == ["update", "--remove-label=starred", "--json", "--", "demo-1"])
+        #expect(BDCommand.addBlocker("demo-1", blocker: "demo-2").arguments == ["dep", "add", "--", "demo-1", "demo-2"])
+        #expect(BDCommand.removeBlocker("demo-1", blocker: "demo-2").arguments == ["dep", "remove", "--", "demo-1", "demo-2"])
         let new = NewIssue(title: "New", type: "bug", priority: 1, description: "why", parent: "epic-a")
         #expect(BDCommand.create(new, dryRun: true).arguments == [
             "create", "--title=New", "--type=bug", "--priority=1", "--parent=epic-a", "--description=why", "--dry-run", "--json",
@@ -52,6 +58,8 @@ struct BDCommandTests {
             .updateFields("x", IssueEdit(title: "t")),
             .setStatus("x", "open"), .setParent("x", "y"), .close("x", reason: "r"),
             .reopen("x", reason: nil), .create(NewIssue(title: "t"), dryRun: false),
+            .addLabel("x", "pinned"), .removeLabel("x", "pinned"),
+            .addBlocker("x", blocker: "y"), .removeBlocker("x", blocker: "y"),
             .initDatabase(prefix: "x"),
         ]
         #expect(reads.allSatisfy { $0.isReadOnly && $0.arguments.first == "--readonly" })
@@ -286,7 +294,7 @@ struct BDHistoryTests {
     @Test("the history command is read-only and asks bd for JSON")
     func historyCommand() {
         #expect(BDCommand.history("demo-1", limit: 50).isReadOnly)
-        #expect(BDCommand.history("demo-1", limit: 50).arguments == ["--readonly", "history", "demo-1", "--limit", "50", "--json"])
+        #expect(BDCommand.history("demo-1", limit: 50).arguments == ["--readonly", "history", "--limit", "50", "--json", "--", "demo-1"])
     }
 }
 

@@ -140,22 +140,57 @@ public struct ViewLibrary: Equatable, Sendable {
     /// Writes the views to the folder when there is one (else to preferences), and what's live
     /// and the offers to preferences.
     public func save(to directory: URL?, preferences: UserDefaults?) {
-        let encoder = JSONEncoder()
+        saveViews(to: directory, preferences: preferences)
+        saveLive(to: preferences)
+        saveOffers(to: preferences)
+    }
+
+    /// Saves only the parts that differ from `old`. What's live changes with every keystroke in
+    /// search, and the folder only ever says what's saved, so typing must not touch the disk:
+    /// the saved views are written only when one of them actually changed.
+    public func save(changedFrom old: ViewLibrary, to directory: URL?, preferences: UserDefaults?) {
+        if views != old.views { saveViews(to: directory, preferences: preferences) }
+        if live != old.live { saveLive(to: preferences) }
+        if offers != old.offers { saveOffers(to: preferences) }
+    }
+
+    private func saveViews(to directory: URL?, preferences: UserDefaults?) {
         if let directory {
             writeViews(to: directory)
-        } else if let preferences, let data = try? encoder.encode(views) {
+        } else if let preferences, let data = try? JSONEncoder().encode(views) {
             preferences.set(data, forKey: Self.viewsKey)
         }
-        guard let preferences else { return }
+    }
+
+    private func saveLive(to preferences: UserDefaults?) {
         // A dictionary keyed by a struct doesn't encode as a JSON object, so one record per view,
         // in a stable order.
         let live = live.map { SavedViewState(view: $0.key, state: $0.value) }.sorted { $0.view.rawValue < $1.view.rawValue }
-        if let data = try? encoder.encode(live) { preferences.set(data, forKey: Self.liveKey) }
-        if let data = try? encoder.encode(offers) { preferences.set(data, forKey: Self.offersKey) }
+        if let preferences, let data = try? JSONEncoder().encode(live) { preferences.set(data, forKey: Self.liveKey) }
+    }
+
+    private func saveOffers(to preferences: UserDefaults?) {
+        if let preferences, let data = try? JSONEncoder().encode(offers) { preferences.set(data, forKey: Self.offersKey) }
     }
 
     public func save(to preferences: UserDefaults?) {
         save(to: nil, preferences: preferences)
+    }
+
+    /// Whether an id can be a file's stem inside the views folder and nothing more: ids are
+    /// decoded verbatim from documents people share, so one carrying a path separator, `.`/`..`
+    /// or a control character must never reach `appendingPathComponent`.
+    static func isSafeFileStem(_ id: IssueView.ID) -> Bool {
+        let raw = id.rawValue
+        guard !raw.isEmpty, raw != ".", raw != ".." else { return false }
+        return !raw.contains("/") && !raw.contains(":")
+            && raw.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+    }
+
+    /// Whether `url` stands inside `directory` once both are standardized — the last check
+    /// before any write or delete at an id-derived path.
+    static func contains(_ directory: URL, _ url: URL) -> Bool {
+        url.standardizedFileURL.path.hasPrefix(directory.standardizedFileURL.path + "/")
     }
 
     /// One file per user view, and per built-in whose presentation differs from the table; a
@@ -172,17 +207,20 @@ public struct ViewLibrary: Equatable, Sendable {
             !view.isBuiltIn || IssueView.builtIn(view.id)?.presentation != view.presentation
         }
         var keep: Set<String> = []
-        for view in wanted {
+        for view in wanted where Self.isSafeFileStem(view.id) {
             let name = "\(view.id.rawValue).\(Self.fileExtension)"
             keep.insert(name)
             guard let data = try? view.documentData() else { continue }
             let url = directory.appendingPathComponent(name)
+            guard Self.contains(directory, url) else { continue }
             if manager.contents(atPath: url.path) == data { continue }
             try? data.write(to: url, options: .atomic)
         }
         for name in (try? manager.contentsOfDirectory(atPath: directory.path)) ?? []
         where name.hasSuffix(".\(Self.fileExtension)") && !keep.contains(name) {
-            try? manager.removeItem(at: directory.appendingPathComponent(name))
+            let url = directory.appendingPathComponent(name)
+            guard Self.contains(directory, url) else { continue }
+            try? manager.removeItem(at: url)
         }
     }
 
@@ -219,14 +257,15 @@ public struct ViewLibrary: Equatable, Sendable {
     }
 
     /// Adds views from a document as user views. A view whose id is already taken — by one of
-    /// the user's own or by a built-in — gets a fresh id and a name that says it was imported,
-    /// so importing never overwrites anything. Returns the views as added.
+    /// the user's own or by a built-in — or whose id couldn't be a file name gets a fresh id
+    /// and a name that says it was imported, so importing never overwrites anything, anywhere.
+    /// Returns the views as added.
     @discardableResult
     public mutating func importViews(_ imported: [IssueView]) -> [IssueView] {
         var added: [IssueView] = []
         for var view in imported {
             view.isBuiltIn = false
-            if self.view(view.id) != nil {
+            if self.view(view.id) != nil || !Self.isSafeFileStem(view.id) {
                 view.id = IssueView.ID(UUID().uuidString)
                 view.name = String(localized: "\(view.name) (imported)", bundle: .module, comment: "Name of an imported view whose id was already taken")
             }

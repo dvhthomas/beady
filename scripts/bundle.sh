@@ -101,7 +101,9 @@ if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
   : "${TEAM_ID:?set TEAM_ID to the Apple Developer team id the identity belongs to}"
   ENTITLEMENTS="$ROOT/build/Beady.entitlements"
   sed "s/TEAM_ID/$TEAM_ID/" "$ROOT/Resources/Beady.entitlements" > "$ENTITLEMENTS"
-  codesign --force --sign "$CODESIGN_IDENTITY" --entitlements "$ENTITLEMENTS" "$STAGING"
+  # --options runtime: the hardened runtime blocks DYLD_INSERT_LIBRARIES and unsigned code
+  # loading, and notarization requires it. Beady needs no exceptions (no JIT, no plugins).
+  codesign --force --options runtime --sign "$CODESIGN_IDENTITY" --entitlements "$ENTITLEMENTS" "$STAGING"
 else
   codesign --force --sign - "$STAGING" >/dev/null 2>&1 || true
 fi

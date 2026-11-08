@@ -19,7 +19,9 @@ public final class WorkspaceModel {
     }
 
     public let title: String
-    public private(set) var snapshot: IssueSnapshot?
+    public private(set) var snapshot: IssueSnapshot? {
+        didSet { dataGeneration &+= 1 }
+    }
     public private(set) var loadState: LoadState = .idle
     public private(set) var lastLoaded: Date?
     /// Set when a reload fails while older data is still on screen.
@@ -77,10 +79,10 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    /// The saved views and what is live on top of each, written back on every change: views to
-    /// the Library folder, what's live to preferences.
+    /// The saved views and what is live on top of each, written back on every change — but only
+    /// the parts that changed: a search keystroke touches what's live, never the Library folder.
     private var library = ViewLibrary() {
-        didSet { library.save(to: viewsDirectory, preferences: preferences) }
+        didSet { library.save(changedFrom: oldValue, to: viewsDirectory, preferences: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
@@ -398,15 +400,56 @@ public final class WorkspaceModel {
 
     // MARK: What the view shows
 
+    /// One body pass reads the filtered list many times over — the subtitle count, the board,
+    /// the split check, the tree — so each derived value below remembers its last answer and
+    /// the inputs it came from. A key carries everything the value derives from (the snapshot
+    /// by generation, the live filter, the ordering…), so a stale entry simply never matches.
+    /// Time-window rules re-evaluate with the next load rather than on every read, which the
+    /// staleness reload bounds at a few minutes.
+    @ObservationIgnored private var dataGeneration = 0
+
+    private struct VisibleKey: Equatable {
+        let generation: Int
+        let filter: ViewFilter
+        let ordering: IssueSort
+    }
+
+    @ObservationIgnored private var visibleCache: (key: VisibleKey, issues: [Issue])?
+    @ObservationIgnored private var treeCache: (key: VisibleKey, tree: [IssueTreeNode])?
+
+    private struct BoardKey: Equatable {
+        let generation: Int
+        let filter: ViewFilter
+        let ordering: IssueSort
+        let grouping: IssueGrouping
+        let canEdit: Bool
+    }
+
+    @ObservationIgnored private var boardGroupsCache: (key: BoardKey, groups: [IssueGroupModel])?
+    @ObservationIgnored private var boardColumnsCache: (key: BoardKey, nests: Bool, columns: [BoardColumnModel])?
+    @ObservationIgnored private var boardSplitCache: (key: BoardKey, split: BoardSplit?)?
+
+    private var visibleKey: VisibleKey {
+        VisibleKey(generation: dataGeneration, filter: filter, ordering: ordering)
+    }
+
+    private var boardKey: BoardKey {
+        BoardKey(generation: dataGeneration, filter: filter, ordering: ordering, grouping: boardGrouping, canEdit: canEdit)
+    }
+
     public var visibleIssues: [Issue] {
         guard let snapshot else { return [] }
+        let key = visibleKey
+        if let cached = visibleCache, cached.key == key { return cached.issues }
         let now = now()
-        let filter = filter
-        return ordering.sorted(
+        let filter = key.filter
+        let issues = ordering.sorted(
             snapshot.issues.filter { filter.matches($0, in: snapshot, now: now) },
             // A pin is a request to see something first, wherever it appears.
             pinnedFirst: true
         )
+        visibleCache = (key, issues)
+        return issues
     }
 
     public var groups: [IssueGroupModel] {
@@ -416,8 +459,11 @@ public final class WorkspaceModel {
     /// Board columns. A board needs columns, so no grouping means lifecycle columns. While editing,
     /// every value a card could be dropped into has a column, even when empty.
     public var boardGroups: [IssueGroupModel] {
-        let grouping = boardGrouping
-        return makeGroups(grouping, including: canEdit ? dropKeys(for: grouping) : [])
+        let key = boardKey
+        if let cached = boardGroupsCache, cached.key == key { return cached.groups }
+        let groups = makeGroups(key.grouping, including: key.canEdit ? dropKeys(for: key.grouping) : [])
+        boardGroupsCache = (key, groups)
+        return groups
     }
 
     /// The board's per-view option: fold sub-tasks into their parent's card. Reads off under
@@ -431,7 +477,12 @@ public final class WorkspaceModel {
     /// What the board actually draws: `boardGroups` with nesting applied.
     public var boardColumns: [BoardColumnModel] {
         guard let snapshot else { return [] }
-        return BoardNesting.columns(from: boardGroups, in: snapshot, nesting: nestsSubtasks)
+        let key = boardKey
+        let nests = nestsSubtasks
+        if let cached = boardColumnsCache, cached.key == key, cached.nests == nests { return cached.columns }
+        let columns = BoardNesting.columns(from: boardGroups, in: snapshot, nesting: nests)
+        boardColumnsCache = (key, nests, columns)
+        return columns
     }
 
     /// Cards expanded to show their folded children. This session's, like `collapsed`, but its
@@ -448,10 +499,18 @@ public final class WorkspaceModel {
     /// cards out, so the board never silently shows one column again.
     public var boardNeedsSplitting: BoardSplit? {
         guard layout == .board, let snapshot else { return nil }
+        let key = boardKey
+        if let cached = boardSplitCache, cached.key == key { return cached.split }
+        let split: BoardSplit?
         let issues = visibleIssues
-        guard issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 else { return nil }
-        let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
-        return BoardSplit(groupings: candidates.filter { $0 != boardGrouping && $0.groups(issues, in: snapshot).count > 1 })
+        if issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 {
+            let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
+            split = BoardSplit(groupings: candidates.filter { $0 != key.grouping && $0.groups(issues, in: snapshot).count > 1 })
+        } else {
+            split = nil
+        }
+        boardSplitCache = (key, split)
+        return split
     }
 
     public struct BoardSplit: Equatable, Sendable {
@@ -461,7 +520,11 @@ public final class WorkspaceModel {
 
     public var tree: [IssueTreeNode] {
         guard let snapshot else { return [] }
-        return IssueTree.build(matches: visibleIssues, in: snapshot)
+        let key = visibleKey
+        if let cached = treeCache, cached.key == key { return cached.tree }
+        let tree = IssueTree.build(matches: visibleIssues, in: snapshot)
+        treeCache = (key, tree)
+        return tree
     }
 
     /// Resolved from the whole snapshot, so following a link to a filtered-out issue still works.
@@ -984,11 +1047,24 @@ public final class WorkspaceModel {
         snapshot?.issue(id)?.has(mark) ?? false
     }
 
+    /// The sidebar badges depend only on the saved filters and the data, so typing in search
+    /// must not recount them: one pass fills every view's total, remembered until the data or
+    /// the saved views change.
+    @ObservationIgnored private var totalsCache: (generation: Int, views: [IssueView], totals: [IssueView.ID: Int])?
+
     /// What a view's own filter matches, for the sidebar badge.
     private func total(in view: IssueView) -> Int {
         guard let snapshot else { return 0 }
+        if let cached = totalsCache, cached.generation == dataGeneration, cached.views == library.views {
+            return cached.totals[view.id] ?? 0
+        }
         let now = now()
-        return snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
+        var totals: [IssueView.ID: Int] = [:]
+        for view in library.views {
+            totals[view.id] = snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
+        }
+        totalsCache = (dataGeneration, library.views, totals)
+        return totals[view.id] ?? 0
     }
 
     // MARK: Focus
@@ -1107,10 +1183,18 @@ public final class WorkspaceModel {
 
     /// Loaded only when asked for: reading a bead's history runs another bd command.
     public private(set) var history: [IssueID: HistoryState] = [:]
+    /// The beads whose history is kept, oldest first, so a long session can't grow it forever.
+    @ObservationIgnored private var historyOrder: [IssueID] = []
+    private static let maxHistoryEntries = 50
 
     public func loadHistory(for id: IssueID, limit: Int = 50) async {
         if case .loading = history[id] { return }
         history[id] = .loading
+        historyOrder.removeAll { $0 == id }
+        historyOrder.append(id)
+        while historyOrder.count > Self.maxHistoryEntries {
+            history[historyOrder.removeFirst()] = nil
+        }
         do {
             let versions = try await store.versions(of: id, limit: limit)
             // The cached activity only covers the last few minutes; history reaches back further,

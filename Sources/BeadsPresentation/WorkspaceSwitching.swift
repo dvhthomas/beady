@@ -24,6 +24,19 @@ public enum WorkspaceSwitching {
         paths.map { RecentWorkspace(path: $0, prefix: prefixes[$0]) }
     }
 
+    /// How many workspaces the switcher remembers.
+    public static let recentsLimit = 8
+
+    /// The recents after opening a path: to the front, listed once, at most `limit` kept.
+    public static func remembering(_ path: String, in paths: [String], limit: Int = recentsLimit) -> [String] {
+        Array(([path] + paths.filter { $0 != path }).prefix(limit))
+    }
+
+    /// The recents after a folder was refused, or is gone.
+    public static func forgetting(_ path: String, in paths: [String]) -> [String] {
+        paths.filter { $0 != path }
+    }
+
     /// Where ⌃⌘O goes: the recent after the current one, round again at the end. Nil when there
     /// is nothing else to go to.
     public static func next(after current: String?, in paths: [String]) -> String? {

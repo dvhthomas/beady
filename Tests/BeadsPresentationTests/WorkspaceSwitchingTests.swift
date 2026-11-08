@@ -36,6 +36,25 @@ struct WorkspaceSwitchingTests {
         #expect(WorkspaceSwitching.prefix(of: ["beady-1a2", "beady-1a3"]) == "beady")
     }
 
+    @Test("opening a workspace puts it first, once, and the oldest falls off at the cap")
+    func remembering() {
+        #expect(WorkspaceSwitching.remembering("/b", in: ["/a", "/c"]) == ["/b", "/a", "/c"])
+        #expect(WorkspaceSwitching.remembering("/c", in: ["/a", "/c"]) == ["/c", "/a"], "reopening moves, not duplicates")
+        #expect(WorkspaceSwitching.remembering("/a", in: []) == ["/a"])
+        let full = (1...WorkspaceSwitching.recentsLimit).map { "/w\($0)" }
+        let after = WorkspaceSwitching.remembering("/new", in: full)
+        #expect(after.count == WorkspaceSwitching.recentsLimit)
+        #expect(after.first == "/new")
+        #expect(!after.contains("/w\(WorkspaceSwitching.recentsLimit)"), "the oldest is forgotten")
+    }
+
+    @Test("a refused or missing folder is dropped from the recents")
+    func forgetting() {
+        #expect(WorkspaceSwitching.forgetting("/b", in: ["/a", "/b", "/c"]) == ["/a", "/c"])
+        #expect(WorkspaceSwitching.forgetting("/x", in: ["/a"]) == ["/a"], "forgetting a stranger changes nothing")
+        #expect(WorkspaceSwitching.forgetting("/a", in: []) == [])
+    }
+
     @Test("⌃⌘O is written the way macOS writes it, and counts as a ⌘ key")
     func controlKey() {
         let binding = KeyBinding("o", [.control, .command])

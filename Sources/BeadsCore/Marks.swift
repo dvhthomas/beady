@@ -14,13 +14,6 @@ public enum IssueMark: String, CaseIterable, Sendable {
 
     /// The bd label that carries it.
     public var label: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .pinned: "Pinned"
-        case .starred: "Starred"
-        }
-    }
 }
 
 public extension Issue {

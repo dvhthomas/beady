@@ -44,7 +44,9 @@ public struct BDExecutableLocator: Sendable {
     /// PATH first, then common install locations. Apps launched from Finder get a
     /// minimal PATH, so the fallbacks matter in practice.
     public func candidates() -> [String] {
-        let fromPath = (environment["PATH"] ?? "").split(separator: ":").map { "\($0)/bd" }
+        // Only absolute entries: a relative PATH entry (".", say) would resolve against
+        // whatever the app's working directory happens to be.
+        let fromPath = (environment["PATH"] ?? "").split(separator: ":").filter { $0.hasPrefix("/") }.map { "\($0)/bd" }
         let wellKnown = [
             "/opt/homebrew/bin/bd",
             "/usr/local/bin/bd",
