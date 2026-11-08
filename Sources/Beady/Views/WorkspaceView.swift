@@ -326,7 +326,7 @@ struct WorkspaceView: View {
                 Label("New Bead", systemImage: "plus")
             }
             .disabled(!model.canEdit)
-            .help("Create a bead (⌘N). Every change is confirmed before it's written.")
+            .help("Create a bead (⌘N)")
 
             Menu {
                 if model.activity.isEmpty {

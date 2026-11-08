@@ -187,9 +187,6 @@ struct NewBeadForm: View {
                 ProseEditor(text: description.projectedValue, prompt: "What is this bead about?", minHeight: 140)
             }
             HStack {
-                Text("Nothing is created until you review and confirm.")
-                    .font(.caption)
-                    .foregroundStyle(theme.secondaryText)
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)

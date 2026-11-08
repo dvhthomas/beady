@@ -42,49 +42,49 @@
         }
       }
     },
-    "%@ %@\nClick to follow · Show in Main Window to open it" : {
+    "%@ %@\nClick to follow it, here and in the main window" : {
       "comment" : "Tooltip on a graph card in the dependency window",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@\nKlicken zum Folgen · „Im Hauptfenster anzeigen“ zum Öffnen"
+            "value" : "%1$@ %2$@\nKlicken zum Folgen, hier und im Hauptfenster"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@ %2$@\nClick to follow · Show in Main Window to open it"
+            "value" : "%1$@ %2$@\nClick to follow it, here and in the main window"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@\nHaz clic para seguirlo · «Mostrar en la ventana principal» para abrirlo"
+            "value" : "%1$@ %2$@\nHaz clic para seguirlo, aquí y en la ventana principal"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@\nCliquez pour le suivre · Afficher dans la fenêtre principale pour l'ouvrir"
+            "value" : "%1$@ %2$@\nCliquez pour le suivre, ici et dans la fenêtre principale"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@\nクリックでたどる · 「メインウインドウで表示」で開く"
+            "value" : "%1$@ %2$@\nクリックすると、ここでもメインウインドウでもたどります"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@\n클릭하여 따라가기 · 열려면 ‘메인 윈도우에서 보기’"
+            "value" : "%1$@ %2$@\n클릭하면 여기와 메인 윈도우에서 따라갑니다"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ %2$@\nClique para seguir · Mostrar na janela principal para abri-lo"
+            "value" : "%1$@ %2$@\nClique para segui-lo, aqui e na janela principal"
           }
         }
       }
@@ -2322,47 +2322,6 @@
         }
       }
     },
-    "Choose a project folder containing .beads, or the .beads folder itself." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wähle einen Projektordner, der .beads enthält, oder den .beads-Ordner selbst."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elige una carpeta de proyecto que contenga .beads, o la propia carpeta .beads."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisissez un dossier de projet contenant .beads, ou le dossier .beads lui-même."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ".beadsを含むプロジェクトフォルダか、.beadsフォルダ自体を選択してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ".beads가 들어 있는 프로젝트 폴더나 .beads 폴더 자체를 선택하세요."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Escolha uma pasta de projeto que contenha .beads, ou a própria pasta .beads."
-          }
-        }
-      }
-    },
     "Clear" : {
       "localizations" : {
         "de" : {
@@ -3085,42 +3044,42 @@
         }
       }
     },
-    "Create a bead (⌘N). Every change is confirmed before it's written." : {
+    "Create a bead (⌘N)" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Erstelle einen Bead (⌘N). Jede Änderung wird bestätigt, bevor sie geschrieben wird."
+            "value" : "Erstelle einen Bead (⌘N)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Crea un bead (⌘N). Cada cambio se confirma antes de escribirse."
+            "value" : "Crea un bead (⌘N)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Créez un bead (⌘N). Chaque modification est confirmée avant d'être écrite."
+            "value" : "Créez un bead (⌘N)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ビーズを作成します（⌘N）。すべての変更は、書き込む前に確認されます。"
+            "value" : "ビーズを作成します（⌘N）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비즈를 만듭니다(⌘N). 모든 변경은 기록되기 전에 확인을 거칩니다."
+            "value" : "비즈를 만듭니다(⌘N)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Crie um bead (⌘N). Toda alteração é confirmada antes de ser gravada."
+            "value" : "Crie um bead (⌘N)"
           }
         }
       }
@@ -4249,6 +4208,46 @@
         }
       }
     },
+    "Fold a sub-task into its parent's card when the parent is on the board" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faltet eine Unteraufgabe in die Karte ihres übergeordneten Beads, wenn der auf dem Board ist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pliega una subtarea en la tarjeta de su bead padre cuando este está en el tablero"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replie une sous-tâche dans la carte de son bead parent quand celui-ci est sur le tableau"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "親がボードにあるとき、サブタスクを親のカードにまとめます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "상위 비즈가 보드에 있으면 하위 작업을 그 카드에 접어 넣습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dobra uma subtarefa no cartão do bead pai quando ele está no quadro"
+          }
+        }
+      }
+    },
     "Follow This Bead" : {
       "localizations" : {
         "de" : {
@@ -4486,6 +4485,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ocultar"
+          }
+        }
+      }
+    },
+    "Hide the sub-tasks" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unteraufgaben ausblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar las subtareas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer les sous-tâches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブタスクを隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하위 작업 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar as subtarefas"
           }
         }
       }
@@ -5293,88 +5332,6 @@
         }
       }
     },
-    "Move to My Views" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zu „Meine Ansichten“ bewegen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mover a Mis vistas"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Déplacer vers Mes vues"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "マイビューに移動"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "나의 보기로 이동"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mover para Minhas visualizações"
-          }
-        }
-      }
-    },
-    "Move to This Workspace" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In diesen Arbeitsbereich bewegen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mover a este espacio de trabajo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Déplacer vers cet espace de travail"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このワークスペースに移動"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 작업 공간으로 이동"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mover para este espaço de trabalho"
-          }
-        }
-      }
-    },
     "Moving a bead is its own change: bd checks for loops" : {
       "localizations" : {
         "de" : {
@@ -5451,6 +5408,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nome"
+          }
+        }
+      }
+    },
+    "Nest sub-tasks" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unteraufgaben verschachteln"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anidar subtareas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imbriquer les sous-tâches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブタスクをネスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하위 작업 중첩"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aninhar subtarefas"
           }
         }
       }
@@ -5895,42 +5892,42 @@
         }
       }
     },
-    "Nothing changed yet. Only the fields you touch are sent." : {
+    "Nothing changed yet." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch nichts geändert. Nur die Felder, die du anfasst, werden gesendet."
+            "value" : "Noch nichts geändert."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aún no ha cambiado nada. Solo se envían los campos que toques."
+            "value" : "Aún no ha cambiado nada."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rien n'a encore changé. Seuls les champs que vous touchez sont envoyés."
+            "value" : "Rien n'a encore changé."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "まだ変更はありません。編集したフィールドだけが送信されます。"
+            "value" : "まだ変更はありません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 변경된 것이 없습니다. 건드린 필드만 전송됩니다."
+            "value" : "아직 변경된 것이 없습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nada mudou ainda. Só os campos que você alterar são enviados."
+            "value" : "Nada mudou ainda."
           }
         }
       }
@@ -6011,46 +6008,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nada está fazendo backup deste banco de dados. A exportação JSONL do bd leva os itens, não o histórico — clique para escolher uma pasta."
-          }
-        }
-      }
-    },
-    "Nothing is created until you review and confirm." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nichts wird erstellt, bevor du prüfst und bestätigst."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No se crea nada hasta que revises y confirmes."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rien n'est créé avant que vous ayez vérifié et confirmé."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "確認して承認するまで、何も作成されません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "검토하고 확인하기 전에는 아무것도 생성되지 않습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nada é criado até você revisar e confirmar."
           }
         }
       }
@@ -6171,6 +6128,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nada corresponde a “%@”"
+          }
+        }
+      }
+    },
+    "Nothing this view shows waits on anything else. Turn off This View Only to see the whole database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts, was diese Ansicht zeigt, wartet auf etwas anderes. Schalte „Nur diese Ansicht“ aus, um die ganze Datenbank zu sehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada de lo que muestra esta vista espera a otra cosa. Desactiva «Solo esta vista» para ver toda la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien de ce que montre cette vue n'attend quoi que ce soit. Désactivez « Cette vue seulement » pour voir toute la base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビューに表示されているものには、ほかを待っているものはありません。「このビューのみ」をオフにすると、データベース全体が表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 보기에 표시된 비즈 중 다른 비즈를 기다리는 비즈가 없습니다. 전체 데이터베이스를 보려면 ‘이 보기만’을 끄세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada do que esta visualização mostra espera por outra coisa. Desative “Somente esta visualização” para ver todo o banco de dados."
           }
         }
       }
@@ -6372,6 +6369,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Only the beads this view shows; off for every dependency in the database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur die Beads, die diese Ansicht zeigt; aus für jede Abhängigkeit in der Datenbank"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo los beads que muestra esta vista; desactivado, cada dependencia de la base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seulement les beads que montre cette vue ; désactivé, chaque dépendance de la base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビューに表示されるビーズのみ。オフにするとデータベース内のすべての依存関係を表示します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 보기에 표시되는 비즈만 표시합니다. 끄면 데이터베이스의 모든 의존성을 표시합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Somente os beads que esta visualização mostra; desligado, cada dependência do banco de dados"
           }
         }
       }
@@ -8543,6 +8580,46 @@
         }
       }
     },
+    "Show the sub-tasks" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unteraufgaben einblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar las subtareas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher les sous-tâches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブタスクを表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하위 작업 보기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar as subtarefas"
+          }
+        }
+      }
+    },
     "Shown as a list: the board has nothing to split" : {
       "comment" : "Tooltip on the layout switcher",
       "localizations" : {
@@ -9428,6 +9505,46 @@
         }
       }
     },
+    "This view only" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur diese Ansicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo esta vista"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette vue seulement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビューのみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 보기만"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Somente esta visualização"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "de" : {
@@ -9952,47 +10069,6 @@
         }
       }
     },
-    "Views kept in this workspace's .beads/beady/views, for everyone who opens it; drag a view here to share it" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ansichten in .beads/beady/views dieses Arbeitsbereichs, für alle, die ihn öffnen; zieh eine Ansicht hierher, um sie zu teilen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vistas guardadas en .beads/beady/views de este espacio de trabajo, para quien lo abra; arrastra una vista aquí para compartirla"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vues conservées dans .beads/beady/views de cet espace de travail, pour tous ceux qui l’ouvrent ; faites glisser une vue ici pour la partager"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このワークスペースの.beads/beady/viewsに保存され、開く人全員が使えるビュー。ここにビューをドラッグすると共有できます"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 작업 공간의 .beads/beady/views에 보관되어 여는 모든 사람이 사용하는 보기입니다. 보기를 여기로 드래그하면 공유됩니다"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Visualizações guardadas em .beads/beady/views deste espaço de trabalho, para todos que o abrirem; arraste uma visualização para cá para compartilhá-la"
-          }
-        }
-      }
-    },
     "Wait for another bead" : {
       "localizations" : {
         "de" : {
@@ -10275,43 +10351,43 @@
         }
       }
     },
-    "Will change %@. Nothing is written until you confirm." : {
+    "Will change %@." : {
       "comment" : "The value is a list of fields, and labels prefixed + or −",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ändert %@. Nichts wird geschrieben, bevor du bestätigst."
+            "value" : "Ändert %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cambiará %@. No se escribe nada hasta que confirmes."
+            "value" : "Cambiará %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modifiera %@. Rien n'est écrit avant votre confirmation."
+            "value" : "Modifiera %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@を変更します。確認するまで何も書き込まれません。"
+            "value" : "%@を変更します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 항목을 변경합니다. 확인하기 전에는 아무것도 기록되지 않습니다."
+            "value" : "%@ 항목을 변경합니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vai alterar %@. Nada é gravado até você confirmar."
+            "value" : "Vai alterar %@."
           }
         }
       }
@@ -10512,6 +10588,106 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Suas visualizações salvas acompanham você em todos os Macs com o mesmo ID Apple. A edição mais recente de uma visualização prevalece, e uma visualização apagada em um Mac some dos outros. Com isto desligado, os arquivos da sua Biblioteca ficam como estão."
+          }
+        }
+      }
+    },
+    "^[%lld sub-task](inflect: true)" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Unteraufgabe"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Unteraufgaben"
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld subtarea"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld subtareas"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sous-tâche"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sous-tâches"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld件のサブタスク"
+                }
+              }
+            }
+          }
+        },
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "하위 작업 %lld개"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld subtarefa"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld subtarefas"
+                }
+              }
+            }
           }
         }
       }
