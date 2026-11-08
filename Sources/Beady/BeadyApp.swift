@@ -23,6 +23,9 @@ struct BeadyApp: App {
         if let directory = SnapshotMode.refreshDirectory {
             SnapshotMode.verifyRefresh(to: directory)
         }
+        if let directory = SnapshotMode.contrastDirectory {
+            SnapshotMode.verifyContrast(to: directory)
+        }
     }
 
     var body: some Scene {

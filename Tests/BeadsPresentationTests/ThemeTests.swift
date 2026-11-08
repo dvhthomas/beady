@@ -68,6 +68,63 @@ struct ThemeTests {
         #expect(Theme.light(named: "Nord") == nil, "a dark theme can't be chosen as the light one")
     }
 
+    @Test("content drawn over any theme's accent or selection gets a legible foreground")
+    func foregroundOnAccent() {
+        for theme in Theme.all {
+            for (name, background) in [("accent", theme.colors.accent), ("selection", theme.colors.selection)] {
+                let ratio = RGB.legibleForeground(on: background).contrast(with: background)
+                #expect(ratio >= 4.5, "\(theme.name): foreground on \(name) is \(String(format: "%.2f", ratio)):1")
+            }
+        }
+    }
+
+    @Test("legibleForeground clears 4.5:1 on any colour at all, not just the shipped accents")
+    func foregroundOnAnything() {
+        // A coarse sweep of the whole gamut. The worst case for "the better of white and black"
+        // is a mid-luminance background, which still yields about 4.58:1.
+        let steps = stride(from: 0.0, through: 1.0, by: 0.25)
+        for red in steps {
+            for green in steps {
+                for blue in steps {
+                    let background = RGB(red, green, blue)
+                    let foreground = RGB.legibleForeground(on: background)
+                    let ratio = foreground.contrast(with: background)
+                    #expect(ratio >= 4.5, "(\(red), \(green), \(blue)) got only \(String(format: "%.2f", ratio)):1")
+                }
+            }
+        }
+    }
+
+    @Test("legibleForeground goes light on deep accents and dark on pale ones")
+    func foregroundPicksTheRightSide() {
+        let white = RGB(1, 1, 1)
+        let black = RGB(0, 0, 0)
+        // GitHub Light's blue is deep: white text, as macOS itself would draw it.
+        #expect(RGB.legibleForeground(on: RGB(hex: 0x0969DA)) == white)
+        // Dracula's lavender and Nord's frost are pale: white on them is the bug this guards against.
+        #expect(RGB.legibleForeground(on: RGB(hex: 0xBD93F9)) == black)
+        #expect(RGB.legibleForeground(on: RGB(hex: 0x88C0D0)) == black)
+    }
+
+    @Test("an 18% accent wash — filter chips, drop targets — leaves the theme's text legible")
+    func tintedChips() {
+        // How the views draw a chip: the accent at 0.18 opacity composited over what's beneath.
+        func wash(_ accent: RGB, over base: RGB) -> RGB {
+            RGB(
+                accent.red * 0.18 + base.red * 0.82,
+                accent.green * 0.18 + base.green * 0.82,
+                accent.blue * 0.18 + base.blue * 0.82
+            )
+        }
+        for theme in Theme.all {
+            for base in [theme.colors.background, theme.colors.surface] {
+                let chip = wash(theme.colors.accent, over: base)
+                let ratio = theme.colors.text.contrast(with: chip)
+                #expect(ratio >= 4.5, "\(theme.name): text on a chip is \(String(format: "%.2f", ratio)):1")
+            }
+        }
+    }
+
     @Test("contrast maths matches the WCAG reference values")
     func contrastMaths() {
         let white = RGB(1, 1, 1)
