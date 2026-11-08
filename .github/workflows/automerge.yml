@@ -1,0 +1,46 @@
+# Patch releases are the norm and need no human: a pull request with no
+# release:* label, or release:patch / release:none, gets auto-merge turned on
+# and lands by itself once the required checks pass. release:minor and
+# release:major are a human decision, so labeling one of those turns auto-merge
+# back off and leaves the merge to a person.
+#
+# Auto-merge is enabled with VERSION_PUSH_TOKEN (a fine-grained PAT of the
+# repository owner), not GITHUB_TOKEN: the merge then happens as the token's
+# owner, so the push to master starts the Version workflow. A merge made with
+# GITHUB_TOKEN would start nothing and the release would silently not happen.
+# Without the secret this workflow does nothing and a human merges as before.
+#
+# Auto-merge itself only functions once master is protected with required
+# status checks (Tests and the Release size check) and the repository allows
+# auto-merge; see RELEASE.md "Making it stick".
+name: Auto-merge
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  set:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Enable auto-merge for patch, disable for minor/major
+        env:
+          GH_TOKEN: ${{ secrets.VERSION_PUSH_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "No VERSION_PUSH_TOKEN secret; a human merges this pull request." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          labels=$(jq -r '.pull_request.labels[].name' "$GITHUB_EVENT_PATH")
+          if printf '%s\n' "$labels" | grep -qxE 'release:(minor|major)'; then
+            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --disable-auto || true
+            echo "release:minor/major — auto-merge off; a human labels and merges." >> "$GITHUB_STEP_SUMMARY"
+          elif gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --merge; then
+            echo "Auto-merge on: this lands by itself when the required checks pass." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::Could not enable auto-merge. Is master protected with required checks, and 'Allow auto-merge' on in the repo settings? A human merges this pull request."
+          fi

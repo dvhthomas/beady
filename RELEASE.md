@@ -85,16 +85,37 @@ defaults read /Applications/Beady.app/Contents/Info.plist CFBundleShortVersionSt
 The Open Anyway approval from the first install carries across upgrades, so the new build opens
 without another trip to System Settings.
 
-## Making it stick
+## Making it stick: protection and auto-merge
 
-The checks only bind if master requires them. As of this writing master is unprotected, so a red
-Release size check can still be merged by clicking. Protecting master (require the `Release size`
-check, require a pull request) also blocks the Version workflow's own push, because `GITHUB_TOKEN`
-can't bypass branch protection. To protect master, give the workflow a way past: a fine-grained
-personal access token or a GitHub App with bypass, stored as a secret and used for the push and
-tag. Pushes made with such a token *do* start workflows, so the loop guard above is what matters
-then, and the explicit `gh workflow run release.yml` would need to go, since the tag push would
-start Release by itself.
+The checks only bind if master requires them, and patch releases only merge themselves once
+three pieces are in place. All three hang off one secret.
+
+1. **The `VERSION_PUSH_TOKEN` secret.** A fine-grained personal access token of the repository
+   owner, scoped to this repository with **Contents: read and write** and **Pull requests:
+   read and write**, stored as a repository secret. Two workflows read it: Version pushes the
+   bump commit and tag with it (an admin's token passes branch protection while "include
+   administrators" is off, and its pushes *do* start workflows, so the tag push starts Release
+   by itself — the loop guard in version.yml is what prevents a cycle), and Auto-merge enables
+   auto-merge with it (a merge made by `GITHUB_TOKEN` would start no Version run).
+   Create it at github.com/settings/personal-access-tokens, then:
+
+   ```bash
+   gh secret set VERSION_PUSH_TOKEN --repo dvhthomas/beady
+   ```
+
+2. **Branch protection on master** requiring the `Tests` (CI workflow) and `check` (Release
+   size) status checks, with enforce_admins off so the Version push passes. Without the secret
+   in place first, the next merge's Version push would be blocked — add the secret, then
+   protect.
+
+3. **Allow auto-merge** in the repository settings
+   (`gh api -X PATCH repos/dvhthomas/beady -f allow_auto_merge=true`).
+
+With all three live: a pull request with no `release:*` label (or `release:patch` /
+`release:none`) merges itself when the checks go green and releases automatically; a
+`release:minor` or `release:major` label switches auto-merge off, so those always wait for a
+human to label and merge. Agents are forbidden from applying minor/major labels (CLAUDE.md,
+enforced by a hook), which keeps that decision human.
 
 ## Signing for real, and iCloud sync
 

@@ -62,6 +62,43 @@ Add it with `gh pr create --label release:minor` or `gh pr edit <number> --add-l
 Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
 [RELEASE.md](RELEASE.md).
 
+**Agents never apply `release:minor` or `release:major`** — recommend the size in the PR body
+and ask the user to add the label. Unlabeled and patch PRs auto-merge when CI is green;
+minor/major PRs wait for a human to label and merge them.
+
+## Claude session authority (Team-maintainer opt-in)
+
+This repository **opts in to the Team-maintainer profile** for agent sessions working in a git
+worktree on a `claude/*` branch. In such a session, without asking first, an agent may:
+
+- claim, create and close beads;
+- run quality gates (`scripts/test.sh`, `swift build`);
+- commit to the session's `claude/*` branch and push it;
+- open a pull request — **unlabeled** (which means patch) or `release:none`.
+
+Still forbidden without an explicit user request: pushing to master, pushing tags,
+force-pushing, editing `VERSION`, applying `release:minor` or `release:major` (recommend one
+in the PR body and ask the user), and merging a minor/major pull request. **Patch releases are
+the norm and fully automated; minor and major releases are a human decision.**
+
+## Build & Test
+
+```bash
+scripts/test.sh        # the whole suite (Swift Testing); the gate before any PR
+swift build            # compile check
+scripts/bundle.sh      # build build/Beady.app — test THIS dev build, not /Applications
+scripts/dev-watch.sh   # rebuild and relaunch the app on source changes
+```
+
+CI runs `scripts/test.sh` on every pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+
+## Architecture Overview
+
+Pure logic (filtering, views, glossary, rendering) lives in `BeadsCore`, `BeadsData` and
+`BeadsPresentation`, each with its own test target. The `Beady` app target only wires those
+libraries to AppKit, the filesystem and the `bd` CLI. New logic goes in a library target,
+tests first.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
 
