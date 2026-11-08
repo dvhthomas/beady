@@ -57,12 +57,13 @@ struct ViewLibraryFilesTests {
         library.save(to: directory, preferences: nil)
         #expect(files(in: directory) == ["mine.beadyview"])
 
-        library.views[0].presentation.layout = .board
+        let ready = library.views.firstIndex { $0.id == .frontier }!
+        library.views[ready].presentation.layout = .board
         library.save(to: directory, preferences: nil)
         #expect(files(in: directory) == ["frontier.beadyview", "mine.beadyview"])
         #expect(ViewLibrary.load(from: directory, preferences: nil) == library)
 
-        library.views[0].presentation = IssueView.builtIn(.frontier)!.presentation
+        library.views[ready].presentation = IssueView.builtIn(.frontier)!.presentation
         library.save(to: directory, preferences: nil)
         #expect(files(in: directory) == ["mine.beadyview"], "a built-in back on its defaults needs no file")
 

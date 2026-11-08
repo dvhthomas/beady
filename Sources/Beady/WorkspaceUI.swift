@@ -85,6 +85,8 @@ final class WorkspaceUI {
     /// The dependency window's state, here for the same reason as the palette's.
     var graphFocus: IssueID?
     var graphIncludesFinished = true
+    /// Scoped to the beads the current view shows, or the whole database.
+    var graphFollowsView = true
     var graphZoom: Double = 1
     /// Bumped to ask the root view to open the dependency window; only a view can do that.
     private(set) var graphWindowRequests = 0

@@ -17,6 +17,9 @@ struct BeadyApp: App {
         if let directory = SnapshotMode.outputDirectory {
             SnapshotMode.run(to: directory)
         }
+        if let directory = SnapshotMode.switchDirectory {
+            SnapshotMode.verifySwitch(to: directory)
+        }
     }
 
     var body: some Scene {
@@ -89,11 +92,14 @@ struct RootView: View {
     private var content: some View {
         Group {
             if let model = session.model {
+                // No .id(model): remounting on a workspace switch rebuilds the sidebar's table,
+                // which comes back with its selection unemphasized — the window looks unthemed
+                // until the window's key state next changes. WorkspaceView re-arms itself when
+                // a different model arrives, so the hierarchy genuinely swaps in place.
                 WorkspaceView(
                     model: model, ui: session.ui, themes: session.themes, run: session.run,
                     undo: session.undo, importFiles: session.importViews
                 )
-                    .id(ObjectIdentifier(model))
             } else {
                 WelcomeView(session: session)
             }

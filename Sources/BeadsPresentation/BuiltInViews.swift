@@ -20,6 +20,10 @@ public extension IssueView {
     /// status it is; the palette answers to both. Open and Closed are one Lifecycle chip away
     /// from Everything and Landed, so they aren't rows of their own.
     static let builtIns: [IssueView] = [
+        builtIn(.pipeline, String(localized: "Pipeline", bundle: .module, comment: "Built-in view: a board of everything live"), ViewIcon.builtIn[.pipeline]!,
+                // First, as the working board: everything live, plus a week of what landed.
+                rules: [FilterRule(field: .closed, op: .within, values: [TimeWindow.week.rawValue])],
+                ViewPresentation(layout: .board, grouping: .category, ordering: .priority)),
         builtIn(.frontier, String(localized: "Ready", bundle: .module, comment: "Built-in view: bd's ready work"), ViewIcon.builtIn[.frontier]!,
                 rules: [FilterRule(field: .ready, op: .isAnyOf, values: [FilterRule.readyValue])],
                 ViewPresentation(layout: .list, grouping: .none, ordering: .priority)),
@@ -31,11 +35,7 @@ public extension IssueView {
                 // Blockers matter here and nowhere much else, so the Blocked-by column is on.
                 ViewPresentation(layout: .list, grouping: .none, ordering: .priority,
                                  columns: ListColumn.allCases.filter { $0.isVisibleByDefault || $0 == .blockedBy }.map(\.id))),
-        builtIn(.pipeline, String(localized: "Pipeline", bundle: .module, comment: "Built-in view: a board of everything live"), ViewIcon.builtIn[.pipeline]!,
-                // Everything live, plus a week of what landed: a working board, not an archive.
-                rules: [FilterRule(field: .closed, op: .within, values: [TimeWindow.week.rawValue])],
-                ViewPresentation(layout: .board, grouping: .category, ordering: .priority)),
-        builtIn(.recent, String(localized: "Recent", bundle: .module, comment: "Built-in view: changed in the last day"), ViewIcon.builtIn[.recent]!,
+        builtIn(.recent,String(localized: "Recent", bundle: .module, comment: "Built-in view: changed in the last day"), ViewIcon.builtIn[.recent]!,
                 rules: [FilterRule(field: .updated, op: .within, values: [TimeWindow.day.rawValue])],
                 ViewPresentation(layout: .list, grouping: .assignee, ordering: .recentlyUpdated)),
         builtIn(.landed, String(localized: "Landed", bundle: .module, comment: "Built-in view: closed in the last week"), ViewIcon.builtIn[.landed]!,

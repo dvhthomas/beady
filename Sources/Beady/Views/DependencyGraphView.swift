@@ -16,13 +16,22 @@ struct DependencyGraphView: View {
     /// Pinned into the details pane: the selection is the focus, a click selects, and the
     /// toolbar keeps to what fits a narrow pane.
     var embedded = false
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var monitor = State<Any?>(initialValue: nil)
+
+    init(model: WorkspaceModel, ui: WorkspaceUI, close: (() -> Void)? = nil, embedded: Bool = false) {
+        self.model = model
+        self.ui = ui
+        self.close = close
+        self.embedded = embedded
+    }
 
     private static let cell = CGSize(width: 230, height: 76)
     private static let gap = CGSize(width: 64, height: 16)
     private static let margin: CGFloat = 32
 
     var body: some View {
-        let graph = DependencyGraph(model.snapshot ?? IssueSnapshot(issues: []), includeFinished: ui.graphIncludesFinished)
+        let graph = Self.currentGraph(model: model, ui: ui)
         let positions = graph.layout()
         VStack(spacing: 0) {
             if !embedded {
@@ -33,7 +42,9 @@ struct DependencyGraphView: View {
                 ContentUnavailableView {
                     Label("No Dependencies", systemImage: "point.3.connected.trianglepath.dotted")
                 } description: {
-                    if ui.graphIncludesFinished {
+                    if ui.graphFollowsView {
+                        Text("Nothing this view shows waits on anything else. Turn off This View Only to see the whole database.")
+                    } else if ui.graphIncludesFinished {
                         Text("Nothing in this database waits on anything else.")
                     } else {
                         Text("Nothing unfinished waits on anything else. Show finished work to see the rest.")
@@ -49,6 +60,49 @@ struct DependencyGraphView: View {
             }
         }
         .background(theme.background)
+        .onAppear(perform: startWatchingKeys)
+        .onDisappear(perform: stopWatchingKeys)
+    }
+
+    /// The graph as currently asked for: the view's beads or the whole database, with or
+    /// without finished work. Static so the key monitor can rebuild it outside the view.
+    private static func currentGraph(model: WorkspaceModel, ui: WorkspaceUI) -> DependencyGraph {
+        DependencyGraph(
+            model.snapshot ?? IssueSnapshot(issues: []),
+            limitedTo: ui.graphFollowsView ? Set(model.visibleIssues.map(\.id)) : nil,
+            includeFinished: ui.graphIncludesFinished
+        )
+    }
+
+    /// Arrow keys walk the drawn graph, but only while the dependency window itself has the
+    /// keyboard: everywhere else the arrows belong to the board and the lists, so the embedded
+    /// pane installs nothing.
+    private func startWatchingKeys() {
+        guard !embedded, monitor.wrappedValue == nil else { return }
+        let model = model
+        let ui = ui
+        monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
+            guard event.window?.identifier?.rawValue.contains("dependencies") == true,
+                  !ui.isSheetOpen, !(NSApp.keyWindow?.firstResponder is NSTextView) else { return event }
+            let direction: DependencyGraph.Direction
+            switch event.keyCode {
+            case 126: direction = .up
+            case 125: direction = .down
+            case 123: direction = .left
+            case 124: direction = .right
+            default: return event
+            }
+            let graph = Self.currentGraph(model: model, ui: ui)
+            guard let next = graph.neighbour(of: ui.graphFocus, direction: direction) else { return nil }
+            ui.graphFocus = next
+            model.selection = next
+            return nil
+        }
+    }
+
+    private func stopWatchingKeys() {
+        if let monitor = monitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+        monitor.wrappedValue = nil
     }
 
     /// What the pane shows: the focused bead, the legend and the finished-work switch. Zoom
@@ -57,6 +111,9 @@ struct DependencyGraphView: View {
         HStack(spacing: 10) {
             legend
             Spacer()
+            Toggle("This view only", isOn: binding(\.graphFollowsView))
+                .toggleStyle(.checkbox)
+                .help("Only the beads this view shows; off for every dependency in the database")
             Toggle("Finished work", isOn: binding(\.graphIncludesFinished))
                 .toggleStyle(.checkbox)
                 .help("Closed beads, drawn faded")
@@ -98,6 +155,9 @@ struct DependencyGraphView: View {
             }
             Spacer()
             legend
+            Toggle("This view only", isOn: binding(\.graphFollowsView))
+                .toggleStyle(.checkbox)
+                .help("Only the beads this view shows; off for every dependency in the database")
             Toggle("Finished work", isOn: binding(\.graphIncludesFinished))
                 .toggleStyle(.checkbox)
                 .help("Closed beads, drawn faded")
@@ -127,7 +187,8 @@ struct DependencyGraphView: View {
         }
         .font(.caption)
         .foregroundStyle(theme.secondaryText)
-        .opacity(ui.graphFocus == nil ? 0 : 1)
+        // The focus the graph actually draws with: pinned, that's the selection.
+        .opacity(focusID == nil ? 0 : 1)
     }
 
     private func legendItem(width: CGFloat, color: Color, _ title: LocalizedStringKey) -> some View {
@@ -209,7 +270,14 @@ struct DependencyGraphView: View {
         let zoom = ui.graphZoom
         return Button {
             // Pinned, the graph follows the selection, so following a bead means selecting it.
-            if embedded { model.selection = issue.id } else { ui.graphFocus = issue.id }
+            // In the window too, a click selects — that records the step in Go Back — and the
+            // window keeps its own focus so it stays on what you're following.
+            if embedded {
+                model.selection = issue.id
+            } else {
+                ui.graphFocus = issue.id
+                model.selection = issue.id
+            }
         } label: {
             VStack(alignment: .leading, spacing: 4 * zoom) {
                 HStack(spacing: 6 * zoom) {
@@ -241,7 +309,7 @@ struct DependencyGraphView: View {
         .buttonStyle(.plain)
         .help(embedded
             ? String(localized: "\(issue.id.rawValue) \(issue.title)\nClick to select it", comment: "Tooltip on a graph card in the details pane")
-            : String(localized: "\(issue.id.rawValue) \(issue.title)\nClick to follow · Show in Main Window to open it", comment: "Tooltip on a graph card in the dependency window"))
+            : String(localized: "\(issue.id.rawValue) \(issue.title)\nClick to follow it, here and in the main window", comment: "Tooltip on a graph card in the dependency window"))
         .contextMenu {
             if embedded {
                 Button("Open in Graph Window") { ui.openGraph(focusing: issue.id) }
