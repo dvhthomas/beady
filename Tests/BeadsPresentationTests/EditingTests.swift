@@ -187,6 +187,38 @@ struct EditingTests {
         #expect(model.recentChange(to: "epic.1.1") == nil)
     }
 
+    @Test("a confirmed write is held for the views to acknowledge, once, and repeats still read as new")
+    func appliedChangeAcknowledgement() async throws {
+        let (model, _) = await makeModel()
+        #expect(model.lastAppliedChange == nil)
+
+        model.propose(.edit("epic.1.1", IssueEdit(title: "Renamed")))
+        await model.confirmPendingChange()
+        let first = try #require(model.lastAppliedChange)
+        #expect(first.issueID == "epic.1.1")
+
+        // Acknowledging an older change leaves a newer one alone.
+        model.propose(.edit("epic.1", IssueEdit(title: "Renamed too")))
+        await model.confirmPendingChange()
+        let second = try #require(model.lastAppliedChange)
+        #expect(second.issueID == "epic.1")
+        #expect(second.sequence != first.sequence, "a repeat change must still read as a new one")
+        model.acknowledgeAppliedChange(first)
+        #expect(model.lastAppliedChange == second)
+
+        model.acknowledgeAppliedChange(second)
+        #expect(model.lastAppliedChange == nil)
+    }
+
+    @Test("a failed write leaves nothing to acknowledge")
+    func failedWriteIsNotAcknowledged() async {
+        let (model, store) = await makeModel()
+        store.failure = CocoaError(.fileWriteNoPermission)
+        model.propose(.edit("epic.1.1", IssueEdit(title: "Renamed")))
+        await model.confirmPendingChange()
+        #expect(model.lastAppliedChange == nil)
+    }
+
     @Test("a workspace opened without write access can never edit")
     func noWriting() async {
         let model = WorkspaceModel(title: "demo", store: StubStore([makeIssue("a")]), allowsWriting: false, now: { t0 })

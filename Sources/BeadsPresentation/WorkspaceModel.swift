@@ -26,6 +26,10 @@ public final class WorkspaceModel {
     public private(set) var refreshError: String?
     public private(set) var isLoading = false
 
+    /// The last change this session wrote, until a view acknowledges it. Set after the write
+    /// lands and the data reloads, so the acknowledgement plays on the refreshed board.
+    public private(set) var lastAppliedChange: AppliedChange?
+
     /// The view picked in the sidebar.
     public var viewID: IssueView.ID = .frontier {
         didSet {
@@ -1360,6 +1364,12 @@ public final class WorkspaceModel {
         return store.commandPreview(for: pendingChange.change.normalized())
     }
 
+    /// A view calls this once it has finished acknowledging the change on screen, so the same
+    /// acknowledgement doesn't play again when the view is rebuilt.
+    public func acknowledgeAppliedChange(_ change: AppliedChange) {
+        if lastAppliedChange == change { lastAppliedChange = nil }
+    }
+
     /// Ignored while the change is being written: closing the sheet wouldn't stop bd.
     public func cancelPendingChange() {
         guard !isWriting else { return }
@@ -1400,6 +1410,7 @@ public final class WorkspaceModel {
             if stillShowing { pendingChange = nil }
             await reloadAfterWrite()
             selection = id
+            lastAppliedChange = AppliedChange(issueID: id, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
         case .failure(let error):
             record(pending, issueID: pending.change.issueID, error: error)
             if stillShowing {

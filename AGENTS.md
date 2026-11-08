@@ -140,3 +140,9 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+## Conventions & Patterns
+
+- **Interaction design**: any change that moves or acknowledges something on screen follows
+  [docs/INTERACTION-DESIGN.md](docs/INTERACTION-DESIGN.md) — read it before adding or touching
+  animations, drag-and-drop, or any visual feedback for a user action.

@@ -23,6 +23,14 @@ public struct PendingChange: Identifiable, Sendable {
     }
 }
 
+/// A change this session confirmed and wrote, for the views to acknowledge on screen — the
+/// board settles the moved card with a brief glow, say. `sequence` grows with every write, so a
+/// repeat change to the same bead still reads as a new one.
+public struct AppliedChange: Equatable, Sendable {
+    public let issueID: IssueID
+    public let sequence: Int
+}
+
 /// One entry in the session's change history.
 public struct ChangeRecord: Identifiable, Sendable {
     /// How to take a change back. Only the writes Beady makes on its own behalf offer one:
