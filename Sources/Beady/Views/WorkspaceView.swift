@@ -342,13 +342,23 @@ struct WorkspaceView: View {
                         )
                     }
                     .help(record.message ?? String(localized: "Applied and verified", comment: "Tooltip on a change that landed"))
-                    if record.undo != nil {
+                    switch record.undo {
+                    case .journalSettings:
                         Button {
                             undo(record)
                         } label: {
                             Label("Undo: turn the journal back off", systemImage: "arrow.uturn.backward")
                         }
                         .help("Writes the journal settings back to off, in this workspace's bd config")
+                    case .issueChange:
+                        Button {
+                            undo(record)
+                        } label: {
+                            Label("Undo This Change", systemImage: "arrow.uturn.backward")
+                        }
+                        .help("Writes the opposite change back to bd, checked and verified like any other")
+                    case nil:
+                        EmptyView()
                     }
                 }
             } label: {

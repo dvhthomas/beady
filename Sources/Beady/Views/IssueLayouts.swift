@@ -296,13 +296,17 @@ private struct TreeIssueRow: View {
 // MARK: Board
 
 /// Columns follow the view's grouping (lifecycle when ungrouped). While editing, dropping a card
-/// on a column proposes that column's value, where the grouping allows it.
+/// on a column gives it that column's value, where the grouping allows it — written at once when
+/// clean, through the confirmation sheet when anything needs the user.
 struct IssueBoardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: WorkspaceModel
     let ui: WorkspaceUI
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var monitor = State<Any?>(initialValue: nil)
+    /// One namespace for every card, so a card leaving one column and entering another is the
+    /// same view to SwiftUI and glides between them instead of popping.
+    private var cardSpace = Namespace()
 
     init(model: WorkspaceModel, ui: WorkspaceUI) {
         self.model = model
@@ -310,21 +314,23 @@ struct IssueBoardView: View {
     }
 
     var body: some View {
+        let columns = model.boardColumns
         // Horizontal only: each column scrolls its own cards, and a vertical axis here just let
         // the whole board float away from the top when a filter left it shorter than the pane.
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
-                ForEach(model.boardColumns) { column in
-                    BoardColumnView(column: column, model: model)
+                ForEach(columns) { column in
+                    BoardColumnView(column: column, model: model, cardSpace: cardSpace.wrappedValue)
                         .frame(width: column.cards.isEmpty ? BoardColumnView.railWidth : BoardColumnView.fullWidth)
                 }
             }
             .padding(12)
             .frame(maxHeight: .infinity, alignment: .top)
-            .animation(
-                reduceMotion ? nil : .smooth(duration: 0.25),
-                value: model.boardColumns.map { $0.cards.isEmpty }
-            )
+            // Any re-arrangement animates — a confirmed drop, an undo, a background refresh —
+            // so a card is seen travelling to its new column, never vanishing from the old one,
+            // and a column emptying or filling is seen shrinking to or growing from its rail.
+            // Under Reduce Motion the move is instant; the settle glow still marks the landing.
+            .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: columns.map { $0.cards.map(\.id) })
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: startWatchingKeys)
@@ -367,12 +373,14 @@ private struct BoardColumnView: View {
     @Environment(\.theme) private var theme
     let column: BoardColumnModel
     let model: WorkspaceModel
+    let cardSpace: Namespace.ID
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var isDropTarget = State(initialValue: false)
 
-    init(column: BoardColumnModel, model: WorkspaceModel) {
+    init(column: BoardColumnModel, model: WorkspaceModel, cardSpace: Namespace.ID) {
         self.column = column
         self.model = model
+        self.cardSpace = cardSpace
     }
 
     private var isEmpty: Bool { column.cards.isEmpty }
@@ -402,14 +410,15 @@ private struct BoardColumnView: View {
                 )
                 .opacity(isEmpty || isDropTarget.wrappedValue ? 1 : 0)
         )
-        // Only proposes; the confirmation sheet has the final say.
+        // A clean drop writes at once, with Undo in the Changes menu as the way back; the
+        // confirmation sheet appears only when something needs the user (a reason, a problem).
         .dropDestination(for: String.self) { items, _ in
             guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: column.key) else {
                 // Nothing to do: refuse at once so the card animates home without a pause.
                 return false
             }
             // Staging the change is work; let the drag finish its animation first.
-            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: column.key) }
+            Task { @MainActor in await model.applyDrop(dragged, onGroup: column.key) }
             return true
         } isTargeted: { targeted in
             isDropTarget.wrappedValue = targeted && model.canEdit
@@ -463,6 +472,11 @@ private struct BoardColumnView: View {
                             .onTapGesture { model.selection = card.id }
                             .draggableIssue(card.id, when: model.canEdit)
                             .contextMenu { cardMenu(card.issue) }
+                            .matchedGeometryEffect(id: card.id, in: cardSpace)
+                            .modifier(AppliedChangeGlow(
+                                change: model.lastAppliedChange?.issueID == card.id ? model.lastAppliedChange : nil,
+                                acknowledge: { model.acknowledgeAppliedChange($0) }
+                            ))
                     }
                 }
                 .padding(2)
@@ -612,6 +626,43 @@ private struct IssueCard<Menu: View>: View {
     }
 }
 
+
+/// A brief accent glow around the card whose change this session just wrote. The board moves
+/// the card to its new column when the data refreshes; the glow marks where it landed, then
+/// hands the acknowledgement back to the model so a rebuilt board doesn't replay it. A fade is
+/// calm enough to keep under Reduce Motion — it is the confirmation, not decoration.
+private struct AppliedChangeGlow: ViewModifier {
+    @Environment(\.theme) private var theme
+    /// The applied change, only when it was to this card's bead.
+    let change: AppliedChange?
+    let acknowledge: (AppliedChange) -> Void
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var glows = State(initialValue: false)
+
+    init(change: AppliedChange?, acknowledge: @escaping (AppliedChange) -> Void) {
+        self.change = change
+        self.acknowledge = acknowledge
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(theme.accent, lineWidth: 3)
+                    .opacity(glows.wrappedValue ? 0.8 : 0)
+                    .allowsHitTesting(false)
+            )
+            .task(id: change) {
+                guard let change else { return }
+                glows.wrappedValue = true
+                // Hold while the card finishes travelling, then fade out and let go.
+                try? await Task.sleep(for: .milliseconds(500))
+                withAnimation(.easeOut(duration: 0.9)) { glows.wrappedValue = false }
+                try? await Task.sleep(for: .milliseconds(900))
+                acknowledge(change)
+            }
+    }
+}
 
 /// Finds the `NSTableView` backing a SwiftUI `Table` or `List`, starting from a plain `NSView`
 /// planted in the same spot with `.background(...)`: up to the nearest common ancestor, then down.
