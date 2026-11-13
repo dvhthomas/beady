@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo.svg" width="138" height="126" alt="Beady's mark: a pixel caterpillar strung from three beads, with two beady eyes">
+</p>
+
 <h1 align="center">Beady</h1>
 
 <p align="center">
@@ -404,7 +408,8 @@ the main views to PNGs offscreen, which is how UI changes get checked without a 
 screenshots above were made that way, from a small demo database. `BEADY_VERIFY_KEYS=1` types
 into a real window and reports whether the single-key shortcuts and the keyboard focus behave.
 
-`swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.
+`swift scripts/make-icon.swift` redraws the mark from its pixel grid: `Resources/AppIcon.icns`, and
+`docs/images/logo.svg` (pink) and `logo-mono.svg` (takes the colour of the text around it).
 
 ### Releasing
 
