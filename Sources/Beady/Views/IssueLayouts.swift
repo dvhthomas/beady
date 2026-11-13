@@ -714,12 +714,17 @@ private struct AppliedChangeGlow: ViewModifier {
 
 /// Finds the `NSTableView` backing a SwiftUI `Table` or `List`, starting from a plain `NSView`
 /// planted in the same spot with `.background(...)`: up to the nearest common ancestor, then down.
+///
+/// The climb stops at the edge of the split-view pane it started in. Past that the nearest table
+/// is the pane next door's — the sidebar's list, seen from a center pane that has no table
+/// because its view is empty — and that one is not nearby in any sense a caller means.
 @MainActor
 private enum NearbyTable {
     static func tableView(near view: NSView) -> NSTableView? {
         var ancestor: NSView? = view
         while let current = ancestor {
             if let found = descendantTable(of: current) { return found }
+            if current.superview is NSSplitView { return nil }
             ancestor = current.superview
         }
         return nil
@@ -765,24 +770,51 @@ struct FocusesOnChange<Trigger: Equatable>: NSViewRepresentable {
     let trigger: Trigger
 
     func makeNSView(context: Context) -> NSView {
-        NSView(frame: .zero)
+        let view = NSView(frame: .zero)
+        // Going between a view with beads and one with none rebuilds this spot, table and all,
+        // so the hand-over a changed trigger asked for dies with the old one. The new one takes
+        // it up — but it can also be rebuilt mid-search, as matches come and go, so it never
+        // takes the keyboard from a field.
+        context.coordinator.handKeyboard(toTableNear: view, evenFromAField: false)
+        return view
     }
 
     func updateNSView(_ view: NSView, context: Context) {
         guard context.coordinator.lastTrigger != trigger else { return }
         context.coordinator.lastTrigger = trigger
-        DispatchQueue.main.async {
-            guard let table = NearbyTable.tableView(near: view) else { return }
-            view.window?.makeFirstResponder(table)
-        }
+        context.coordinator.handKeyboard(toTableNear: view, evenFromAField: true)
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(lastTrigger: trigger)
     }
 
+    @MainActor
     final class Coordinator {
         var lastTrigger: Trigger
+        /// The hand-over in flight; a newer one replaces it.
+        private var handOver: Task<Void, Never>?
+
         init(lastTrigger: Trigger) { self.lastTrigger = lastTrigger }
+
+        /// Makes the pane's table first responder. The table may not be there yet — a view with
+        /// nothing in it draws a placeholder instead, and the table arrives a moment after —
+        /// so it looks again for a little while. Only the first look, straight after a view
+        /// switch, may take the keyboard from a text field; by a later one the user may have
+        /// clicked into it.
+        func handKeyboard(toTableNear view: NSView, evenFromAField: Bool) {
+            handOver?.cancel()
+            handOver = Task { @MainActor [weak view] in
+                for attempt in 0..<12 {
+                    if attempt > 0 { try? await Task.sleep(for: .milliseconds(50)) }
+                    guard !Task.isCancelled, let view else { return }
+                    guard let window = view.window, let table = NearbyTable.tableView(near: view) else { continue }
+                    if (evenFromAField && attempt == 0) || !(window.firstResponder is NSTextView) {
+                        window.makeFirstResponder(table)
+                    }
+                    return
+                }
+            }
+        }
     }
 }

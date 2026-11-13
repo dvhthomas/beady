@@ -4732,6 +4732,47 @@
         }
       }
     },
+    "How this will be written" : {
+      "comment" : "Disclosure on the confirmation sheet hiding the bd commands and safe-write details",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So wird es geschrieben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo se escribirá"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment ce sera écrit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き込みの方法"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록되는 방식"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como isso será gravado"
+          }
+        }
+      }
+    },
     "Import" : {
       "comment" : "Open panel button",
       "localizations" : {
