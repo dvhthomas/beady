@@ -28,8 +28,11 @@ BeadsPresentation   BeadsData     WorkspaceModel (per-view state) │ BDGateway 
   `ChangeRunner`). It defines the single `BeadsStore` port.
 - **BeadsData** implements that port. Every bd invocation is a typed `BDCommand` run by one
   `BDGateway`, which also owns the change token and workspace detection. Reads always carry
-  `--readonly`; the writes are `update`, `close`, `reopen`, `create`, `config set-many`, `backup`
-  and `init` (run inside the folder rather than through `-C`, which bd refuses before init). `BDStore` implements
+  `--readonly`; the writes are `update`, `close`, `reopen`, `create`, `config set-many`, `backup`,
+  the sharing commands (`dolt remote add`, `dolt push`, `dolt pull --strategy`, `sync`, and
+  `federation status`, which fetches) and `init` and `bootstrap` (run inside the folder rather
+  than through `-C`: bd refuses init that way, and bootstrap misses the origin's beads; see
+  [plans/0006-sharing.md](plans/0006-sharing.md)). `BDStore` implements
   `BeadsStore` purely through the gateway, and an architecture test keeps it that way. Underneath:
   locating `bd` (Finder-launched apps get a minimal PATH), non-blocking pipe draining, timeouts and
   cancellation that escalate SIGTERM to SIGKILL (bd traps SIGTERM), and per-record JSON decoding.

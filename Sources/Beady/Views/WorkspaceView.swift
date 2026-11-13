@@ -100,6 +100,12 @@ struct WorkspaceView: View {
         .onChange(of: searchFocus.wrappedValue) { ui.isSearchFocused = searchFocus.wrappedValue }
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
+        .sheet(isPresented: Binding(get: { ui.showsShareBeads }, set: { ui.showsShareBeads = $0 })) {
+            ShareBeadsSheet(model: model, ui: ui, run: run)
+        }
+        .sheet(isPresented: Binding(get: { ui.showsWorkspaceSetup }, set: { ui.showsWorkspaceSetup = $0 })) {
+            WorkspaceSetupSheet(model: model, ui: ui, run: run)
+        }
         .sheet(isPresented: Binding(get: { ui.showsSaveAsNewView }, set: { ui.showsSaveAsNewView = $0 })) {
             SaveAsNewViewSheet(model: model, ui: ui)
         }
@@ -148,6 +154,8 @@ struct WorkspaceView: View {
         }
         .task(id: ObjectIdentifier(model)) {
             await model.load()
+            // Once per open, not per reload: this is the read that asks the remote.
+            await model.refreshSharing()
             // FSEvents on the .beads folder is the real trigger (AppSession). This is only a
             // backstop for changes it can't see, such as a database on a network volume.
             while !Task.isCancelled {
@@ -372,7 +380,13 @@ struct WorkspaceView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            backupIndicator
+            // Where the beads live besides this Mac. Until bd has said, or when it won't, the
+            // backup word stands in, as it did before sharing had one.
+            if model.sharingSummary != nil {
+                SharingIndicator(model: model, ui: ui, run: run)
+            } else {
+                backupIndicator
+            }
 
             Button {
                 run(.newBead)

@@ -25,8 +25,10 @@ Reading never changes anything: Beady reads with `bd --readonly`.
 
 ## Backing up
 
-The toolbar says whether the open database could be recovered: "backed up 6 min ago", or
-"not backed up". Click it to back up now, or to choose a folder the first time.
+Click the word in the toolbar that says where the beads live
+([Sharing beads]({{< relref "sharing.md" >}})). The popover says whether the open database could
+be recovered, "backed up 6 min ago" or "not backed up", and **Workspace Setup…** has the button
+to back up now, or to choose a folder the first time. So does {{< k "⌘P" >}}: type `back up`.
 
 Underneath it's `bd backup`, which copies the whole database with its history, not only the
 beads. (`bd export` writes a file for interchange and is not a backup.)

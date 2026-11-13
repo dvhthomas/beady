@@ -41,6 +41,9 @@ a release by hand, Intel Macs and building from source.
 - **[Careful changes](https://dvhthomas.github.io/beady/guide/changes/)**: nothing is written
   until you confirm a sheet showing the change and the commands, beside agents writing to the
   same database.
+- **[Sharing beads](https://dvhthomas.github.io/beady/guide/sharing/)**: the toolbar says whether
+  a database is shared and up to date; Share Beads, Get Beads on a fresh clone, and Sync Now do
+  each step with the `bd` command bd's docs give for it.
 - **[Everything from the keyboard](https://dvhthomas.github.io/beady/guide/keyboard/)**: ⌘P runs
   any command or jumps to a bead.
 - **[Themes and languages](https://dvhthomas.github.io/beady/guide/themes/)**: eight themes with

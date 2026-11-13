@@ -83,6 +83,29 @@ final class WorkspaceUI {
     var showsThemes = false
     /// The Reset Configuration sheet, from ⌘P or Settings.
     var showsResetConfiguration = false
+    /// Sharing (plan 0006): the toolbar's popover and the two sheets behind it.
+    var showsSharingPopover = false
+    var showsShareBeads = false
+    var showsWorkspaceSetup = false
+    /// The Share Beads sheet's answers. They live here for the reason the palette's query does:
+    /// view-local state under Command Line Tools has proved not to receive what is typed.
+    var shareAudience = ShareAudience.severalMacs
+    var shareURL = ""
+    /// The side of a conflict the popover is asking about a second time.
+    var confirmingConflictSide: ConflictSide?
+
+    /// Opens Share Beads on the repository's own origin, which is where bd puts beads by default.
+    func promptShareBeads(origin: String?) {
+        showsSharingPopover = false
+        showsWorkspaceSetup = false
+        shareURL = origin ?? ""
+        showsShareBeads = true
+    }
+
+    func promptWorkspaceSetup() {
+        showsSharingPopover = false
+        showsWorkspaceSetup = true
+    }
     /// Offers a relaunch after the language changed from ⌘P; Settings shows its own button.
     var showsRelaunchPrompt = false
     /// The workspaces the switcher and the palette offer, in Open Recent's order, and which one
@@ -148,6 +171,7 @@ final class WorkspaceUI {
     /// True while anything modal is up, so background key handling stands down.
     var isSheetOpen: Bool {
         showsPalette || showsThemes || showsNewBead || showsShortcuts || showsSaveAsNewView || renamingView != nil || changingIconOf != nil || showsResetConfiguration
+            || showsShareBeads || showsWorkspaceSetup
     }
 
     /// Opens the palette empty, wherever it was left last time.

@@ -132,6 +132,61 @@ public struct BDStore: BeadsStore {
         [gateway.preview(.configSet(settings))]
     }
 
+    // MARK: Sharing (plan 0006)
+
+    public func sharingFacts() async throws -> SharingFacts {
+        let remotes: [DoltRemote]
+        do {
+            remotes = try BDJSON.decodeRemotes(try await gateway.run(.remoteList))
+        } catch let failure as BDJSON.DecodingFailure {
+            throw BeadsDataError.unreadableOutput(detail: failure.detail)
+        }
+        let localOnly = (try? BDJSON.decodeConfigValue(try await gateway.run(.configGet("dolt.local-only")))) == "true"
+        // Without bd's word on the storage, assume the kind where the least is offered.
+        let storage = (try? BDJSON.decodeContext(try await gateway.run(.context)))?.storage ?? .other("")
+        // The one step that goes to the network, and only when there is somewhere to go.
+        var peers: [PeerStatus] = []
+        if !remotes.isEmpty, !localOnly {
+            peers = (try? BDJSON.decodePeers(try await gateway.run(.peerStatus))) ?? []
+        }
+        return SharingFacts(remotes: remotes, peers: peers, isLocalOnly: localOnly, storage: storage)
+    }
+
+    public func workspaceSetup() async -> WorkspaceSetup {
+        WorkspaceSetup(
+            context: try? BDJSON.decodeContext(try await gateway.run(.context)),
+            checkouts: (try? BDJSON.decodeCheckouts(try await gateway.run(.worktrees))) ?? [],
+            hooks: (try? BDJSON.decodeHooks(try await gateway.run(.hooks))) ?? [],
+            exportsIssuesFile: (try? BDJSON.decodeConfigValue(try await gateway.run(.configGet("export.auto")))).map { $0 == "true" }
+        )
+    }
+
+    public func gitOriginURL() async -> String? {
+        await gateway.gitOriginURL()
+    }
+
+    /// bd's exit status is part of the answer here, so a non-zero one is decoded, not thrown.
+    public func sync() async throws -> SyncOutcome {
+        BDJSON.decodeSyncOutcome(try await gateway.result(of: .sync))
+    }
+
+    public func perform(_ step: SharingStep) async throws {
+        _ = try await gateway.run(Self.command(for: step))
+    }
+
+    public func commandPreview(for step: SharingStep) -> String {
+        gateway.preview(Self.command(for: step))
+    }
+
+    static func command(for step: SharingStep) -> BDCommand {
+        switch step {
+        case .addRemote(let name, let url, let allowGitOrigin): .remoteAdd(name: name, url: url, allowGitOrigin: allowGitOrigin)
+        case .publish: .push
+        case .sync: .sync
+        case .settleConflict(let side): .pull(keeping: side)
+        }
+    }
+
     /// The bd commands a change runs, in order.
     static func commands(for change: IssueChange) -> [BDCommand] {
         switch change {

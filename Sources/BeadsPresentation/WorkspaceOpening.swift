@@ -1,3 +1,4 @@
+import BeadsCore
 import Foundation
 
 /// What was found at the folder the user chose to open, as facts the app layer gathers.
@@ -8,11 +9,15 @@ public struct ChosenFolder: Equatable, Sendable {
     public var hasBeadsDatabase: Bool
     /// `.git` is inside the folder: a directory, or a worktree's file.
     public var isGitRepository: Bool
+    /// The database itself is in `.beads`, not only bd's configuration. A fresh clone of a
+    /// repository that uses beads has the configuration (it is tracked in git) and no database.
+    public var hasDatabaseFiles: Bool
 
-    public init(path: String, hasBeadsDatabase: Bool, isGitRepository: Bool) {
+    public init(path: String, hasBeadsDatabase: Bool, isGitRepository: Bool, hasDatabaseFiles: Bool? = nil) {
         self.path = path
         self.hasBeadsDatabase = hasBeadsDatabase
         self.isGitRepository = isGitRepository
+        self.hasDatabaseFiles = hasDatabaseFiles ?? hasBeadsDatabase
     }
 }
 
@@ -20,6 +25,10 @@ public struct ChosenFolder: Equatable, Sendable {
 public enum OpenDecision: Equatable, Sendable {
     /// It holds a database already.
     case open
+    /// bd's configuration is there and no database is in the folder. Whether that is a fresh
+    /// clone, a database kept elsewhere (a server, another folder) or something to restore is
+    /// bd's to say: ask it for its bootstrap plan, then `decide(_:for:)`.
+    case askBootstrapPlan
     /// It holds a git repository and no database: ask before making one.
     case offerNewDatabase(NewDatabasePlan)
     /// Neither; the reason is for the user.
@@ -31,12 +40,94 @@ public enum WorkspaceOpening {
     /// repository. `bd init` in a plain folder would run `git init` there itself, which is more
     /// than opening a folder should do, so that case is a refusal with the reason.
     public static func decide(_ folder: ChosenFolder) -> OpenDecision {
-        if folder.hasBeadsDatabase { return .open }
+        if folder.hasBeadsDatabase { return folder.hasDatabaseFiles ? .open : .askBootstrapPlan }
         if folder.isGitRepository { return .offerNewDatabase(NewDatabasePlan(projectPath: folder.path)) }
         return .refuse(String(
             localized: "\(folder.path) has no .beads database, and it isn't a git repository (no .git inside it), so Beady won't create one there. Run git init in it first, or choose a repository.",
             bundle: .module, comment: "The folder's path"
         ))
+    }
+}
+
+/// What to do once bd has said what `bd bootstrap` would do in a folder.
+public enum BootstrapDecision: Equatable, Sendable {
+    case open
+    case offer(BootstrapOffer)
+}
+
+public extension WorkspaceOpening {
+    /// bd's plan decides. Nothing to do, or no answer from bd, opens the folder as before: a
+    /// database on a server or behind a redirect is no reason to offer anything.
+    static func decide(_ plan: BootstrapPlan?, for path: String) -> BootstrapDecision {
+        guard let plan, !plan.isNothingToDo else { return .open }
+        return .offer(BootstrapOffer(projectPath: path, plan: plan))
+    }
+}
+
+/// The offer to run `bd bootstrap` in a folder that has bd's configuration and no database:
+/// usually a fresh clone, where it fetches the shared database (plan 0006).
+public struct BootstrapOffer: Equatable, Sendable {
+    public let projectPath: String
+    public let plan: BootstrapPlan
+
+    public init(projectPath: String, plan: BootstrapPlan) {
+        self.projectPath = projectPath
+        self.plan = plan
+    }
+
+    public var folderName: String { URL(fileURLWithPath: projectPath).lastPathComponent }
+
+    public var title: String {
+        if plan.clonesFromRemote {
+            return String(localized: "Get the beads for \(folderName)?", bundle: .module, comment: "Alert title; the folder's name")
+        }
+        if plan.createsFreshDatabase {
+            return String(localized: "Start an empty beads database in \(folderName)?", bundle: .module, comment: "Alert title; the folder's name")
+        }
+        return String(localized: "Set up the beads database in \(folderName)?", bundle: .module, comment: "Alert title; the folder's name")
+    }
+
+    public var confirmTitle: String {
+        if plan.clonesFromRemote { return String(localized: "Get Beads", bundle: .module, comment: "Alert button: fetch the shared database") }
+        if plan.createsFreshDatabase { return String(localized: "Start Empty Database", bundle: .module, comment: "Alert button") }
+        return String(localized: "Set Up", bundle: .module, comment: "Alert button: run bd bootstrap")
+    }
+
+    /// `command` is the exact command line the app will run, from the gateway.
+    public func message(command: String) -> String {
+        let lead: String
+        if plan.clonesFromRemote {
+            lead = String(
+                localized: "\(folderName) uses beads, and this copy doesn't have the database yet. bd found it on the repository's remote and can fetch it. Nothing here is replaced.",
+                bundle: .module, comment: "Alert text; the folder's name"
+            )
+        } else if plan.createsFreshDatabase {
+            lead = String(
+                localized: """
+                \(folderName) is set up for beads, and bd found no database here, on a remote or in a backup, so it would start an empty one.
+
+                If these beads already exist on another Mac, share them from there first and open this folder again: a database started here would be a separate backlog.
+                """,
+                bundle: .module, comment: "Alert text; the folder's name"
+            )
+        } else {
+            lead = String(
+                localized: "\(folderName) is set up for beads, and this copy doesn't have the database yet.",
+                bundle: .module, comment: "Alert text; the folder's name"
+            )
+        }
+        return String(
+            localized: """
+            \(lead)
+
+            bd says: \(plan.reason)
+
+            bd will run:
+            \(command)
+            """,
+            bundle: .module,
+            comment: "Alert text: an explanation, then bd's own reason, then the exact command line"
+        )
     }
 }
 

@@ -917,6 +917,29 @@ enum SnapshotMode {
             capture("14-waiting-detail", WaitingDetail(reason: reason, snapshot: snapshot, open: { _ in }))
         }
 
+        // Sharing (plan 0006): what bd reports for this workspace, as the popover and the two
+        // sheets show it. Reads only: nothing is shared, synced or settled from here.
+        final class SharingRead { var done = false }
+        let sharingRead = SharingRead()
+        Task {
+            await model.refreshSharing()
+            await model.refreshSetup()
+            sharingRead.done = true
+        }
+        pump(timeout: 90) { sharingRead.done }
+        if let summary = model.sharingSummary {
+            print("sharing: \(summary.word)")
+            capture("28-sharing-word-and-popover", VStack(alignment: .trailing, spacing: 12) {
+                SharingIndicator(model: model, ui: session.ui, run: { _ in })
+                SharingPopover(model: model, ui: session.ui, summary: summary, run: { _ in })
+            }.padding())
+        }
+        session.ui.shareURL = model.gitOrigin ?? ""
+        session.ui.shareAudience = .team
+        capture("29-share-beads", ShareBeadsSheet(model: model, ui: session.ui, run: { _ in }))
+        session.ui.shareAudience = .onlyMe
+        capture("29b-share-beads-only-me", ShareBeadsSheet(model: model, ui: session.ui, run: { _ in }))
+        capture("30-workspace-setup", WorkspaceSetupSheet(model: model, ui: session.ui, run: { _ in }))
         exit(0)
     }
 

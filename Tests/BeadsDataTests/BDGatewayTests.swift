@@ -405,3 +405,46 @@ struct BDNoiseTests {
         #expect(snapshot.issues.count == 4, "the warning is noise, and the data is what matters")
     }
 }
+
+@Suite("What is in a chosen folder")
+struct WorkspaceInspectionTests {
+    func folder(_ names: [String]) throws -> URL {
+        let project = try makeTempDirectory()
+        let beads = project.appendingPathComponent(".beads")
+        try FileManager.default.createDirectory(at: beads, withIntermediateDirectories: true)
+        for name in names {
+            if name.hasSuffix("/") {
+                try FileManager.default.createDirectory(at: beads.appendingPathComponent(name), withIntermediateDirectories: true)
+            } else {
+                try Data().write(to: beads.appendingPathComponent(name))
+            }
+        }
+        return project
+    }
+
+    @Test("a fresh clone has bd's tracked configuration and no database: initialised, with nothing to open yet")
+    func freshClone() throws {
+        let project = try folder(["config.yaml", "metadata.json", ".gitignore", "README.md"])
+        defer { try? FileManager.default.removeItem(at: project) }
+        let found = BeadsWorkspace.inspect(project)
+        #expect(found.hasBeadsDatabase)
+        #expect(!found.hasDatabaseFiles)
+    }
+
+    @Test("embedded storage, server storage and a legacy database file each count as a database being there")
+    func databases() throws {
+        for name in ["embeddeddolt/", "dolt/", "beads.db"] {
+            let project = try folder(["config.yaml", name])
+            defer { try? FileManager.default.removeItem(at: project) }
+            #expect(BeadsWorkspace.inspect(project).hasDatabaseFiles, "\(name)")
+        }
+    }
+
+    @Test("no .beads at all is neither")
+    func nothing() throws {
+        let project = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: project) }
+        let found = BeadsWorkspace.inspect(project)
+        #expect(!found.hasBeadsDatabase && !found.hasDatabaseFiles)
+    }
+}

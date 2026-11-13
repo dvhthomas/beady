@@ -483,6 +483,47 @@
         }
       }
     },
+    "%@, already set up for this database" : {
+      "comment" : "Share Beads sheet; the remote's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, für diese Datenbank bereits eingerichtet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, ya configurado para esta base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, déjà configuré pour cette base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（このデータベース用に設定済み）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, 이 데이터베이스에 이미 설정됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, já configurado para este banco de dados"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "localizations" : {
         "de" : {
@@ -1349,6 +1390,46 @@
         }
       }
     },
+    "Back Up Now" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt sichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hacer copia de seguridad ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sauvegarder maintenant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐバックアップ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 백업"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fazer backup agora"
+          }
+        }
+      }
+    },
     "Back to properties" : {
       "localizations" : {
         "de" : {
@@ -1760,6 +1841,46 @@
         }
       }
     },
+    "Beady reads these and nothing else: it never opens the database or Dolt's files itself." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady liest diese und sonst nichts: Die Datenbank oder die Dateien von Dolt öffnet es nie selbst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady lee esto y nada más: nunca abre por sí mismo la base de datos ni los archivos de Dolt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady lit ces commandes et rien d'autre : il n'ouvre jamais lui-même la base de données ni les fichiers de Dolt."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beadyが読むのはこれらだけです。データベースやDoltのファイルを自分で開くことはありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady는 이것들만 읽습니다. 데이터베이스나 Dolt의 파일을 직접 여는 일은 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Beady lê estes comandos e nada mais: ele nunca abre o banco de dados nem os arquivos do Dolt por conta própria."
+          }
+        }
+      }
+    },
     "Beady views" : {
       "comment" : "Default file name for an export of every saved view",
       "localizations" : {
@@ -2162,6 +2283,46 @@
         }
       }
     },
+    "Check Again" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut prüfen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobar de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier à nouveau"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 확인"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificar novamente"
+          }
+        }
+      }
+    },
     "Children" : {
       "localizations" : {
         "de" : {
@@ -2238,6 +2399,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Escolha arquivos .beadyview ou .beadyviews."
+          }
+        }
+      }
+    },
+    "Choose Backup Folder…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup-Ordner wählen…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir carpeta de copia de seguridad…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir un dossier de sauvegarde…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップフォルダを選択…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "백업 폴더 선택…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolher pasta de backup…"
           }
         }
       }
@@ -3126,6 +3327,53 @@
         }
       }
     },
+    "Couldn't set up the beads database in %@: %@" : {
+      "comment" : "The folder's name, then bd's error",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Beads-Datenbank in %1$@ konnte nicht eingerichtet werden: %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Couldn't set up the beads database in %1$@: %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo configurar la base de datos de beads en %1$@: %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de configurer la base de données beads dans %1$@ : %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@にビーズのデータベースを設定できませんでした：%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@에 비즈 데이터베이스를 설정할 수 없습니다: %2$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível configurar o banco de dados de beads em %1$@: %2$@"
+          }
+        }
+      }
+    },
     "Create Database" : {
       "localizations" : {
         "de" : {
@@ -3562,6 +3810,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Opções de exibição (⇧V)"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aceptar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
           }
         }
       }
@@ -4490,6 +4778,46 @@
         }
       }
     },
+    "Git URL or Dolt remote" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Git-URL oder Dolt-Remote"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL de git o remoto de Dolt"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL git ou dépôt distant Dolt"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "git URLまたはDoltリモート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "git URL 또는 Dolt 리모트"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL git ou remoto Dolt"
+          }
+        }
+      }
+    },
     "Go" : {
       "localizations" : {
         "de" : {
@@ -4732,6 +5060,47 @@
         }
       }
     },
+    "How this will be done" : {
+      "comment" : "Disclosure on the Share Beads sheet hiding the bd commands",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So wird es gemacht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo se hará"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment cela sera fait"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行内容の詳細"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수행 방식"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como isso será feito"
+          }
+        }
+      }
+    },
     "How this will be written" : {
       "comment" : "Disclosure on the confirmation sheet hiding the bd commands and safe-write details",
       "localizations" : {
@@ -4930,6 +5299,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O status dele foi definido como blocked. O bd não guarda motivo para isso, e nenhuma dependência anterior está registrada."
+          }
+        }
+      }
+    },
+    "Keep this Mac's version of every bead in conflict? The remote's changes to those beads are discarded when this is sent." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jedem Bead im Konflikt die Version dieses Macs behalten? Die Änderungen des Remotes an diesen Beads werden beim Senden verworfen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Conservar la versión de este Mac de todos los beads en conflicto? Los cambios del remoto en esos beads se descartan al enviar esto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder la version de ce Mac pour chaque bead en conflit ? Les modifications du dépôt distant sur ces beads sont abandonnées lors de l'envoi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "競合しているすべてのビーズについて、このMacの内容を保持しますか？ 送信すると、それらのビーズに対するリモート側の変更は破棄されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "충돌 중인 모든 비즈에 대해 이 Mac의 버전을 유지하겠습니까? 보내면 해당 비즈에 대한 리모트의 변경은 버려집니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manter a versão deste Mac de todos os beads em conflito? As alterações do remoto nesses beads são descartadas quando isto for enviado."
           }
         }
       }
@@ -6171,6 +6580,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nada está fazendo backup deste banco de dados. A exportação JSONL do bd leva os itens, não o histórico — clique para escolher uma pasta."
+          }
+        }
+      }
+    },
+    "Nothing is shared" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts wird geteilt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se comparte nada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien n'est partagé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "何も共有されません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아무것도 공유되지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada é compartilhado"
           }
         }
       }
@@ -8502,6 +8951,128 @@
         }
       }
     },
+    "Sending…" : {
+      "comment" : "Share Beads sheet, while bd pushes",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sende…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoi…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送信中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보내는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviando…"
+          }
+        }
+      }
+    },
+    "Share Beads" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beads teilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir beads"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partager les beads"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビーズを共有"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비즈 공유"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartilhar beads"
+          }
+        }
+      }
+    },
+    "Shared through %@" : {
+      "comment" : "Sharing popover: the remote's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geteilt über %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartido a través de %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagé via %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@経由で共有"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 통해 공유됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartilhado por meio de %@"
+          }
+        }
+      }
+    },
     "Share…" : {
       "localizations" : {
         "de" : {
@@ -9388,6 +9959,46 @@
         }
       }
     },
+    "Take the remote's version of every bead in conflict? This Mac's changes to those beads are discarded." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei jedem Bead im Konflikt die Version des Remotes übernehmen? Die Änderungen dieses Macs an diesen Beads werden verworfen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Tomar la versión del remoto de todos los beads en conflicto? Los cambios de este Mac en esos beads se descartan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prendre la version du dépôt distant pour chaque bead en conflit ? Les modifications de ce Mac sur ces beads sont abandonnées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "競合しているすべてのビーズについて、リモートの内容を採用しますか？ それらのビーズに対するこのMacの変更は破棄されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "충돌 중인 모든 비즈에 대해 리모트의 버전을 채택하겠습니까? 해당 비즈에 대한 이 Mac의 변경은 버려집니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar a versão do remoto de todos os beads em conflito? As alterações deste Mac nesses beads são descartadas."
+          }
+        }
+      }
+    },
     "Takes effect when Beady next launches." : {
       "localizations" : {
         "de" : {
@@ -9468,6 +10079,46 @@
         }
       }
     },
+    "The beads stay in this Mac's copy of the repository. A backup is the way to keep a second copy." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Beads bleiben in der Kopie des Repositorys auf diesem Mac. Ein Backup ist der Weg zu einer zweiten Kopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los beads se quedan en la copia del repositorio de este Mac. Una copia de seguridad es la forma de tener un segundo ejemplar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les beads restent dans la copie du dépôt sur ce Mac. Une sauvegarde est le moyen d'en garder une seconde copie."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビーズは、このMacにあるリポジトリのコピーの中に留まります。2つ目のコピーを持つにはバックアップを使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비즈는 이 Mac에 있는 저장소 사본에 남습니다. 두 번째 사본을 두려면 백업을 사용하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os beads ficam na cópia do repositório deste Mac. Um backup é a forma de manter uma segunda cópia."
+          }
+        }
+      }
+    },
     "The issue prefix bd uses in this workspace" : {
       "localizations" : {
         "de" : {
@@ -9544,6 +10195,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "O ajuste de idioma entra em vigor na próxima vez que o Beady for aberto."
+          }
+        }
+      }
+    },
+    "The repository's own git origin, which is where bd puts beads by default. Any Dolt remote works too: DoltHub, S3, GCS, Azure or a folder." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das eigene Git-origin des Repositorys, wohin bd Beads standardmäßig legt. Jedes Dolt-Remote funktioniert ebenfalls: DoltHub, S3, GCS, Azure oder ein Ordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El origin de git del propio repositorio, que es donde bd pone los beads por omisión. También sirve cualquier remoto de Dolt: DoltHub, S3, GCS, Azure o una carpeta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'origin git du dépôt lui-même, là où bd place les beads par défaut. N'importe quel dépôt distant Dolt convient aussi : DoltHub, S3, GCS, Azure ou un dossier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リポジトリ自身のgit originです。bdはデフォルトでここにビーズを置きます。DoltHub、S3、GCS、Azure、フォルダなど、任意のDoltリモートも使用できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장소 자체의 git origin으로, bd가 기본으로 비즈를 두는 곳입니다. DoltHub, S3, GCS, Azure, 폴더 등 아무 Dolt 리모트도 사용할 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O próprio origin git do repositório, que é onde o bd coloca os beads por padrão. Qualquer remoto Dolt também funciona: DoltHub, S3, GCS, Azure ou uma pasta."
           }
         }
       }
@@ -9664,6 +10355,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Esta cópia do Beady não está assinada com a permissão do iCloud, então funciona sem sincronização; uma versão assinada a tem (veja RELEASE.md)."
+          }
+        }
+      }
+    },
+    "This repository has no git origin. Enter a git URL, or any Dolt remote: DoltHub, S3, GCS, Azure or a folder." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Repository hat kein Git-origin. Gib eine Git-URL oder ein beliebiges Dolt-Remote ein: DoltHub, S3, GCS, Azure oder einen Ordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este repositorio no tiene origin de git. Introduce una URL de git o cualquier remoto de Dolt: DoltHub, S3, GCS, Azure o una carpeta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce dépôt n'a pas d'origin git. Saisissez une URL git ou n'importe quel dépôt distant Dolt : DoltHub, S3, GCS, Azure ou un dossier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリポジトリにはgit originがありません。git URL、または任意のDoltリモート（DoltHub、S3、GCS、Azure、フォルダ）を入力してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 저장소에는 git origin이 없습니다. git URL 또는 아무 Dolt 리모트(DoltHub, S3, GCS, Azure, 폴더)를 입력하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este repositório não tem origin git. Informe uma URL git ou qualquer remoto Dolt: DoltHub, S3, GCS, Azure ou uma pasta."
           }
         }
       }
@@ -10354,6 +11085,47 @@
         }
       }
     },
+    "What bd reports about %@." : {
+      "comment" : "Workspace Setup sheet; the workspace's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was bd über %@ meldet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que bd informa sobre %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce que bd indique à propos de %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@についてbdが報告する内容。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 대해 bd가 보고하는 내용."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que o bd informa sobre %@."
+          }
+        }
+      }
+    },
     "What changes" : {
       "localizations" : {
         "de" : {
@@ -10514,6 +11286,208 @@
         }
       }
     },
+    "What sharing means" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was Teilen bedeutet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qué implica compartir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce que le partage implique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有するとどうなるか"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유의 의미"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que compartilhar significa"
+          }
+        }
+      }
+    },
+    "Where" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wohin"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dónde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Où"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有先"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "위치"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onde"
+          }
+        }
+      }
+    },
+    "Where these beads live besides this Mac, and whether that is up to date" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wo diese Beads außer auf diesem Mac liegen und ob das aktuell ist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dónde están estos beads además de en este Mac, y si eso está al día"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Où se trouvent ces beads en dehors de ce Mac, et si c'est à jour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらのビーズがこのMac以外のどこにあるか、それが最新かどうか"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 비즈가 이 Mac 외에 어디에 있는지, 그리고 최신 상태인지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onde estes beads ficam além deste Mac, e se isso está atualizado"
+          }
+        }
+      }
+    },
+    "Where this comes from" : {
+      "comment" : "Disclosure on the Workspace Setup sheet listing the bd commands it reads",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Woher das stammt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De dónde sale esto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "D'où cela provient"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情報の取得元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정보의 출처"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De onde isso vem"
+          }
+        }
+      }
+    },
+    "Who works on the beads in %@?" : {
+      "comment" : "Share Beads sheet; the workspace's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wer arbeitet an den Beads in %@?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Quién trabaja con los beads de %@?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qui travaille sur les beads de %@ ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のビーズを使うのは誰ですか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@의 비즈로 누가 작업합니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quem trabalha nos beads de %@?"
+          }
+        }
+      }
+    },
     "Will change %@." : {
       "comment" : "The value is a list of fields, and labels prefixed + or −",
       "localizations" : {
@@ -10551,6 +11525,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vai alterar %@."
+          }
+        }
+      }
+    },
+    "Workspace Setup" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeitsbereich einrichten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuración del espacio de trabajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration de l'espace de travail"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワークスペースの設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 공간 설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuração do espaço de trabalho"
+          }
+        }
+      }
+    },
+    "Workspace Setup…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeitsbereich einrichten…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuración del espacio de trabajo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration de l'espace de travail…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワークスペースの設定…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 공간 설정…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuração do espaço de trabalho…"
           }
         }
       }
