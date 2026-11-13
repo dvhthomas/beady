@@ -55,6 +55,22 @@ enum SnapshotMode {
         type("\u{1b}", into: window)
         pump(seconds: 0.4)
         check("Escape clears the selection", model.selection == nil, "selection = \(model.selection?.rawValue ?? "nil")")
+        check("…and leaves details the user asked for open", ui.details == .pinned, "pane = \(ui.details)")
+        // Details that only opened because a bead was selected go when the bead is let go.
+        ui.details = .closed
+        pump(seconds: 0.4)
+        model.selection = model.visibleIssues.first?.id
+        pump(seconds: 0.6)
+        check("selecting a bead with the details hidden opens them for that bead", ui.details == .peeking, "pane = \(ui.details)")
+        type("\u{1b}", into: window)
+        pump(seconds: 0.4)
+        check(
+            "Escape closes details that came with the bead",
+            ui.details == .closed && model.selection == nil,
+            "pane = \(ui.details), selection = \(model.selection?.rawValue ?? "nil")"
+        )
+        ui.details = .pinned
+        pump(seconds: 0.4)
 
         // 1. Typing in the search field must reach the field, not the shortcuts.
         ui.focusSearch()
@@ -175,8 +191,140 @@ enum SnapshotMode {
             )
         }
 
+        // 9. A details pane that opened for a bead also closes on a click that lands on no bead;
+        // one the user asked for stays where it is. (Escape is step 0's, while it can be typed.)
+        ui.showsFilterMenu = false
+        model.searchText = ""
+        model.viewID = .everything
+        model.chooseLayout(.board)
+        window.makeFirstResponder(nil)
+        pump(seconds: 0.8)
+        if let bead = model.visibleIssues.first?.id,
+           let sidebarTable = allTables(in: window.contentView!).first(where: { $0.tableColumns.count < 3 }) {
+            // Measured at each click: the sidebar and the pane both move as the pane docks,
+            // floats and goes, and the pane is as wide as it was last dragged.
+            func sidebar() -> CGRect { sidebarTable.convert(sidebarTable.visibleRect, to: nil) }
+            /// Where the beads stop: the pane's leading edge while it is up, else the window's.
+            func trailingEdge() -> CGFloat {
+                if ui.details.isOpen, let pane = ui.detailsPaneView, pane.window === window {
+                    return pane.convert(pane.bounds, to: nil).minX
+                }
+                return window.contentView!.bounds.maxX
+            }
+            // The foot of the sidebar, below its rows.
+            func inSidebar() -> CGPoint { CGPoint(x: sidebar().midX, y: sidebar().minY + 6) }
+            // The board's own margin, left of the first column, which no card reaches.
+            func onBoard() -> CGPoint { CGPoint(x: sidebar().maxX + 7, y: sidebar().midY) }
+            // The filter bar is the first thing under the toolbar.
+            func inFilterBar() -> CGPoint {
+                CGPoint(x: (sidebar().maxX + trailingEdge()) / 2, y: window.contentLayoutRect.maxY - 19)
+            }
+            func hold(_ pane: DetailsPane) {
+                model.selection = nil
+                pump(seconds: 0.3)
+                ui.details = pane
+                pump(seconds: 0.5)
+                model.selection = bead
+                pump(seconds: 0.7)
+            }
+            func state() -> String { "pane = \(ui.details), selection = \(model.selection?.rawValue ?? "nil")" }
+
+            hold(.closed)
+            check("details that came with a bead are open", ui.details == .peeking, state())
+            let unsqueezed = sidebar().width
+            click(at: inSidebar(), in: window)
+            check("a click in the sidebar closes details that came with the bead", ui.details == .closed && model.selection == nil, state())
+
+            hold(.closed)
+            check("details that came with a bead float: the sidebar keeps its width", abs(sidebar().width - unsqueezed) < 1, "sidebar \(Int(unsqueezed))pt with them hidden, \(Int(sidebar().width))pt with them up")
+            click(at: inFilterBar(), in: window)
+            check("…and a click on the filter bar closes them", ui.details == .closed && model.selection == nil, state())
+
+            if model.presentedLayout == .board, model.boardNeedsSplitting == nil {
+                hold(.closed)
+                // The synthetic click can't press a card (a SwiftUI tap never hears it), so the
+                // card side of the question is asked directly: is a card's middle known as one?
+                if let card = BeadMarker.frames(in: window).first(where: { $0.minX + 10 < trailingEdge() }) {
+                    check("the board knows a card from the space around it", BeadMarker.covers(CGPoint(x: card.minX + 10, y: card.midY), in: window) && !BeadMarker.covers(onBoard(), in: window))
+                } else {
+                    print("skip  the board knows a card from the space around it — no card clear of the details")
+                }
+                click(at: onBoard(), in: window)
+                check("…and a click on the board that misses every card", ui.details == .closed && model.selection == nil, state())
+                hold(.pinned)
+                click(at: onBoard(), in: window)
+                check("…which lets go of the bead even with the details pinned, as the list does", ui.details == .pinned && model.selection == nil, state())
+            } else {
+                print("skip  a click on the board that misses every card — this workspace has no board to show")
+            }
+
+            hold(.closed)
+            if let pane = ui.detailsPaneView, pane.window === window {
+                // Where the pane lies over the filter bar, the click is the pane's own.
+                let frame = pane.convert(pane.bounds, to: nil)
+                click(at: CGPoint(x: frame.midX, y: frame.maxY - 60), in: window)
+                check("a click on the floating details themselves keeps them", ui.details == .peeking && model.selection == bead, state())
+            }
+
+            // The list, searched down to the one bead so there is room under its last row.
+            model.chooseLayout(.list)
+            model.searchText = bead.rawValue
+            pump(seconds: 0.8)
+            hold(.closed)
+            if let table = allTables(in: window.contentView!).first(where: { $0.tableColumns.count >= 3 }), table.numberOfRows > 0,
+               case let visible = table.convert(table.visibleRect, to: nil),
+               case let lastRow = table.convert(table.rect(ofRow: table.numberOfRows - 1), to: nil),
+               lastRow.minY > visible.minY + 30 {
+                click(at: CGPoint(x: (visible.minX + min(visible.maxX, trailingEdge())) / 2, y: visible.minY + 10), in: window)
+                check("…and a click below the last row of the list", ui.details == .closed && model.selection == nil, state())
+            } else {
+                print("skip  a click below the last row of the list — the rows fill the pane")
+            }
+            model.searchText = ""
+            pump(seconds: 0.4)
+
+            hold(.pinned)
+            click(at: inSidebar(), in: window)
+            check("pinned details keep their bead through a click in the sidebar", ui.details == .pinned && model.selection == bead, state())
+            click(at: inFilterBar(), in: window)
+            check("…and through a click on the filter bar", ui.details == .pinned && model.selection == bead, state())
+        } else {
+            print("skip  dismissing the details pane — no bead to select, or no sidebar found")
+        }
+
         print(failures.isEmpty ? "\nAll key checks passed." : "\nFailed: \(failures.joined(separator: ", "))")
         exit(failures.isEmpty ? 0 : 1)
+    }
+
+    /// A left click the way a mouse would send it, at a point in the window's coordinates.
+    ///
+    /// The release is queued before the press is sent: an AppKit control (a table, say) answers
+    /// the press by waiting, in a loop of its own, for the release, and would wait forever for
+    /// one sent afterwards. Where nothing waited for it, it is delivered by hand.
+    ///
+    /// This reaches AppKit views and event monitors. A SwiftUI gesture never hears it — a plain
+    /// `onTapGesture` ignores events sent this way — so don't read a miss as a failed tap.
+    private static func click(at point: CGPoint, in window: NSWindow) {
+        func event(_ type: NSEvent.EventType) -> NSEvent? {
+            NSEvent.mouseEvent(
+                with: type,
+                location: point,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: type == .leftMouseDown ? 1 : 0
+            )
+        }
+        guard let press = event(.leftMouseDown), let release = event(.leftMouseUp) else { return }
+        NSApp.postEvent(release, atStart: false)
+        NSApp.sendEvent(press)
+        if let waiting = NSApp.nextEvent(matching: .leftMouseUp, until: nil, inMode: .default, dequeue: true) {
+            NSApp.sendEvent(waiting)
+        }
+        pump(seconds: 0.5)
     }
 
     /// Sends a keystroke the way a keyboard would, through the window's event handling.
@@ -582,7 +730,11 @@ enum SnapshotMode {
         model.selection = nil
         session.ui.showsInspector = false
         capture("21c-pipeline-board-columns", WorkspaceView(model: model, ui: session.ui, persistsPreferences: false))
-        session.ui.showsInspector = true
+        // A bead clicked with the details hidden: they float over the board's end, and every
+        // column underneath is where 21c left it.
+        session.ui.details = .peeking
+        captureWorkspace("21d-pipeline-board-details-floating")
+        session.ui.details = .pinned
         // The same board with sub-tasks folded into their parents' cards, the biggest one open.
         model.nestsSubtasks = true
         if let parent = model.boardColumns.flatMap(\.cards).max(by: { $0.children.count < $1.children.count }), !parent.children.isEmpty {

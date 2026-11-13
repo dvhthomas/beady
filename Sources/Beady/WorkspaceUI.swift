@@ -1,3 +1,4 @@
+import AppKit
 import BeadsCore
 import BeadsPresentation
 import Foundation
@@ -21,7 +22,52 @@ final class WorkspaceUI {
         graphPaneHeight = height > 0 ? height : 280
     }
 
-    var showsInspector = true
+    /// The details pane: hidden, pinned open, or open only for the bead that was just selected.
+    /// The rules for moving between those are `DetailsPane`'s.
+    var details = DetailsPane.pinned
+    /// Whether the pane is on screen. Setting it true is asking for the pane by name, which pins
+    /// a hidden one.
+    var showsInspector: Bool {
+        get { details.isOpen }
+        set { details = newValue ? details.shown() : .closed }
+    }
+
+    /// The bead the pane last showed. A floating pane goes on showing it while it slides away,
+    /// after the selection that brought it has already been let go.
+    var lastShownBead: IssueID?
+
+    /// The selection changed: a hidden pane comes up for a bead, and one that came up for a
+    /// bead goes when the bead is let go.
+    func follow(selection: IssueID?) {
+        if let selection { lastShownBead = selection }
+        details = details.following(selection: selection)
+    }
+
+    /// Where the pane is in the window, for telling a click inside it from a click away: floating,
+    /// it lies over the end of the filter bar.
+    @ObservationIgnored weak var detailsPaneView: NSView?
+
+    /// True when `point`, in `window`'s coordinates, is on the details pane.
+    func detailsCover(_ point: CGPoint, in window: NSWindow) -> Bool {
+        guard details.isOpen, let pane = detailsPaneView, pane.window === window else { return false }
+        return pane.convert(pane.bounds, to: nil).contains(point)
+    }
+
+    /// The pane's own close button: the pane goes, and so does its hold on the bead — a card
+    /// left highlighted with nothing showing it would need a second click to bring back.
+    func closeDetails(of model: WorkspaceModel) {
+        model.selection = nil
+        details = .closed
+    }
+
+    /// A click somewhere that isn't the pane or a bead. A pane that came with the bead lets go
+    /// of it, and closes as the selection empties; a pinned one stays. Like Escape, it stands
+    /// down while an edit is open, so a stray click can't throw away what was typed.
+    func clickedAway(in model: WorkspaceModel) {
+        guard details.letsGoOnClickAway, model.draft == nil else { return }
+        model.selection = nil
+    }
+
     /// The dependency graph pinned into the details pane, following the selected bead. A pane
     /// rather than a window when the chain matters while you work down a list.
     var showsGraphPane: Bool {

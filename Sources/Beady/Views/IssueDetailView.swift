@@ -7,20 +7,34 @@ struct IssueDetailView: View {
     @Bindable var model: WorkspaceModel
     /// Panels shared with the menu bar; nil where there is no window around the pane.
     var ui: WorkspaceUI?
+    /// A floating pane closes the moment its bead is let go, and is still on screen, sliding
+    /// away, for a quarter of a second after. It keeps showing that bead on the way out rather
+    /// than flashing "No Selection".
+    var leavesWithItsBead = false
 
-    init(model: WorkspaceModel, ui: WorkspaceUI? = nil) {
+    init(model: WorkspaceModel, ui: WorkspaceUI? = nil, leavesWithItsBead: Bool = false) {
         self.model = model
         self.ui = ui
+        self.leavesWithItsBead = leavesWithItsBead
+    }
+
+    /// The bead on show: the selected one, or for a pane on its way out, the one it had.
+    private var shownIssue: Issue? {
+        if let issue = model.selectedIssue { return issue }
+        guard leavesWithItsBead, let id = ui?.lastShownBead else { return nil }
+        return model.snapshot?.issue(id)
     }
 
     var body: some View {
-        // The history bar is pinned to the top in both states, where it sits when a bead is
-        // selected; what's below takes the rest of the height, so the empty state centres in
-        // the pane rather than hanging just under the arrows. The pinned graph, when there is
-        // one, takes the bottom, at a height you drag.
+        // The bar is pinned to the top in both states, where it sits when a bead is selected;
+        // what's below takes the rest of the height, so the empty state centres in the pane
+        // rather than hanging just under the arrows. The pinned graph, when there is one, takes
+        // the bottom, at a height you drag.
         VStack(alignment: .leading, spacing: 0) {
-            if model.canGoBack || model.canGoForward {
-                historyBar
+            // In a window the bar is always there, so the close button never moves; without one
+            // (a snapshot of the pane alone) it shows only for the history arrows.
+            if hasHistory || ui != nil {
+                paneBar
             }
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -53,23 +67,40 @@ struct IssueDetailView: View {
         )
     }
 
-    /// Following a blocker link replaces what's in this pane, so there has to be a way back to
-    /// the bead you came from.
-    private var historyBar: some View {
-        HStack(spacing: 6) {
-            Button { model.goBack() } label: {
-                Label("Back", systemImage: "chevron.left")
-            }
-            .disabled(!model.canGoBack)
-            .help("Back to the last bead you were looking at (⌘[)")
+    private var hasHistory: Bool { model.canGoBack || model.canGoForward }
 
-            Button { model.goForward() } label: {
-                Label("Forward", systemImage: "chevron.right")
+    /// Following a blocker link replaces what's in this pane, so there has to be a way back to
+    /// the bead you came from. And a pane that opens by itself when a bead is clicked needs a
+    /// visible way to be sent away again: the close button, at the trailing edge.
+    private var paneBar: some View {
+        HStack(spacing: 6) {
+            if hasHistory {
+                Button { model.goBack() } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .disabled(!model.canGoBack)
+                .help("Back to the last bead you were looking at (⌘[)")
+
+                Button { model.goForward() } label: {
+                    Label("Forward", systemImage: "chevron.right")
+                }
+                .disabled(!model.canGoForward)
+                .help("Forward (⌘])")
             }
-            .disabled(!model.canGoForward)
-            .help("Forward (⌘])")
 
             Spacer(minLength: 0)
+
+            if let ui {
+                Button { ui.closeDetails(of: model) } label: {
+                    Label("Close Details", systemImage: "xmark")
+                }
+                // An edit has its own Cancel and Save; closing is not a third way out of it.
+                .disabled(model.draft != nil)
+                // Escape only closes a pane that came with the bead, so only that one says so.
+                .help(leavesWithItsBead
+                    ? String(localized: "Close the details (Esc)", comment: "Tooltip on the details pane's close button")
+                    : String(localized: "Close the details (⌘I)", comment: "Tooltip on the details pane's close button"))
+            }
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.accessoryBar)
@@ -81,7 +112,7 @@ struct IssueDetailView: View {
     @ViewBuilder
     private var content: some View {
         Group {
-            if let issue = model.selectedIssue, let snapshot = model.snapshot {
+            if let issue = shownIssue, let snapshot = model.snapshot {
                 if let draft = draftBinding(for: issue) {
                     EditBeadForm(model: model, draft: draft) { model.endEditing() }
                 } else {

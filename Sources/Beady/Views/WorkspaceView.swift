@@ -5,6 +5,7 @@ import SwiftUI
 
 struct WorkspaceView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The window's undo manager: bead changes register on it, so ⌘Z and the Edit menu work
     /// the way they do everywhere on the Mac. Nil in offscreen snapshots.
     @Environment(\.undoManager) private var windowUndoManager
@@ -50,6 +51,8 @@ struct WorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model, ui: ui, run: run, importFiles: importFiles)
+                // Anywhere in the sidebar is away from a bead: a pane that came with one closes.
+                .background(clickAwayWatcher)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
             // Not `.inspector`: that grows the right pane by pushing the whole window's layout,
@@ -58,6 +61,9 @@ struct WorkspaceView: View {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     FilterBar(model: model, ui: ui, run: run)
+                        // So is the filter bar. A floating pane moves nothing when it goes, so
+                        // the control that was clicked is still under the pointer and still works.
+                        .background(clickAwayWatcher)
                     content
                         // Switching sidebar views must not leave the sidebar's own list holding the
                         // keyboard — otherwise the first arrow key after a click walks the sidebar
@@ -65,17 +71,24 @@ struct WorkspaceView: View {
                         .background(FocusesOnChange(trigger: model.viewID))
                 }
                 .frame(maxWidth: .infinity)
-                if ui.showsInspector {
-                    InspectorDivider(width: $inspectorWidth)
-                    IssueDetailView(model: model, ui: ui)
-                        .scrollContentBackground(.hidden)
-                        .frame(width: inspectorWidth)
-                        .background(theme.background)
-                        .transition(.move(edge: .trailing))
+                // Pinned, the pane is docked: the beads make room for it.
+                if ui.details == .pinned {
+                    Color.clear.frame(width: inspectorWidth + InspectorDivider.thickness)
+                }
+            }
+            // The pane itself always lies over that row, at its trailing edge. Peeking, that is
+            // all there is to it: it came up for one bead and will be gone again, so it flies
+            // in over the beads and out without moving anything underneath. Pinning it only
+            // clears the room above, so the pane stays put while the beads step aside.
+            .overlay(alignment: .trailing) {
+                if ui.details.isOpen {
+                    detailsPane(floating: ui.details.floats)
+                        .shadow(color: .black.opacity(ui.details.floats ? 0.22 : 0), radius: 14, x: -4)
+                        .transition(paneTransition)
                 }
             }
             .clipped()
-            .animation(.smooth(duration: 0.25), value: ui.showsInspector)
+            .animation(.smooth(duration: 0.25), value: ui.details)
         }
         .background(theme.background)
         .toolbarBackground(theme.surface, for: .windowToolbar)
@@ -118,7 +131,13 @@ struct WorkspaceView: View {
         .onChange(of: model.viewID) {
             if persistsPreferences { storedView = model.viewID.rawValue }
         }
-        .onChange(of: model.selection) { if model.selection != nil { ui.showsInspector = true } }
+        .onChange(of: model.selection) {
+            // Selecting a bead brings the pane up if it was hidden; letting go of the bead takes
+            // that pane away again. The pane can leave in this same update, before its own
+            // onChange runs, so an edit it had open ends here too.
+            model.endEditing()
+            ui.follow(selection: model.selection)
+        }
         .onChange(of: model.activity.first?.id) {
             if model.activity.first?.succeeded == true { ui.showsNewBead = false }
         }
@@ -136,6 +155,30 @@ struct WorkspaceView: View {
                 await model.refreshIfChanged()
             }
         }
+    }
+
+    /// The details, with the edge you drag to resize them. A floating pane keeps showing its
+    /// bead while it leaves; a docked one says when nothing is selected.
+    private func detailsPane(floating: Bool) -> some View {
+        HStack(spacing: 0) {
+            InspectorDivider(width: $inspectorWidth)
+            IssueDetailView(model: model, ui: ui, leavesWithItsBead: floating)
+                .scrollContentBackground(.hidden)
+                .frame(width: inspectorWidth)
+        }
+        .background(theme.background)
+        .background(ViewMarker { ui.detailsPaneView = $0 })
+    }
+
+    /// Planted behind the sidebar and the filter bar: a click there lets go of the bead a
+    /// floating pane came up for. Not a click on the pane itself, where it covers the bar's end.
+    private var clickAwayWatcher: some View {
+        ClickWatcher(except: { ui.detailsCover($0, in: $1) }) { ui.clickedAway(in: model) }
+    }
+
+    /// The pane slides in from the trailing edge; under Reduce Motion it fades instead.
+    private var paneTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .trailing)
     }
 
     @ViewBuilder
@@ -208,9 +251,12 @@ struct WorkspaceView: View {
 
     /// One sheet serves both the new-bead form and the confirmation of any change, so a create
     /// can move from form to confirmation (and back, on cancel) without stacking sheets.
-    /// Escape lets go of the selected bead in the list, tree or board. It stands down whenever
+    /// Escape lets go of the selected bead in the list, tree or board — which closes a details
+    /// pane that only opened for that bead (`DetailsPane`). It stands down whenever
     /// something else has a better claim on the key: a sheet (Escape cancels it), the search
-    /// field (Escape clears it), any other text field, or an edit in progress.
+    /// field (Escape clears it), any other text field, or an edit in progress. Text that can
+    /// only be selected has no claim: clicking into the details to copy an id must not leave
+    /// Escape dead.
     private func watchEscape() {
         guard escapeMonitor.wrappedValue == nil else { return }
         let model = model
@@ -223,7 +269,7 @@ struct WorkspaceView: View {
                   model.pendingChange == nil,
                   !ui.isSheetOpen,
                   !ui.isSearchFocused,
-                  !(NSApp.keyWindow?.firstResponder is NSTextView)
+                  (NSApp.keyWindow?.firstResponder as? NSTextView)?.isEditable != true
             else { return event }
             model.selection = nil
             return nil
@@ -382,6 +428,8 @@ private struct InspectorDivider: View {
     private var startWidth = State<Double?>(initialValue: nil)
 
     static let range = 280.0...640.0
+    /// The hairline and the margin either side of it that takes the drag.
+    static let thickness = 7.0
 
     init(width: Binding<Double>) {
         _width = width
@@ -391,7 +439,7 @@ private struct InspectorDivider: View {
         Rectangle()
             .fill(theme.border)
             .frame(width: 1)
-            .padding(.horizontal, 3)
+            .padding(.horizontal, (Self.thickness - 1) / 2)
             .contentShape(Rectangle())
             .onHover { inside in
                 if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
@@ -406,4 +454,84 @@ private struct InspectorDivider: View {
                     .onEnded { _ in startWidth.wrappedValue = nil }
             )
     }
+}
+
+/// Reports a left click that lands on whatever this is planted behind with `.background(...)`,
+/// without taking the click: the row, button or drag under the pointer still gets it.
+///
+/// A SwiftUI gesture can't do this over a `List` — the table underneath takes the mouse first —
+/// so it watches the window's events and compares against its own frame. Clicks in a sheet,
+/// popover or menu belong to other windows and never match; the strip under the toolbar is left
+/// out, since a sidebar runs up behind it.
+struct ClickWatcher: NSViewRepresentable {
+    /// True for a point, in the window's coordinates, where something lying over this view
+    /// keeps the click for itself.
+    var except: @MainActor (CGPoint, NSWindow) -> Bool = { _, _ in false }
+    let onClick: @MainActor () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.watch(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.except = except
+        context.coordinator.onClick = onClick
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(except: except, onClick: onClick)
+    }
+
+    @MainActor
+    final class Coordinator {
+        var except: @MainActor (CGPoint, NSWindow) -> Bool
+        var onClick: @MainActor () -> Void
+        private var monitor: Any?
+
+        init(except: @escaping @MainActor (CGPoint, NSWindow) -> Bool, onClick: @escaping @MainActor () -> Void) {
+            self.except = except
+            self.onClick = onClick
+        }
+
+        func watch(_ view: NSView) {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { @MainActor [weak self, weak view] event in
+                // Control-click is a right click: it opens a menu, it doesn't click away.
+                if let self, let view, let window = view.window, event.window === window,
+                   window.attachedSheet == nil,
+                   !event.modifierFlags.contains(.control),
+                   event.locationInWindow.y <= window.contentLayoutRect.maxY,
+                   view.convert(view.bounds, to: nil).contains(event.locationInWindow),
+                   !self.except(event.locationInWindow, window) {
+                    self.onClick()
+                }
+                return event
+            }
+        }
+
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
+}
+
+/// Hands back the `NSView` planted behind a SwiftUI view with `.background(...)`: its frame in
+/// the window is that view's, which is how AppKit-side code finds out where a SwiftUI view is.
+struct ViewMarker: NSViewRepresentable {
+    let found: @MainActor (NSView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        found(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

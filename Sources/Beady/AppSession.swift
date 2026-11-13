@@ -550,7 +550,7 @@ final class AppSession {
             model?.clearFilters()
             model?.searchText = ""
         case .displayOptions: ui.showsDisplayOptions = true
-        case .toggleDetails: ui.showsInspector.toggle()
+        case .toggleDetails: ui.details = ui.details.toggled()
         case .toggleGraphPane:
             ui.showsGraphPane.toggle()
             if ui.showsGraphPane { ui.showsInspector = true }
@@ -570,7 +570,9 @@ final class AppSession {
         case .setOrdering(let sort): model?.ordering = sort
         case .goToIssue(let id, _):
             model?.selection = id
-            ui.showsInspector = true
+            // Not left to the view's onChange: going to the bead already selected changes nothing
+            // there, and the pane should still come up for it.
+            ui.follow(selection: id)
         case .toggleMark(let mark):
             if let model, let id = model.selection {
                 Task { await model.toggleMark(mark, on: id) }

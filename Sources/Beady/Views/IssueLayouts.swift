@@ -320,7 +320,7 @@ struct IssueBoardView: View {
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
                 ForEach(columns) { column in
-                    BoardColumnView(column: column, model: model, cardSpace: cardSpace.wrappedValue)
+                    BoardColumnView(column: column, model: model, cardSpace: cardSpace.wrappedValue, select: select)
                         .frame(width: column.cards.isEmpty ? BoardColumnView.railWidth : BoardColumnView.fullWidth)
                 }
             }
@@ -333,8 +333,24 @@ struct IssueBoardView: View {
             .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: columns.map { $0.cards.map(\.id) })
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A click on the board that misses every card lets go of the selected one, as a click
+        // below the last row of the list does. Not while an edit is open: Escape stands down
+        // then too. A floating details pane lies over the board's end; its clicks are its own.
+        .background(ClickWatcher(except: { point, window in
+            BeadMarker.covers(point, in: window) || ui.detailsCover(point, in: window)
+        }) {
+            if model.selection != nil, model.draft == nil { model.selection = nil }
+        })
         .onAppear(perform: startWatchingKeys)
         .onDisappear(perform: stopWatchingKeys)
+    }
+
+    /// A click on a card or a folded sub-task. The window follows the selection on its own —
+    /// except when the bead clicked is already the selected one and its details were hidden
+    /// since: nothing changes then, and the click should still bring them up.
+    private func select(_ id: IssueID) {
+        model.selection = id
+        ui.follow(selection: id)
     }
 
     /// The board is a grid we drew ourselves, so the arrow keys have to be caught here — left to
@@ -374,13 +390,16 @@ private struct BoardColumnView: View {
     let column: BoardColumnModel
     let model: WorkspaceModel
     let cardSpace: Namespace.ID
+    /// Selects the bead that was clicked and brings its details up.
+    let select: (IssueID) -> Void
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var isDropTarget = State(initialValue: false)
 
-    init(column: BoardColumnModel, model: WorkspaceModel, cardSpace: Namespace.ID) {
+    init(column: BoardColumnModel, model: WorkspaceModel, cardSpace: Namespace.ID, select: @escaping (IssueID) -> Void) {
         self.column = column
         self.model = model
         self.cardSpace = cardSpace
+        self.select = select
     }
 
     private var isEmpty: Bool { column.cards.isEmpty }
@@ -464,12 +483,15 @@ private struct BoardColumnView: View {
                             selection: model.selection,
                             isExpanded: model.boardExpanded.contains(card.id),
                             toggleExpansion: { model.toggleBoardCard(card.id) },
-                            select: { model.selection = $0 },
+                            select: select,
                             canDrag: model.canEdit,
                             removeMark: { mark in Task { await model.toggleMark(mark, on: card.id) } },
                             menu: { issue in cardMenu(issue) }
                         )
-                            .onTapGesture { model.selection = card.id }
+                            .onTapGesture { select(card.id) }
+                            // Where the card is, for the board to tell a click on a bead from
+                            // a click on the space around one.
+                            .background(BeadMarker())
                             .draggableIssue(card.id, when: model.canEdit)
                             .contextMenu { cardMenu(card.issue) }
                             .matchedGeometryEffect(id: card.id, in: cardSpace)
@@ -626,6 +648,32 @@ private struct IssueCard<Menu: View>: View {
     }
 }
 
+
+/// Marks where a card is on the board. The board hears every click that lands on it, through
+/// the window's events; SwiftUI won't say whether a card was under the pointer, but the plain
+/// view planted behind each card has the card's frame, and AppKit will.
+struct BeadMarker: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        Self.views.add(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    /// Every card on screen; a card that scrolls away or leaves the board drops out by itself.
+    @MainActor private static let views = NSHashTable<NSView>.weakObjects()
+
+    /// Where the cards are in `window`, in its coordinates.
+    @MainActor static func frames(in window: NSWindow) -> [CGRect] {
+        views.allObjects.filter { $0.window === window }.map { $0.convert($0.bounds, to: nil) }
+    }
+
+    /// True when `point`, in `window`'s coordinates, is on a card.
+    @MainActor static func covers(_ point: CGPoint, in window: NSWindow) -> Bool {
+        frames(in: window).contains { $0.contains(point) }
+    }
+}
 
 /// A brief accent glow around the card whose change this session just wrote. The board moves
 /// the card to its new column when the data refreshes; the glow marks where it landed, then
