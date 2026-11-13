@@ -83,6 +83,12 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case backUpNow
     case setUpBackup
     case turnOnJournal
+    /// Open the Share Beads sheet (plan 0006).
+    case shareBeads
+    /// One `bd sync` against the default remote.
+    case syncNow
+    /// Open the Workspace Setup sheet.
+    case workspaceSetup
     case setSidebarStyle(SidebarStyle)
     case chooseTheme
     case setTextSize(TextSize)
@@ -131,6 +137,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .backUpNow: "back-up-now"
         case .setUpBackup: "set-up-backup"
         case .turnOnJournal: "turn-on-journal"
+        case .shareBeads: "share-beads"
+        case .syncNow: "sync-now"
+        case .workspaceSetup: "workspace-setup"
         case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
@@ -181,6 +190,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .backUpNow: String(localized: "Back Up Now", bundle: .module, comment: "Command")
         case .setUpBackup: String(localized: "Set Up Backup…", bundle: .module, comment: "Command")
         case .turnOnJournal: String(localized: "Turn On bd's Change Journal", bundle: .module, comment: "Command")
+        case .shareBeads: SharingAction.share.title
+        case .syncNow: SharingAction.sync.title
+        case .workspaceSetup: String(localized: "Workspace Setup…", bundle: .module, comment: "Command: open the Workspace Setup sheet")
         case .setSidebarStyle(let style): String(localized: "Sidebar: \(style.title)", bundle: .module, comment: "Command; the value is Themed or Translucent")
         case .chooseTheme: String(localized: "Theme…", bundle: .module, comment: "Command")
         case .setTextSize(let size): String(localized: "Text Size: \(size.title)", bundle: .module, comment: "Command; the value is a text size such as Large")
@@ -229,6 +241,9 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .backUpNow: ["backup", "back up", "sync", "save", "copy", "dolt"]
         case .setUpBackup: ["backup", "back up", "configure backup", "destination", "folder"]
         case .turnOnJournal: ["journal", "events", "live", "activity", "who changed", "agents", "watch"]
+        case .shareBeads: ["share", "remote", "team", "multiuser", "origin", "push", "publish", "dolt", "collaborate"]
+        case .syncNow: ["sync", "pull", "push", "remote", "send", "receive", "fetch", "dolt"]
+        case .workspaceSetup: ["setup", "configuration", "health", "doctor", "worktrees", "hooks", "remote", "sharing", "backup", "status"]
         case .setSidebarStyle: ["sidebar", "translucent", "vibrancy", "material", "native"]
         case .goBack: ["back", "previous", "return", "undo navigation"]
         case .goForward: ["forward", "next", "again"]
@@ -245,7 +260,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     /// The section it appears under in the palette and the shortcut sheet.
     public var group: String {
         switch self {
-        case .openWorkspace, .closeWorkspace, .switchWorkspace, .nextWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: String(localized: "Workspace", bundle: .module, comment: "Command group")
+        case .openWorkspace, .closeWorkspace, .switchWorkspace, .nextWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal,
+             .shareBeads, .syncNow, .workspaceSetup: String(localized: "Workspace", bundle: .module, comment: "Command group")
         case .newBead, .editSelected, .toggleMark, .showGraph: Self.beadsGroup
         case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
         case .displayOptions, .toggleDetails, .toggleGraphPane, .setLayout, .setGrouping, .setOrdering,
@@ -292,7 +308,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .resetView: [KeyBinding("r", [.command, .option])]
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
-             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand, .switchWorkspace: []
+             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand, .switchWorkspace,
+             .shareBeads, .syncNow, .workspaceSetup: []
         }
     }
 
@@ -376,6 +393,12 @@ public enum CommandCatalog {
         commands += [.openSettings, .resetConfiguration]
         if model.hasClearableFilters || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
+        // Sharing: what the state allows, as the toolbar's popover offers it.
+        if model.canEdit, let actions = model.sharingSummary?.actions {
+            if actions.contains(.share) { commands.append(.shareBeads) }
+            if actions.contains(.sync) { commands.append(.syncNow) }
+        }
+        commands.append(.workspaceSetup)
         // With the setting off, or after an Undo: the palette is where a change of mind goes.
         if model.canEdit, model.journal.canBeTurnedOn { commands.append(.turnOnJournal) }
         commands.append(.closeWorkspace)

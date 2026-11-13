@@ -111,6 +111,50 @@ final class StubStore: BeadsStore, @unchecked Sendable {
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] {
         ["bd config set-many " + settings.map { "\($0.key)=\($0.value)" }.joined(separator: " ")]
     }
+    // Sharing: nothing shared unless a test says otherwise.
+    /// What bd reports; nil is a bd that wouldn't say.
+    var sharing: SharingFacts? = SharingFacts.none
+    var setup = WorkspaceSetup.unknown
+    var origin: String?
+    /// Served in order by `sync()`, then `.synced`.
+    var syncOutcomes: [SyncOutcome] = []
+    /// What bd reports after the next successful sync or step, when a test wants the facts to move.
+    var sharingAfterAction: SharingFacts?
+    /// Every step performed, in order.
+    private(set) var sharingSteps: [SharingStep] = []
+    private(set) var syncs = 0
+    /// Thrown by the step with this index, when a test wants bd to refuse it.
+    var stepFailures: [Int: Error] = [:]
+
+    func sharingFacts() async throws -> SharingFacts {
+        guard let sharing else { throw LoadFailure() }
+        return sharing
+    }
+    func workspaceSetup() async -> WorkspaceSetup { setup }
+    func gitOriginURL() async -> String? { origin }
+    func sync() async throws -> SyncOutcome {
+        syncs += 1
+        let outcome = syncOutcomes.isEmpty ? .synced : syncOutcomes.removeFirst()
+        if outcome == .synced, let next = sharingAfterAction { sharing = next }
+        return outcome
+    }
+    func perform(_ step: SharingStep) async throws {
+        if let failure = stepFailures[sharingSteps.count] {
+            sharingSteps.append(step)
+            throw failure
+        }
+        sharingSteps.append(step)
+        if let next = sharingAfterAction { sharing = next }
+    }
+    func commandPreview(for step: SharingStep) -> String {
+        switch step {
+        case .addRemote(let name, let url, let allow): "bd dolt remote add\(allow ? " --allow-git-origin" : "") -- \(name) \(url)"
+        case .publish: "bd dolt push"
+        case .sync: "bd sync --json"
+        case .settleConflict(let side): "bd dolt pull --strategy=\(side.rawValue)"
+        }
+    }
+
     func versions(of id: IssueID, limit: Int) async throws -> [IssueVersion] { [] }
     func backupStatus() async throws -> BackupStatus { backup }
     func configureBackup(folder: String) async throws { backup = BackupStatus(destination: folder, lastSync: t0, databaseSize: "1 KB") }

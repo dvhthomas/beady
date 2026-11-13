@@ -13,6 +13,12 @@ extension UTType {
     static let beadyViews = UTType("me.bitsby.beady.views") ?? UTType(filenameExtension: ViewLibrary.bundleExtension) ?? .json
 }
 
+/// What the Get Beads alert shows: bd's bootstrap plan for the folder, and the exact command.
+struct BootstrapOfferAlert {
+    let offer: BootstrapOffer
+    let command: String
+}
+
 /// What the Create Database alert shows: the plan, and the exact command line it will run.
 struct NewDatabaseOffer {
     let plan: NewDatabasePlan
@@ -35,6 +41,11 @@ final class AppSession {
     private(set) var databaseOffer: NewDatabaseOffer?
     /// True while bd is making a database the user said yes to.
     private(set) var isCreatingDatabase = false
+    /// A folder with bd's configuration and no database, usually a fresh clone, waiting for a
+    /// yes or no to bd's bootstrap plan.
+    private(set) var bootstrapOffer: BootstrapOfferAlert?
+    /// True while bd is fetching or setting up a database the user said yes to.
+    private(set) var isBootstrapping = false
     /// The setting: turn bd's change journal on in workspaces that don't have it. On by default;
     /// nil preferences (the offscreen snapshots) mean nothing is ever written.
     var turnsOnJournal: Bool {
@@ -143,6 +154,8 @@ final class AppSession {
         switch WorkspaceOpening.decide(folder) {
         case .open:
             openWorkspace(url)
+        case .askBootstrapPlan:
+            askBootstrapPlan(url, path: found.projectDirectory.path)
         case .offerNewDatabase(let plan):
             forget(found.projectDirectory.path)
             offerNewDatabase(plan)
@@ -161,6 +174,46 @@ final class AppSession {
         } catch {
             openError = error.localizedDescription
         }
+    }
+
+    /// bd's configuration is in the folder and its database isn't. bd says what that means: a
+    /// fresh clone whose beads are on the remote, a database kept elsewhere, or nothing at all.
+    /// Whatever it is, the answer is bd's; with none, the folder opens as it always did.
+    private func askBootstrapPlan(_ url: URL, path: String) {
+        Task {
+            let gateway = try? BDGateway.forNewWorkspace(at: url)
+            let plan = try? await gateway?.bootstrapPlan()
+            switch WorkspaceOpening.decide(plan, for: path) {
+            case .open:
+                openWorkspace(url)
+            case .offer(let offer):
+                forget(path)
+                bootstrapOffer = BootstrapOfferAlert(offer: offer, command: gateway?.preview(.bootstrap) ?? "bd bootstrap --yes")
+                openError = nil
+            }
+        }
+    }
+
+    /// Yes to bd's bootstrap plan: run it inside the folder, then open the folder.
+    func runBootstrap() {
+        guard let alert = bootstrapOffer, !isBootstrapping else { return }
+        bootstrapOffer = nil
+        isBootstrapping = true
+        let url = URL(fileURLWithPath: alert.offer.projectPath)
+        Task {
+            defer { isBootstrapping = false }
+            do {
+                _ = try await BDGateway.forNewWorkspace(at: url).run(.bootstrap)
+                openWorkspace(url)
+            } catch {
+                openError = String(localized: "Couldn't set up the beads database in \(alert.offer.folderName): \(error.localizedDescription)", comment: "The folder's name, then bd's error")
+            }
+        }
+    }
+
+    /// No to the plan: nothing is written, and nothing is remembered.
+    func declineBootstrap() {
+        bootstrapOffer = nil
     }
 
     /// Yes to the offer: run bd init, then open the folder like any other workspace.
@@ -591,6 +644,18 @@ final class AppSession {
             if let model { Task { await report(await model.backUpNow()) } }
         case .setUpBackup: chooseBackupFolder()
         case .turnOnJournal: turnOnJournal()
+        case .shareBeads:
+            guard let model else { return }
+            // The sheet starts from the repository's origin, which has to be asked for.
+            Task {
+                await model.refreshSetup()
+                model.dismissSharingNotice()
+                ui.promptShareBeads(origin: model.gitOrigin)
+            }
+        case .syncNow:
+            if let model { Task { await model.syncNow() } }
+        case .workspaceSetup:
+            if model != nil { ui.promptWorkspaceSetup() }
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size

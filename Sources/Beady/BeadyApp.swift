@@ -123,6 +123,12 @@ struct RootView: View {
         } message: {
             Text(session.databaseOffer.map { $0.plan.offerMessage(command: $0.command) } ?? "")
         }
+        .alert(session.bootstrapOffer?.offer.title ?? "", isPresented: showsBootstrapOffer) {
+            Button(session.bootstrapOffer?.offer.confirmTitle ?? "") { session.runBootstrap() }
+            Button("Cancel", role: .cancel) { session.declineBootstrap() }
+        } message: {
+            Text(session.bootstrapOffer.map { $0.offer.message(command: $0.command) } ?? "")
+        }
         .sheet(isPresented: showsResetConfiguration) {
             ResetConfigurationSheet(
                 inventory: session.configurationInventory(),
@@ -170,6 +176,13 @@ struct RootView: View {
         Binding(
             get: { session.databaseOffer != nil },
             set: { if !$0 { session.declineDatabase() } }
+        )
+    }
+
+    private var showsBootstrapOffer: Binding<Bool> {
+        Binding(
+            get: { session.bootstrapOffer != nil },
+            set: { if !$0 { session.declineBootstrap() } }
         )
     }
 
@@ -232,6 +245,12 @@ struct AppCommands: Commands {
             item(.showGraph, needsWorkspace: true)
             Divider()
             item(.refresh, needsWorkspace: true)
+            Divider()
+            item(.syncNow, needsWorkspace: true)
+                .disabled(session.model?.sharingSummary?.actions.contains(.sync) != true)
+            item(.shareBeads, needsWorkspace: true)
+                .disabled(session.model?.sharingSummary?.actions.contains(.share) != true)
+            item(.workspaceSetup, needsWorkspace: true)
         }
         CommandGroup(after: .sidebar) {
             ForEach(WorkspaceModel.Layout.allCases) { layout in

@@ -877,6 +877,152 @@ public final class WorkspaceModel {
         return String(localized: "backed up \(ChangeDescriber.ago(last, from: now()))", bundle: .module, comment: "Toolbar backup status; the value is a relative time such as ‘6 minutes ago’")
     }
 
+    // MARK: Sharing
+
+    /// What bd reports about sharing (plan 0006). Nil until first read, and when bd wouldn't say,
+    /// in which case the app shows nothing rather than guess.
+    public private(set) var sharing: SharingFacts?
+    /// The last sync this session. A halted merge leaves nothing for bd to report afterwards,
+    /// so this is how a conflict stays on screen until it is settled.
+    public private(set) var lastSync: SyncOutcome?
+    /// True while a sync, a share or a conflict settlement is running.
+    public private(set) var isSyncing = false
+    /// What the last sharing action has to say that the status doesn't: a failure in bd's words.
+    public private(set) var sharingNotice: String?
+    /// The checkouts, hooks and storage bd reports, for the Workspace Setup sheet.
+    public private(set) var setup: WorkspaceSetup = .unknown
+    /// The repository's git origin, the Share Beads sheet's starting point.
+    public private(set) var gitOrigin: String?
+
+    public var sharingState: SharingState? {
+        sharing.map { SharingState.derive($0, lastSync: lastSync) }
+    }
+
+    public var sharingSummary: SharingSummary? {
+        sharingState?.summary(isWorking: isSyncing)
+    }
+
+    /// Asks bd where the database is shared and how it stands against that remote. This is the
+    /// one read that goes to the network, so it runs when a workspace opens, after each sharing
+    /// action and when asked, not with every reload.
+    public func refreshSharing() async {
+        sharing = try? await store.sharingFacts()
+    }
+
+    /// Reads what the Workspace Setup and Share Beads sheets show besides sharing itself.
+    public func refreshSetup() async {
+        setup = await store.workspaceSetup()
+        gitOrigin = await store.gitOriginURL()
+    }
+
+    public func dismissSharingNotice() {
+        sharingNotice = nil
+    }
+
+    /// One `bd sync`: pull, check, push. Nothing is retried here; bd does its own bounded
+    /// retrying, and a second press is the user's to make.
+    public func syncNow() async {
+        guard allowsWriting, !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        sharingNotice = nil
+        let remote = sharing?.remote?.name ?? SharePlan.remoteName
+        do {
+            let outcome = try await store.sync()
+            lastSync = outcome
+            sharingNotice = outcome.notice
+            switch outcome {
+            case .synced:
+                record(summary: String(localized: "Synced with \(remote)", bundle: .module, comment: "Changes menu entry; the remote's name"))
+            case .conflict:
+                record(summary: String(localized: "Sync with \(remote) stopped on a conflict", bundle: .module, comment: "Changes menu entry; the remote's name"), error: SharingFailure(message: String(localized: "Nothing was sent and nothing here was lost.", bundle: .module)))
+            case .busy, .stuck, .unrelated, .failed:
+                record(summary: String(localized: "Sync with \(remote)", bundle: .module, comment: "Changes menu entry for a sync that failed; the remote's name"), error: SharingFailure(message: outcome.notice ?? ""))
+            case .noRemote, .localOnly:
+                break
+            }
+        } catch {
+            sharingNotice = error.localizedDescription
+            record(summary: String(localized: "Sync with \(remote)", bundle: .module, comment: "Changes menu entry for a sync that failed; the remote's name"), error: error)
+        }
+        await afterSharingAction()
+    }
+
+    /// What Share Beads would do for the URL in its field.
+    public func sharePlan(url: String, audience: ShareAudience) -> SharePlan {
+        SharePlan.make(facts: sharing ?? .none, gitOrigin: gitOrigin, url: url, audience: audience)
+    }
+
+    /// The exact commands a plan runs.
+    public func commands(for plan: SharePlan) -> [String] {
+        plan.steps.map(store.commandPreview(for:))
+    }
+
+    /// The exact command behind a sharing action, for showing before it runs.
+    public func command(for action: SharingAction) -> String? {
+        switch action {
+        case .sync: store.commandPreview(for: .sync)
+        case .settleConflict(let side): store.commandPreview(for: .settleConflict(keeping: side))
+        case .share, .checkAgain: nil
+        }
+    }
+
+    /// Runs a share plan, a step at a time, stopping at the first that fails. Returns whether it
+    /// all went through; a failure is in `sharingNotice`, in bd's words.
+    @discardableResult
+    public func share(_ plan: SharePlan) async -> Bool {
+        guard allowsWriting, !isSyncing, plan.canShare else { return false }
+        isSyncing = true
+        defer { isSyncing = false }
+        sharingNotice = nil
+        let summary = String(localized: "Shared beads with \(plan.destination)", bundle: .module, comment: "Changes menu entry; the remote's URL")
+        do {
+            for step in plan.steps { try await store.perform(step) }
+            lastSync = nil
+            record(summary: summary)
+            await afterSharingAction()
+            return true
+        } catch {
+            let message = error.localizedDescription
+            if SyncOutcome.isUnrelatedHistory(message) { lastSync = .unrelated(message) }
+            sharingNotice = message
+            record(summary: String(localized: "Share beads with \(plan.destination)", bundle: .module, comment: "Changes menu entry for a share that failed; the remote's URL"), error: error)
+            // A remote that was added before the failure is real; show it.
+            await afterSharingAction()
+            return false
+        }
+    }
+
+    /// Settles a conflict for one side, then publishes the result. Only where bd offers it:
+    /// embedded storage (`SharingState.conflict(_, canChooseSide:)`).
+    public func settleConflict(keeping side: ConflictSide) async {
+        guard allowsWriting, !isSyncing, case .conflict(let remote, true) = sharingState else { return }
+        isSyncing = true
+        sharingNotice = nil
+        do {
+            try await store.perform(.settleConflict(keeping: side))
+            lastSync = nil
+            record(summary: side == .mine
+                ? String(localized: "Settled the conflict with \(remote.name), keeping this Mac's beads", bundle: .module, comment: "Changes menu entry; the remote's name")
+                : String(localized: "Settled the conflict with \(remote.name), taking its beads", bundle: .module, comment: "Changes menu entry; the remote's name"))
+        } catch {
+            sharingNotice = error.localizedDescription
+            record(summary: String(localized: "Settle the conflict with \(remote.name)", bundle: .module, comment: "Changes menu entry for a settlement that failed; the remote's name"), error: error)
+            isSyncing = false
+            await afterSharingAction()
+            return
+        }
+        isSyncing = false
+        // The pull merged; the push is what tells the remote.
+        await syncNow()
+    }
+
+    /// A sharing action may have brought beads in, and has changed how this database stands.
+    private func afterSharingAction() async {
+        await refreshSharing()
+        await load()
+    }
+
     // MARK: Editing a bead
 
     /// What's being edited right now, if anything. It lives here rather than in the form's own

@@ -135,10 +135,34 @@ among several:
   Beady turns on, or its interaction log before bd 1.3), the row is marked and the confirmation
   sheet says so. It informs; it never blocks, because a lock bd doesn't offer can't be faked.
 
+## Sharing beads
+
+The toolbar says where the beads live besides this Mac: **Only on this Mac**, **Not sent yet**,
+**2 to send · 1 to receive**, **In sync**, **Can't reach origin**, or **Needs a decision**. Click it
+for the sentence behind the word and the one thing to do about it.
+
+- **Share Beads…** asks who works on these beads and shows, before anything runs, who will be able
+  to read them, what appears on the remote and in the repository, and the commands. Underneath it
+  is what bd's docs prescribe: `bd dolt remote add origin <url>` and `bd dolt push`. The remote is
+  the repository's own git origin by default (the beads go under `refs/dolt/data`, outside every
+  branch) and can be any Dolt remote.
+- **Opening a fresh clone** of a repository that uses beads offers **Get Beads**, which is
+  `bd bootstrap` run inside the folder. That is the whole of a teammate's setup.
+- **Sync Now** is one `bd sync`. Beady never syncs by itself: bd warns that racing pushes can damage
+  a git-hosted remote, and agents working in worktrees are already writers.
+- A conflict bd won't settle (a bead deleted on one side, edited on the other) stops the sync with
+  nothing sent and nothing lost, and offers bd's two ways through: keep this Mac's, or take the
+  remote's.
+- **Workspace Setup…** (Beads menu, or ⌘P) lists what bd reports: the database, the checkouts
+  sharing it, sharing, backup, whether git hooks can put beads into commits, and bd's version.
+
+Beady never migrates a database, forces a push, installs hooks or makes a git commit. The reasoning
+and everything checked against bd is in [docs/plans/0006-sharing.md](docs/plans/0006-sharing.md).
+
 ## Backing it up
 
-The toolbar says whether this database could be recovered — "backed up 6 min ago", or "not backed
-up" — and clicking it either backs up now or asks for a folder. Underneath it's `bd backup`, which
+Backup lives in the sharing popover and in Workspace Setup: "backed up 6 min ago", or "not backed
+up", with a button that backs up now or asks for a folder. Underneath it's `bd backup`, which
 is a Dolt-native push: tables, branches and history, not just the issues. (`bd export` writes
 JSONL for interchange and is explicitly *not* a backup.)
 
@@ -319,8 +343,10 @@ BeadsPresentation   BeadsData     WorkspaceModel (per-view state) │ BDGateway 
   `ChangeRunner`). It defines the single `BeadsStore` port.
 - **BeadsData** implements that port. Every bd invocation is a typed `BDCommand` run by one
   `BDGateway`, which also owns the change token and workspace detection. Reads always carry
-  `--readonly`; the writes are `update`, `close`, `reopen`, `create`, `config set-many`, `backup`
-  and `init` (run inside the folder rather than through `-C`, which bd refuses before init). `BDStore` implements
+  `--readonly`; the writes are `update`, `close`, `reopen`, `create`, `config set-many`, `backup`,
+  the sharing commands (`dolt remote add`, `dolt push`, `dolt pull --strategy`, `sync`,
+  `federation status`, which fetches) and `init` and `bootstrap` (run inside the folder rather
+  than through `-C`: bd refuses init that way, and bootstrap misses the origin's beads). `BDStore` implements
   `BeadsStore` purely through the gateway, and an architecture test keeps it that way. Underneath:
   locating `bd` (Finder-launched apps get a minimal PATH), non-blocking pipe draining, timeouts and
   cancellation that escalate SIGTERM to SIGKILL (bd traps SIGTERM), and per-record JSON decoding.
