@@ -25,7 +25,7 @@ fi
 
 if [ -n "$dirty" ] || [ "$unpushed" -gt 0 ]; then
   touch "$marker"
-  echo "Close-out check (fires once per session): $branch has $unpushed unpushed commit(s) and uncommitted source changes: [${dirty:-none}]. If the task is DONE, run the ship skill (tests, bd close, commit, push, unlabeled PR). If work is still in progress, just continue — no action needed." >&2
+  echo "Close-out check (fires once per session): $branch has $unpushed unpushed commit(s) and uncommitted source changes: [${dirty:-none}]. If the task is DONE, run the ship skill (tests, user guide in docs/website, bd close, commit, push, unlabeled PR). If work is still in progress, just continue — no action needed." >&2
   exit 2
 fi
 exit 0

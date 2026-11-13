@@ -1,0 +1,9 @@
+{{- /* The guide's pages in order, the current one marked. */ -}}
+{{- $current := . }}
+{{- $guide := site.GetPage "/guide" }}
+<ol class="guide-nav__list">
+  <li><a href="{{ $guide.RelPermalink }}"{{ if eq $current $guide }} aria-current="page"{{ end }}>Overview</a></li>
+  {{- range $guide.RegularPages.ByWeight }}
+  <li><a href="{{ .RelPermalink }}"{{ if eq $current . }} aria-current="page"{{ end }}>{{ .LinkTitle }}</a></li>
+  {{- end }}
+</ol>

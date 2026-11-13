@@ -1,0 +1,48 @@
+# The Beady website: a landing page and a user guide, published to GitHub Pages by
+# .github/workflows/pages.yml. See README.md in this folder for how to work on it.
+baseURL = "https://dvhthomas.github.io/beady/"
+locale = "en"
+title = "Beady"
+disableKinds = ["taxonomy", "term", "rss"]
+enableRobotsTXT = true
+
+[params]
+  description = "A native macOS app for seeing what a beads (bd) database is doing, and changing it without holding your breath."
+  repo = "https://github.com/dvhthomas/beady"
+  beads = "https://github.com/steveyegge/beads"
+  brew = "brew install --cask dvhthomas/beady/beady"
+
+# The home page is also written as JSON: the index the search box reads (layouts/home.json).
+[outputs]
+  home = ["html", "json"]
+
+[markup.tableOfContents]
+  startLevel = 2
+  endLevel = 3
+
+[markup.highlight]
+  # A handful of shell lines; the stylesheet draws them, in both colour schemes.
+  codeFences = false
+
+[markup.goldmark.parser.attribute]
+  block = true
+
+# The repository's VERSION file is the one place the version is written (CI writes it on every
+# release), so the site reads it from there rather than keeping a copy. Declaring any mount
+# replaces Hugo's defaults, hence the rest of the list.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+  [[module.mounts]]
+    source = "../../VERSION"
+    target = "assets/VERSION"

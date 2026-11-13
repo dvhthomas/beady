@@ -1,0 +1,20 @@
+{{- /*
+  The guide's contents. Beside the page on a wide screen; on a narrow one it's a disclosure
+  that starts closed, so the page itself is what you land on. The script opens it where it's
+  a sidebar; it sits right here, not in site.js, so the page never draws with it shut first.
+*/ -}}
+<nav class="guide-nav" aria-label="Guide">
+  <details>
+    <summary><span>Guide</span>{{ if .IsPage }}<b>{{ .LinkTitle }}</b>{{ end }}</summary>
+    {{ partial "guide-nav.html" . }}
+  </details>
+  <script>
+    (() => {
+      const details = document.currentScript.previousElementSibling;
+      const wide = matchMedia("(min-width: 900px)");
+      const sync = () => { details.open = wide.matches; };
+      sync();
+      wide.addEventListener("change", sync);
+    })();
+  </script>
+</nav>

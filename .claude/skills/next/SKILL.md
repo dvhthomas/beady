@@ -11,7 +11,9 @@ description: Pick up the next piece of beady work — triage bd ready, claim an 
    linked design notes or plans under `docs/plans/`.
 3. `bd update <id> --claim`.
 4. Restate the goal and acceptance criteria in one short paragraph and surface your
-   assumptions before writing code.
+   assumptions before writing code. If a user will notice the change, name the page of the
+   user guide (`docs/website/content/guide/`) that will need updating: it ships in the same
+   pull request.
 5. Work tests-first. Pure logic (filtering, views, glossary, rendering) belongs in
    `BeadsCore`, `BeadsData` or `BeadsPresentation` with tests; the `Beady` app target only
    wires those to AppKit, the filesystem and the `bd` CLI. Anything that moves or
