@@ -161,11 +161,12 @@ and the release zips are built for Apple silicon; on an Intel Mac, build it your
 brew install --cask dvhthomas/beady/beady
 ```
 
-The app is ad-hoc signed but not notarised — there's no Apple Developer ID behind it — so macOS
-quarantines it the first time: open it, then choose **Open Anyway** in System Settings → Privacy
-& Security. That's once; Homebrew keeps the approval across upgrades. (Homebrew used to offer
-`--no-quarantine`, but no longer does. To clear the flag yourself,
-`xattr -dr com.apple.quarantine /Applications/Beady.app`.)
+The app is ad-hoc signed but not notarised — there's no Apple Developer ID behind it — and macOS
+refuses to open a quarantined copy of such an app. The cask clears the quarantine flag itself on
+every install and upgrade, so Beady should simply open. (It needs a current Homebrew: `brew
+update`.) If macOS refuses it anyway, clear the flag by hand — after each upgrade, since every
+release is a new signature and an earlier **Open Anyway** doesn't carry over:
+`xattr -dr com.apple.quarantine /Applications/Beady.app`.
 
 `brew upgrade` picks up new releases, and `brew uninstall --zap beady` removes the app along with
 its views and settings.
