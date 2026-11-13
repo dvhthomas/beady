@@ -73,6 +73,9 @@ resetting a view, settings. It answers to the words you'd actually type: `fin` f
 `⇧⌘P` pin · `⇧⌘S` star · `⌘S` save view · `⌥⌘S` save as new view · `⌥⌘R` reset view ·
 `⌘I` details · `⌘1/2/3` layout · `⌘R` refresh · `?` the full list.
 
+Clicking a bead while the details are hidden floats them in over the beads; `Esc`, a click
+anywhere else, or the pane's ✕ sends them away again. `⌘I` docks them to stay.
+
 ## Themes, and eyes that need help
 
 ![Theme picker](docs/images/themes.png)

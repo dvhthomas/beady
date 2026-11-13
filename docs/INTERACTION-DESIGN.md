@@ -89,6 +89,16 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
     will be written") for whoever wants them. Never delete the mechanics — agents and the
     curious rely on them — but never make a person read them to click Apply.
 
+14. **What opens by itself gets out of the way by itself.** A surface the app raised in answer
+    to a click — the details pane, when it was hidden and a bead was selected — floats over the
+    content instead of pushing it around, and leaves the ways anyone would try: Escape, a click
+    on anything that isn't the surface or another bead, and a close button on the surface
+    itself. Only what the user asked for by name (⌘I, the toolbar button) takes room in the
+    layout and stays put; asking for it while it floats docks it. The rule is `DetailsPane` in
+    BeadsPresentation; the app layer only reports clicks to it. Two things keep it honest: a
+    click on the surface is the surface's own, never a click away, and an edit in progress
+    holds the surface open — a stray click must not throw away what was typed.
+
 ## Checklist for a new interaction
 
 - [ ] Does the user see *where* the change landed? (move and/or glow at the destination)
@@ -101,3 +111,4 @@ merely re-rendered. The worked example throughout is the board: dropping a card 
 - [ ] Is it consumed once, with a sequence so repeats still fire?
 - [ ] Does Reduce Motion drop the travel but keep a non-motion confirmation?
 - [ ] Are the durations from the vocabulary above?
+- [ ] If it opens by itself: does it float rather than rearrange, and close on Escape, a click away and its own close button?
