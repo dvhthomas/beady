@@ -102,7 +102,9 @@ how the website's screenshots are made (below). `BEADY_SNAPSHOT_SCALE=2` writes 
 size. `BEADY_VERIFY_KEYS=1` types
 into a real window and reports whether the single-key shortcuts and the keyboard focus behave.
 
-`swift scripts/make-icon.swift` redraws `Resources/AppIcon.icns`.
+`swift scripts/make-icon.swift` redraws the mark from its pixel grid, everywhere it appears:
+`Resources/AppIcon.icns`; `docs/images/logo.svg` (pink) and `logo-mono.svg` (takes the colour of
+the text around it); and the website's favicon and header logo, which are the head on the plate.
 
 ## The website
 

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo.svg" width="138" height="126" alt="Beady's mark: a pixel caterpillar strung from three beads, with two beady eyes">
+</p>
+
 <h1 align="center">Beady</h1>
 
 <p align="center">
