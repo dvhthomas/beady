@@ -130,10 +130,11 @@ themes:
 install:
   title: Install it
   body: >-
-    You need macOS 15 or later and `bd` on your PATH (`brew install beads`). The Homebrew cask is
-    built for Apple silicon.
+    One line, on macOS 15 or later with Apple silicon. Homebrew installs `bd` alongside, and
+    the cask clears macOS's quarantine flag, so Beady simply opens.
   note: >-
-    The app is ad-hoc signed rather than notarised, so the first launch needs **Open Anyway** in
-    System Settings → Privacy & Security. The guide covers that, Intel Macs and building from source.
+    The app is ad-hoc signed rather than notarised. If you download a release by hand instead,
+    the first launch needs **Open Anyway** in System Settings → Privacy & Security. The guide
+    covers that, Intel Macs and building from source.
   link: Installing and first launch
 ---

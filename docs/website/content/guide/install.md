@@ -2,16 +2,17 @@
 title: Install and first launch
 linkTitle: Install
 weight: 10
-description: Homebrew or a download, getting past macOS's quarantine, and opening your first database.
+description: Homebrew or a download, what to do if macOS refuses to open it, and opening your first database.
 ---
 
 ## What you need
 
 - **macOS 15 or later.**
-- **`bd` on your PATH.** Beady does all its reading and writing through the `bd` command.
-  `brew install beads` gets it.
 - **Apple silicon** for the Homebrew cask and the release downloads. On an Intel Mac,
   [build it yourself](#build-it-yourself).
+- **`bd` on your PATH.** Beady does all its reading and writing through the `bd` command.
+  Homebrew installs it for you with Beady. Any other way in, get it with
+  `brew install beads`.
 
 ## Homebrew
 
@@ -19,28 +20,36 @@ description: Homebrew or a download, getting past macOS's quarantine, and openin
 brew install --cask dvhthomas/beady/beady
 ```
 
-`brew upgrade` picks up new releases. `brew uninstall --zap beady` removes the app along with
-its saved views and settings.
+That's all. The cask installs `bd` alongside and clears macOS's quarantine flag, so Beady
+simply opens.
 
-## Or download a release
+- `brew upgrade` picks up new releases.
+- `brew uninstall --zap beady` removes the app along with its saved views and settings.
 
-Take the zip from [Releases](https://github.com/dvhthomas/beady/releases/latest), unzip it,
-and move Beady to your Applications folder.
+### If macOS refuses to open it
 
-## The first launch
-
-Beady is ad-hoc signed but not notarised (there's no Apple Developer ID behind it), so macOS
-quarantines it the first time you open it:
-
-1. Open Beady. macOS refuses.
-2. Go to **System Settings → Privacy & Security** and choose **Open Anyway**.
-
-You do this once. Homebrew keeps the approval across upgrades. If you'd rather clear the flag
-from a terminal:
+Beady is ad-hoc signed but not notarised (there's no Apple Developer ID behind it), and macOS
+won't open a quarantined copy of such an app. The cask clears the flag on every install and
+upgrade, but it needs a current Homebrew to do so. Run `brew update`, then reinstall. Or
+clear the flag yourself:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Beady.app
 ```
+
+Every release is a new signature, so an earlier **Open Anyway** doesn't carry over to the
+next one. If you're clearing the flag by hand, you'll do it after each upgrade.
+
+## Or download a release
+
+Take the zip from [Releases](https://github.com/dvhthomas/beady/releases/latest), unzip it,
+and move Beady to your Applications folder. You'll also need `bd` (`brew install beads`).
+
+A downloaded copy is quarantined, so macOS refuses it the first time. Either:
+
+- open Beady, then go to **System Settings → Privacy & Security** and choose **Open Anyway**;
+  or
+- run `xattr -dr com.apple.quarantine /Applications/Beady.app`.
 
 ## Open a database
 

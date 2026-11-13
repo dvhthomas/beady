@@ -32,8 +32,14 @@ enum SnapshotMode {
             defer: false
         )
         window.isReleasedWhenClosed = false
+        // The views read a few preferences straight from the defaults (the details' width, for
+        // one). Give them an empty set of their own, so a check never depends on how the person
+        // running it last dragged a pane — a 640pt pane squeezes this window's sidebar.
+        let scratchDefaults = "me.bitsby.beady.verify-keys"
+        UserDefaults.standard.removePersistentDomain(forName: scratchDefaults)
         window.contentView = NSHostingView(
             rootView: WorkspaceView(model: model, ui: ui, themes: session.themes, run: session.run, persistsPreferences: false)
+                .defaultAppStorage(UserDefaults(suiteName: scratchDefaults) ?? .standard)
                 .themed(session.themes)
         )
         window.makeKeyAndOrderFront(nil)
@@ -151,23 +157,41 @@ enum SnapshotMode {
         // 7. Switching sidebar views must hand the keyboard to the center pane — otherwise the
         // first arrow key after a click walks the sidebar's own list instead of the beads.
         // (NSOutlineView, which backs both List and Table, is itself an NSTableView, so the
-        // sidebar's single "Views" column and the center pane's ten columns tell them apart.)
+        // sidebar's single "Views" column and the center pane's ten columns tell them apart.
+        // The center table is asked for afresh each time: a view with no beads has none, and
+        // the next view with beads gets a new one.)
+        func centerHasKeyboard() -> Bool {
+            (window.firstResponder as? NSTableView).map { $0.tableColumns.count >= 3 } ?? false
+        }
         model.viewID = .frontier
         pump(seconds: 0.4)
-        let tables = allTables(in: window.contentView!)
-        if let sidebarTable = tables.first(where: { $0.tableColumns.count < 3 }),
-           let centerTable = tables.first(where: { $0.tableColumns.count >= 3 }) {
+        if let sidebarTable = allTables(in: window.contentView!).first(where: { $0.tableColumns.count < 3 }),
+           model.snapshot?.issues.isEmpty == false {
             window.makeFirstResponder(sidebarTable)
             check("the sidebar can be made first responder, as a click would leave it", window.firstResponder === sidebarTable)
-            model.viewID = .deferred
-            pump(seconds: 0.6)
+            model.viewID = .everything
+            pump(seconds: 0.8)
             check(
                 "switching views hands the keyboard to the center pane",
-                window.firstResponder === centerTable,
+                centerHasKeyboard(),
+                "firstResponder = \(String(describing: window.firstResponder))"
+            )
+            // From a view with nothing in it, the table isn't there yet when the switch begins.
+            model.viewID = .frontier
+            model.searchText = "zzzz-nothing-matches-this"
+            pump(seconds: 0.6)
+            check("a view with nothing in it has no table", !allTables(in: window.contentView!).contains { $0.tableColumns.count >= 3 })
+            window.makeFirstResponder(sidebarTable)
+            model.searchText = ""
+            model.viewID = .everything
+            pump(seconds: 1.0)
+            check(
+                "…and from a view that was empty, once its table arrives",
+                centerHasKeyboard(),
                 "firstResponder = \(String(describing: window.firstResponder))"
             )
         } else {
-            print("skip  switching views refocuses the center pane — harness couldn't find both tables")
+            print("skip  switching views refocuses the center pane — no sidebar table found, or no beads to show")
         }
 
         // 8. Opening the detail pane must not squeeze the sidebar: the two panes are independent.
@@ -271,11 +295,17 @@ enum SnapshotMode {
             model.searchText = bead.rawValue
             pump(seconds: 0.8)
             hold(.closed)
-            if let table = allTables(in: window.contentView!).first(where: { $0.tableColumns.count >= 3 }), table.numberOfRows > 0,
+            if !window.isKeyWindow {
+                // A table ignores the first click on a window that isn't key, and whether this
+                // one is depends on what else is going on at the Mac. The event monitors behind
+                // the other clicks here don't care.
+                print("skip  a click below the last row of the list — the window isn't key, so the table won't take a click")
+            } else if let table = allTables(in: window.contentView!).first(where: { $0.tableColumns.count >= 3 }), table.numberOfRows > 0,
                case let visible = table.convert(table.visibleRect, to: nil),
                case let lastRow = table.convert(table.rect(ofRow: table.numberOfRows - 1), to: nil),
-               lastRow.minY > visible.minY + 30 {
-                click(at: CGPoint(x: (visible.minX + min(visible.maxX, trailingEdge())) / 2, y: visible.minY + 10), in: window)
+               lastRow.minY - 40 > visible.minY + 30 {
+                // Just under the last row, clear of a scroller along the table's foot.
+                click(at: CGPoint(x: (visible.minX + min(visible.maxX, trailingEdge())) / 2, y: lastRow.minY - 40), in: window)
                 check("…and a click below the last row of the list", ui.details == .closed && model.selection == nil, state())
             } else {
                 print("skip  a click below the last row of the list — the rows fill the pane")
@@ -293,6 +323,7 @@ enum SnapshotMode {
         }
 
         print(failures.isEmpty ? "\nAll key checks passed." : "\nFailed: \(failures.joined(separator: ", "))")
+        UserDefaults.standard.removePersistentDomain(forName: scratchDefaults)
         exit(failures.isEmpty ? 0 : 1)
     }
 

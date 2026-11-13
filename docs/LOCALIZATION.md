@@ -84,3 +84,7 @@ It builds, collects the strings the compiler saw in every module, and merges the
 catalogs: new keys appear untranslated, keys no longer in the code are removed, existing
 translations are untouched. Translate the new keys (the tests say which are missing), and
 commit the catalogs with the code. The script needs Xcode, because it uses `xcstringstool`.
+
+Forget the script and the tests say so: they read the Swift sources for the literals handed to
+`String(localized:)` and to SwiftUI's own text-taking calls, and fail on any that no catalog
+carries. Text that must stay as written goes through `Text(verbatim:)`.

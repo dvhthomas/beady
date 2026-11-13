@@ -20,15 +20,14 @@ validation, a preview of the exact `bd` commands, and a read-back check.
 
 ## Install
 
-You need macOS 15 or later and `bd` on your PATH (`brew install beads`).
-
 ```bash
 brew install --cask dvhthomas/beady/beady
 ```
 
-The app is ad-hoc signed, not notarised, so the first launch needs **Open Anyway** in System
-Settings → Privacy & Security. [Install and first launch](https://dvhthomas.github.io/beady/guide/install/)
-covers that, Intel Macs, downloading a release and building from source.
+That needs macOS 15 or later on Apple silicon. Homebrew installs `bd` alongside, and the cask
+clears macOS's quarantine flag, so Beady simply opens.
+[Install and first launch](https://dvhthomas.github.io/beady/guide/install/) covers downloading
+a release by hand, Intel Macs and building from source.
 
 ## What it does
 
