@@ -24,7 +24,7 @@ on:
 permissions:
   contents: write # push the VERSION commit and the tag
   pull-requests: read # read the merged pull requests' labels
-  actions: write # start the Release workflow
+  actions: write # start the Release and Website workflows
 
 # Merges close together queue up; each run works from the tip of master as it
 # is then, so the second finds the first's tag and does nothing.
@@ -50,6 +50,7 @@ jobs:
           git checkout --quiet "origin/$GITHUB_REF_NAME"
           if git describe --tags --exact-match --match 'v[0-9]*' HEAD >/dev/null 2>&1; then
             echo "$GITHUB_REF_NAME is already released as $(git describe --tags --exact-match HEAD); nothing to do."
+            echo "already=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -105,3 +106,16 @@ jobs:
             gh workflow run release.yml --ref "v$NEXT"
           fi
           echo "Released **v$NEXT**: VERSION committed, tag pushed, Release follows." >> "$GITHUB_STEP_SUMMARY"
+
+      # The website (docs/website) is rebuilt for every change to master, released or not: a
+      # release:none merge is often a change to the documentation itself. Started by hand for
+      # the same reason Release is: nothing here starts a workflow by itself. A run that found
+      # master already released is a duplicate of one that has done this. Never fails a release.
+      - name: Start the Website workflow
+        if: steps.next.outputs.already != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --ref "$GITHUB_REF_NAME"
+          echo "Website workflow dispatched; the site follows." >> "$GITHUB_STEP_SUMMARY"

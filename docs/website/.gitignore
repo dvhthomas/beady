@@ -1,0 +1,4 @@
+# Hugo's output and its cache of resized screenshots; both are rebuilt from what's here.
+/public/
+/resources/
+.hugo_build.lock

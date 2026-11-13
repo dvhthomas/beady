@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 
 // Draws Beady's mark and writes Resources/AppIcon.icns, docs/images/logo.svg and
-// docs/images/logo-mono.svg. Run: swift scripts/make-icon.swift
+// docs/images/logo-mono.svg, and the website's favicon and header logo.
+// Run: swift scripts/make-icon.swift
 //
 // The mark is a caterpillar strung from beads, in fat pixels and one colour, like the mascots of
 // the owner's other projects (CalcMark's lark, gh-velocity's tortoise). Every detail is a hole:
@@ -17,6 +18,7 @@ let root = URL(fileURLWithPath: CommandLine.arguments.first.map { URL(fileURLWit
 let staging = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("AppIcon.iconset")
 let output = root.appendingPathComponent("Resources/AppIcon.icns")
 let images = root.appendingPathComponent("docs/images")
+let website = root.appendingPathComponent("docs/website")
 
 // X is a pixel, '.' is nothing.
 let mascot = [
@@ -143,6 +145,24 @@ func svg(fill: String) -> String {
     return lines.joined(separator: "\n")
 }
 
+/// The head in ink on a flat plate of the brand colour, the way the smallest app icons show it:
+/// for the website's favicon and the logo in its header, both drawn at a few dozen pixels.
+/// `open` is the opening tag, which is where the two differ.
+func badge(open: String) -> String {
+    let side = face.count + 4
+    var lines = [
+        open,
+        "  <!-- Written by scripts/make-icon.swift: edit the grid there. -->",
+        "  <rect width=\"\(side)\" height=\"\(side)\" rx=\"3.5\" fill=\"\(String(format: "#%06X", brand))\"/>",
+        "  <g fill=\"\(String(format: "#%06X", ink))\" shape-rendering=\"crispEdges\">",
+    ]
+    for run in runs(face) {
+        lines.append("    <rect x=\"\(run.x + 2)\" y=\"\(run.y + 2)\" width=\"\(run.width)\" height=\"1\"/>")
+    }
+    lines += ["  </g>", "</svg>", ""]
+    return lines.joined(separator: "\n")
+}
+
 try? FileManager.default.removeItem(at: staging)
 try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
 for base in [16, 32, 128, 256, 512] {
@@ -161,5 +181,17 @@ print("wrote \(output.path)")
 for (name, fill) in [("logo.svg", String(format: "#%06X", brand)), ("logo-mono.svg", "currentColor")] {
     let file = images.appendingPathComponent(name)
     try svg(fill: fill).write(to: file, atomically: true, encoding: .utf8)
+    print("wrote \(file.path)")
+}
+
+let side = face.count + 4
+let badges = [
+    ("static/favicon.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 \(side) \(side)\">"),
+    // A Hugo partial: the caller passes the size in pixels.
+    ("layouts/_partials/logo.html", "<svg class=\"logo\" viewBox=\"0 0 \(side) \(side)\" width=\"{{ . | default 28 }}\" height=\"{{ . | default 28 }}\" aria-hidden=\"true\">"),
+]
+for (path, open) in badges {
+    let file = website.appendingPathComponent(path)
+    try badge(open: open).write(to: file, atomically: true, encoding: .utf8)
     print("wrote \(file.path)")
 }
