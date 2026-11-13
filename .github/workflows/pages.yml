@@ -1,13 +1,15 @@
 # Builds the website (docs/website, a Hugo site) and publishes it to GitHub
 # Pages at https://dvhthomas.github.io/beady/.
 #
-# When it deploys: after every Version run on master. Version is the one
-# workflow every change to master passes through — it runs on a push, and
-# Merge-when-green dispatches it after its own merges, whose GITHUB_TOKEN push
-# starts nothing — and by the time it finishes, VERSION on master is the
-# version just released (or unchanged, for a release:none merge, which still
-# deploys: a docs-only change is exactly that). So the site always states the
-# released version and is rebuilt for every release without anyone asking.
+# When it deploys: the Version workflow starts it, at the end of every run on
+# master that isn't a duplicate. Version is the one workflow every change to
+# master passes through, and by the time it starts this one, VERSION on master
+# is the version just released (or unchanged, for a release:none merge, which
+# still deploys: a docs-only change is exactly that). So the site always states
+# the released version and is rebuilt for every release without anyone asking.
+# It is started explicitly rather than with a workflow_run trigger because that
+# trigger did not fire for a Version run that Merge-when-green had dispatched.
+# `gh workflow run pages.yml --ref master` republishes by hand.
 #
 # The screenshots are retaken on each run, from the app built at that commit
 # against a fresh demo database (scripts/screenshots.sh), so the pictures can't
@@ -20,10 +22,7 @@
 name: Website
 
 on:
-  workflow_run:
-    workflows: [Version]
-    types: [completed]
-    branches: [master]
+  workflow_dispatch:
   pull_request:
     paths:
       - "docs/website/**"
@@ -31,7 +30,6 @@ on:
       - "scripts/demo-workspace.sh"
       - "Sources/Beady/SnapshotMode.swift"
       - ".github/workflows/pages.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -49,15 +47,10 @@ env:
 jobs:
   screenshots:
     name: Screenshots
-    # A Version run that failed released nothing; leave the site as it is.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     # macos-26 for the same reason as ci.yml: its toolchain compiles the String Catalogs.
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-        with:
-          # After a Version run, the tip of master: the commit Version just pushed.
-          ref: ${{ github.event_name == 'workflow_run' && 'master' || '' }}
 
       - name: Install bd
         run: HOMEBREW_NO_AUTO_UPDATE=1 brew install beads
@@ -75,13 +68,11 @@ jobs:
   build:
     name: Build
     needs: screenshots
-    # Runs whether or not the screenshots could be taken, but not after a failed Version run.
-    if: ${{ !cancelled() && needs.screenshots.result != 'skipped' }}
+    # Runs whether or not the screenshots could be taken.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && 'master' || '' }}
 
       - name: Use the fresh screenshots
         if: needs.screenshots.result == 'success'
