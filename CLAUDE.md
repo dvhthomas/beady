@@ -73,8 +73,9 @@ in the PR body and ask the user — a PreToolUse hook enforces this), and mergin
 pull request. **Patch releases are the norm and fully automated; minor and major releases are
 a human decision.**
 
-Project skills: `/next` picks and claims work, `/ship` runs the close-out pipeline,
-`/land` verifies that a merge released.
+Project skills: `/next` picks and claims work, `/ship` runs the close-out pipeline (tests,
+the user guide, beads, the pull request), `/land` verifies that a merge released and that the
+website was republished.
 
 ## Releases and the version number
 
@@ -85,7 +86,7 @@ big the change is, said with at most one label on the pull request:
 - no label, or `release:patch`: a bug fix or a minor tweak (0.1.1 → 0.1.2). The default.
 - `release:minor`: a new feature or a visible change in behaviour (0.1.1 → 0.2.0).
 - `release:major`: rare; it breaks how people use Beady or its files (0.1.1 → 1.0.0).
-- `release:none`: rare; nothing worth shipping, such as a typo in the README.
+- `release:none`: nothing in the app changes, such as a change only to the website or the README.
 
 Add it with `gh pr create --label release:minor` or `gh pr edit <number> --add-label release:minor`.
 Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
@@ -96,6 +97,34 @@ recommend the size in the PR body, and ask the user to label it, mark it ready a
 Unlabeled and patch PRs merge themselves when CI is green (the Merge-when-green workflow);
 minor/major and draft PRs wait for a human.
 
+## The website and user guide
+
+The user-facing documentation is the website in `docs/website` (a Hugo site), published at
+<https://dvhthomas.github.io/beady/>. The README is deliberately short and points there; do
+not grow user documentation back into it. Developer documentation is `docs/DEVELOPING.md`.
+
+**The guide ships with the change.** Every release republishes the site, so whatever is in
+`docs/website` at the merge is what users read about that version. A pull request that changes
+what a user sees or does updates the guide in the same pull request:
+
+- A new or changed feature, setting, menu item, shortcut, view, filter or default: edit the
+  matching page in `docs/website/content/guide/` (and `content/_index.md` if the landing page
+  describes it). A new shortcut also goes in the tables in `guide/keyboard.md`.
+- Something removed or renamed: remove or rename it in the guide too. Search for the old words:
+  `grep -rn "old name" docs/website/content README.md`.
+- New UI worth a picture: capture it in `SnapshotMode.run` and add a line to `SHOTS` in
+  `scripts/screenshots.sh`. A snapshot the site uses that is renamed or dropped in
+  `SnapshotMode.swift` must be renamed or dropped there too, or the script fails.
+- No user-visible change (a refactor, tests, CI): say "Docs: no user-visible change" in the
+  pull request body, so it is a decision rather than an omission.
+
+Check the site builds before the pull request: `hugo --source docs/website --destination
+"$(mktemp -d)"` must finish without errors (`brew install hugo` if it is missing).
+`scripts/screenshots.sh` retakes the screenshots locally; you don't have to commit fresh ones,
+because the Website workflow (`.github/workflows/pages.yml`) retakes them on every deploy, after
+the Version workflow, including for `release:none` merges. A pull request that changes only
+the website or other documentation is `release:none`.
+
 ## Build & Test
 
 ```bash
@@ -103,6 +132,8 @@ scripts/test.sh        # the whole suite (Swift Testing); the gate before any PR
 swift build            # compile check
 scripts/bundle.sh      # build build/Beady.app — test THIS dev build, not /Applications
 scripts/dev-watch.sh   # rebuild and relaunch the app on source changes
+scripts/screenshots.sh # retake the website's screenshots from the app
+hugo server --source docs/website   # preview the website at localhost:1313/beady/
 ```
 
 CI runs `scripts/test.sh` on every pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).

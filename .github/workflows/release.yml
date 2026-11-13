@@ -54,7 +54,7 @@ jobs:
 
             **Installing with Homebrew.** `brew install --cask dvhthomas/beady/beady`.
             The cask clears macOS's quarantine flag for you, on install and on
-            every upgrade.
+            every upgrade, and installs `bd` (the beads formula) alongside.
 
             **Installing by hand.** Unzip and drag Beady to /Applications. The app
             is ad-hoc signed but not notarised (no Apple Developer ID), so macOS
@@ -67,7 +67,8 @@ jobs:
             Prefer to avoid that entirely? Clone the repo and run `scripts/bundle.sh`;
             an app you build yourself is never quarantined.
 
-            Requires macOS 15 or later and `bd` on your PATH.
+            Requires macOS 15 or later and `bd` on your PATH; installing by
+            hand, get it with `brew install beads`.
 
       - name: Publish Homebrew cask
         if: startsWith(github.ref, 'refs/tags/v') && env.HOMEBREW_TAP_DEPLOY_KEY != ''

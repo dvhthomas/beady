@@ -5119,19 +5119,19 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Comment cela sera écrit"
+            "value" : "Comment ce sera écrit"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き込みの詳細"
+            "value" : "書き込みの方法"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기록 방식"
+            "value" : "기록되는 방식"
           }
         },
         "pt-BR" : {
