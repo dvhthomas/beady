@@ -51,6 +51,14 @@ fails a pull request that carries two `release:*` labels, or one it doesn't know
    `HOMEBREW_TAP_DEPLOY_KEY` repository secret, because `GITHUB_TOKEN` cannot push to another
    repository.
 
+4. **Website** runs when Version finishes, whether or not it released anything (a
+   `release:none` merge is often a change to the documentation). It retakes the screenshots
+   from the app at that commit (`scripts/screenshots.sh`), builds the Hugo site in
+   `docs/website`, and deploys it to GitHub Pages at <https://dvhthomas.github.io/beady/>.
+   The site reads the version from `VERSION`, so it names the release just made. If the
+   screenshots can't be retaken, the site still deploys with the ones kept in the repository
+   and the Screenshots job is red. `gh workflow run pages.yml --ref master` republishes by hand.
+
 Watch it:
 
 ```bash
@@ -80,6 +88,7 @@ gh release view "v$(cat VERSION)" --repo dvhthomas/beady
 curl -fsSL https://raw.githubusercontent.com/dvhthomas/homebrew-beady/main/Casks/beady.rb | head -3
 brew update && brew upgrade --cask beady
 defaults read /Applications/Beady.app/Contents/Info.plist CFBundleShortVersionString
+curl -fsSL https://dvhthomas.github.io/beady/ | grep -o 'version [0-9.]*' | head -1
 ```
 
 The Open Anyway approval from the first install carries across upgrades, so the new build opens

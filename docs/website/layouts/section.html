@@ -1,0 +1,20 @@
+{{ define "bodyclass" }}guide{{ end }}
+{{ define "main" }}
+<div class="wrap guide-layout">
+  {{ partial "guide-sidebar.html" . }}
+  <article class="prose">
+    <h1>{{ .Title }}</h1>
+    {{ .Content }}
+    <ol class="guide-index">
+      {{- range .RegularPages.ByWeight }}
+      <li>
+        <a href="{{ .RelPermalink }}">
+          <strong>{{ .Title }}</strong>
+          <span>{{ .Description }}</span>
+        </a>
+      </li>
+      {{- end }}
+    </ol>
+  </article>
+</div>
+{{ end }}

@@ -1005,9 +1005,33 @@ enum SnapshotMode {
 
     private static func capture(_ hosting: NSHostingView<some View>, to url: URL) {
         hosting.layoutSubtreeIfNeeded()
-        guard let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else { return }
+        guard let bitmap = bitmap(for: hosting) else { return }
         hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
         try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
+    }
+
+    /// `BEADY_SNAPSHOT_SCALE=2` writes every PNG at twice the size in pixels, the way a Retina
+    /// display would show it. An offscreen window sits on no screen, so AppKit's own bitmap is
+    /// always 1x — fine for checking a layout, soft on a web page. The website's screenshots
+    /// (scripts/screenshots.sh) ask for 2.
+    private static var scale: CGFloat {
+        let asked = ProcessInfo.processInfo.environment["BEADY_SNAPSHOT_SCALE"].flatMap(Double.init) ?? 1
+        return CGFloat(min(max(asked, 1), 3))
+    }
+
+    /// A bitmap for `view` at `scale` pixels per point: the size stays in points, so
+    /// `cacheDisplay` draws the same layout into more pixels.
+    private static func bitmap(for view: NSView) -> NSBitmapImageRep? {
+        guard scale != 1 else { return view.bitmapImageRepForCachingDisplay(in: view.bounds) }
+        let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int((view.bounds.width * scale).rounded()),
+            pixelsHigh: Int((view.bounds.height * scale).rounded()),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        )
+        bitmap?.size = view.bounds.size
+        return bitmap
     }
 
     private static func render<Content: View>(_ view: Content, to url: URL) {
@@ -1024,7 +1048,7 @@ enum SnapshotMode {
         // Let SwiftUI lay out and AppKit-backed lists populate before capturing.
         pump(seconds: 1.0)
         hosting.layoutSubtreeIfNeeded()
-        if let bitmap = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) {
+        if let bitmap = bitmap(for: hosting) {
             hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
             try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
         }

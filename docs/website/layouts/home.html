@@ -1,0 +1,144 @@
+{{ define "bodyclass" }}home{{ end }}
+{{ define "main" }}
+{{- $guide := site.GetPage "/guide" }}
+{{- with .Params.hero }}
+<section class="hero">
+  <div class="wrap hero__text">
+    <p class="eyebrow">{{ .eyebrow | markdownify }}</p>
+    <h1>{{ .headline }}</h1>
+    <p class="lede">{{ .lede | markdownify }}</p>
+    {{ partial "install-command.html" $ }}
+    <p class="hero__meta">
+      macOS 15 or later · Apple silicon · free and open source{{ with partial "version.html" $ }} · version {{ . }}{{ end }}
+    </p>
+    <p class="hero__links">
+      <a class="button" href="{{ $guide.RelPermalink }}">Read the guide</a>
+      <a class="button button--quiet" href="{{ site.Params.repo }}">Source on GitHub</a>
+    </p>
+  </div>
+  <div class="wrap hero__shot">
+    {{ partial "shot.html" (dict "name" "ready-dark" "light" "ready-light" "alt" .alt "eager" true "crop" 700) }}
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.views }}
+<section class="band">
+  <div class="wrap split split--top">
+    <div class="split__text">
+      <h2>{{ .title }}</h2>
+      <p>{{ .body | markdownify }}</p>
+      <p><a class="more" href="{{ (site.GetPage "/guide/views").RelPermalink }}">{{ .link }}</a></p>
+    </div>
+    <dl class="defs">
+      {{- range .items }}
+      <div><dt>{{ .name }}</dt><dd>{{ .means }}</dd></div>
+      {{- end }}
+    </dl>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.layouts }}
+<section class="band band--alt">
+  <div class="wrap">
+    <div class="band__head">
+      <h2>{{ .title }}</h2>
+      <p>{{ .body | markdownify }} <a class="more" href="{{ (site.GetPage "/guide/layouts").RelPermalink }}">{{ .link }}</a></p>
+    </div>
+    <div class="tabs">
+      {{- range $i, $item := .items }}
+      <input class="tabs__radio" type="radio" name="layout" id="tab-{{ .id }}"{{ if eq $i 0 }} checked{{ end }}>
+      {{- end }}
+      <div class="tabs__labels">
+        {{- range .items }}
+        <label for="tab-{{ .id }}">{{ .name }}</label>
+        {{- end }}
+      </div>
+      {{- range .items }}
+      <div class="tabs__panel tabs__panel--{{ .id }}">
+        {{ partial "shot.html" (dict "name" .shot "alt" .alt "caption" .caption "crop" .crop) }}
+      </div>
+      {{- end }}
+    </div>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.blockers }}
+<section class="band">
+  <div class="wrap split">
+    <div class="split__text">
+      <h2>{{ .title }}</h2>
+      <p>{{ .body | markdownify }}</p>
+      <p><a class="more" href="{{ (site.GetPage "/guide/dependencies").RelPermalink }}">{{ .link }}</a></p>
+    </div>
+    <div class="split__shot">{{ partial "shot.html" (dict "name" .shot "alt" .alt "sizes" "(min-width: 900px) 560px, 94vw") }}</div>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.changes }}
+<section class="band band--alt">
+  <div class="wrap split split--flip">
+    <div class="split__text">
+      <h2>{{ .title }}</h2>
+      <p>{{ .body | markdownify }}</p>
+      <dl class="defs defs--single">
+        {{- range .items }}
+        <div><dt>{{ .name }}</dt><dd>{{ .means }}</dd></div>
+        {{- end }}
+      </dl>
+      <p><a class="more" href="{{ (site.GetPage "/guide/changes").RelPermalink }}">{{ .link }}</a></p>
+    </div>
+    <div class="split__shot">{{ partial "shot.html" (dict "name" .shot "alt" .alt "sizes" "(min-width: 900px) 560px, 94vw") }}</div>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.keyboard }}
+<section class="band">
+  <div class="wrap split">
+    <div class="split__text">
+      <h2>{{ .title }}</h2>
+      <p>{{ .body | markdownify }}</p>
+      <ul class="keys">
+        {{- range .keys }}
+        <li><kbd>{{ .key }}</kbd> <span>{{ .does }}</span></li>
+        {{- end }}
+      </ul>
+      <p><a class="more" href="{{ (site.GetPage "/guide/keyboard").RelPermalink }}">{{ .link }}</a></p>
+    </div>
+    <div class="split__shot">{{ partial "shot.html" (dict "name" .shot "alt" .alt "sizes" "(min-width: 900px) 560px, 94vw") }}</div>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.themes }}
+<section class="band band--alt">
+  <div class="wrap split split--flip">
+    <div class="split__text">
+      <h2>{{ .title }}</h2>
+      <p>{{ .body | markdownify }}</p>
+      <p><a class="more" href="{{ (site.GetPage "/guide/themes").RelPermalink }}">{{ .link }}</a></p>
+    </div>
+    <div class="split__shot">{{ partial "shot.html" (dict "name" .shot "alt" .alt "crop" 440 "sizes" "(min-width: 900px) 520px, 94vw") }}</div>
+  </div>
+</section>
+{{- end }}
+
+{{- with .Params.install }}
+<section class="band band--install" id="install">
+  <div class="wrap install">
+    <h2>{{ .title }}</h2>
+    <p>{{ .body | markdownify }}</p>
+    {{ partial "install-command.html" $ }}
+    <p class="install__note">{{ .note | markdownify }}</p>
+    <p class="hero__links">
+      <a class="button" href="{{ (site.GetPage "/guide/install").RelPermalink }}">{{ .link }}</a>
+      <a class="button button--quiet" href="{{ site.Params.repo }}/releases/latest">Download the latest release</a>
+    </p>
+  </div>
+</section>
+{{- end }}
+{{ end }}

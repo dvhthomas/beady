@@ -1,0 +1,2 @@
+{{- /* The released version, read from the repository's VERSION file (mounted in hugo.toml). */ -}}
+{{- with resources.Get "VERSION" }}{{ strings.TrimSpace .Content }}{{ end -}}

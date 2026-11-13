@@ -1,0 +1,13 @@
+<footer class="site-footer">
+  <div class="wrap site-footer__inner">
+    <p>
+      <strong>Beady</strong>{{ with partial "version.html" . }} {{ . }}{{ end }} · MIT licensed ·
+      <a href="{{ site.Params.repo }}">Source on GitHub</a> ·
+      for <a href="{{ site.Params.beads }}">beads</a>
+    </p>
+    <p class="site-footer__note">
+      Every screenshot here is taken from the app by a script, against a made-up demo database,
+      each time this site is published.
+    </p>
+  </div>
+</footer>

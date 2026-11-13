@@ -1,0 +1,133 @@
+# Builds the website (docs/website, a Hugo site) and publishes it to GitHub
+# Pages at https://dvhthomas.github.io/beady/.
+#
+# When it deploys: after every Version run on master. Version is the one
+# workflow every change to master passes through — it runs on a push, and
+# Merge-when-green dispatches it after its own merges, whose GITHUB_TOKEN push
+# starts nothing — and by the time it finishes, VERSION on master is the
+# version just released (or unchanged, for a release:none merge, which still
+# deploys: a docs-only change is exactly that). So the site always states the
+# released version and is rebuilt for every release without anyone asking.
+#
+# The screenshots are retaken on each run, from the app built at that commit
+# against a fresh demo database (scripts/screenshots.sh), so the pictures can't
+# fall behind the app. If that job fails, the site is still built and deployed
+# with the screenshots kept in the repository, and the red job says so.
+#
+# On a pull request that touches the site or the screenshot tooling, the same
+# two jobs run as a check — nothing is deployed — and the built site is kept
+# as an artifact to look at.
+name: Website
+
+on:
+  workflow_run:
+    workflows: [Version]
+    types: [completed]
+    branches: [master]
+  pull_request:
+    paths:
+      - "docs/website/**"
+      - "scripts/screenshots.sh"
+      - "scripts/demo-workspace.sh"
+      - "Sources/Beady/SnapshotMode.swift"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time, and never cancel one half way; a pull request's
+# check gives way to the next push to the same pull request.
+concurrency:
+  group: website-${{ github.event.pull_request.number || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The Hugo the site is written against (the extended build, for WebP).
+  HUGO_VERSION: 0.169.0
+
+jobs:
+  screenshots:
+    name: Screenshots
+    # A Version run that failed released nothing; leave the site as it is.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # macos-26 for the same reason as ci.yml: its toolchain compiles the String Catalogs.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # After a Version run, the tip of master: the commit Version just pushed.
+          ref: ${{ github.event_name == 'workflow_run' && 'master' || '' }}
+
+      - name: Install bd
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install beads
+
+      - name: Take the screenshots
+        run: scripts/screenshots.sh "$RUNNER_TEMP/screenshots"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: ${{ runner.temp }}/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: Build
+    needs: screenshots
+    # Runs whether or not the screenshots could be taken, but not after a failed Version run.
+    if: ${{ !cancelled() && needs.screenshots.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'master' || '' }}
+
+      - name: Use the fresh screenshots
+        if: needs.screenshots.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: screenshots
+          path: docs/website/assets/screenshots
+
+      - name: Or say that the committed ones were used
+        if: needs.screenshots.result != 'success'
+        run: echo "::warning title=Website::The screenshots could not be retaken (see the Screenshots job); the site is built with the ones kept in docs/website/assets/screenshots."
+
+      - name: Install Hugo
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/hugo.deb" \
+            "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb"
+          sudo dpkg -i "$RUNNER_TEMP/hugo.deb"
+
+      - name: Build the site
+        run: hugo --source docs/website --gc --minify
+
+      - name: Keep the built site (pull requests)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: website
+          path: docs/website/public
+          retention-days: 7
+
+      - name: Hand the site to Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/website/public
+
+  deploy:
+    name: Deploy
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # publish to GitHub Pages
+      id-token: write # prove to Pages that this workflow is the publisher
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
