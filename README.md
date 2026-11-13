@@ -152,8 +152,9 @@ bd backup restore /path/to/backup --force
 
 ## Install
 
-Requirements: macOS 15 or later, and `bd` on your PATH (`brew install beads`). The Homebrew cask
-and the release zips are built for Apple silicon; on an Intel Mac, build it yourself.
+Requirements: macOS 15 or later, and `bd` on your PATH. Homebrew installs `bd` for you, as a
+dependency of the cask; any other way in, get it with `brew install beads`. The Homebrew cask and
+the release zips are built for Apple silicon; on an Intel Mac, build it yourself.
 
 **Homebrew:**
 
