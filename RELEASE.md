@@ -51,7 +51,7 @@ fails a pull request that carries two `release:*` labels, or one it doesn't know
    `HOMEBREW_TAP_DEPLOY_KEY` repository secret, because `GITHUB_TOKEN` cannot push to another
    repository.
 
-4. **Website** runs when Version finishes, whether or not it released anything (a
+4. **Website** is started by Version as its last step, whether or not it released anything (a
    `release:none` merge is often a change to the documentation). It retakes the screenshots
    from the app at that commit (`scripts/screenshots.sh`), builds the Hugo site in
    `docs/website`, and deploys it to GitHub Pages at <https://dvhthomas.github.io/beady/>.
