@@ -53,11 +53,12 @@ jobs:
             Built from ${{ github.sha }}.
 
             **Installing with Homebrew.** `brew install --cask dvhthomas/beady/beady`.
+            The cask clears macOS's quarantine flag for you, on install and on
+            every upgrade.
 
-            **Installing by hand.** Unzip and drag Beady to /Applications.
-
-            Either way, the app is ad-hoc signed but not notarised (no Apple
-            Developer ID), so macOS quarantines it on first launch. Either:
+            **Installing by hand.** Unzip and drag Beady to /Applications. The app
+            is ad-hoc signed but not notarised (no Apple Developer ID), so macOS
+            quarantines the download and refuses to open it. Either:
 
             * open it, then go to System Settings → Privacy & Security and choose
               **Open Anyway**; or
