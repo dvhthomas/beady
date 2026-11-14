@@ -190,7 +190,7 @@ struct PaletteMatchingTests {
 }
 
 @MainActor
-@Suite("Pinning the dependency graph")
+@Suite("The dependency graph in the details pane")
 struct GraphPaneCommandTests {
     @Test("the pane has its own command, next to the window's, under Display, on ⇧⌘G")
     func command() async {
@@ -202,6 +202,23 @@ struct GraphPaneCommandTests {
         await model.load()
         let all = CommandCatalog.all(for: model)
         #expect(all.contains(.toggleGraphPane))
+        #expect(CommandCatalog.results(for: "hide graph", model: model).first == .toggleGraphPane)
+        // Whoever learned it as pinning still finds it.
         #expect(CommandCatalog.results(for: "pin graph", model: model).first == .toggleGraphPane)
+    }
+
+    @Test("it is not called pinning: a pin is something a bead has, with a button beside this one")
+    func notAPin() {
+        #expect(!AppCommand.toggleGraphPane.title.localizedCaseInsensitiveContains("pin"))
+    }
+
+    @Test("the section's header says where the selected bead stands, in the legend's words")
+    func summary() {
+        #expect(DisplayText.dependencySummary(.drawn(before: 2, after: 3)) == "2 to finish first · 3 waiting on it")
+        #expect(DisplayText.dependencySummary(.drawn(before: 2, after: 0)) == "2 to finish first")
+        #expect(DisplayText.dependencySummary(.drawn(before: 0, after: 1)) == "1 waiting on it")
+        #expect(DisplayText.dependencySummary(.unconnected) == "None")
+        #expect(DisplayText.dependencySummary(.hidden(byView: true, byFinished: false)) == "Not shown")
+        #expect(DisplayText.dependencySummary(nil) == nil, "nothing selected, nothing to say")
     }
 }

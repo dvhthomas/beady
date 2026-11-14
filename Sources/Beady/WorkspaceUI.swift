@@ -68,12 +68,12 @@ final class WorkspaceUI {
         model.selection = nil
     }
 
-    /// The dependency graph pinned into the details pane, following the selected bead. A pane
+    /// The Dependencies section of the details pane open, its graph following the selected bead. A pane
     /// rather than a window when the chain matters while you work down a list.
     var showsGraphPane: Bool {
         didSet { preferences?.set(showsGraphPane, forKey: Self.graphPaneKey) }
     }
-    /// How tall the pinned graph is; dragged, and kept.
+    /// How tall the open section is; dragged, and kept.
     var graphPaneHeight: Double {
         didSet { preferences?.set(graphPaneHeight, forKey: Self.graphPaneHeightKey) }
     }

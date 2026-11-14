@@ -1300,6 +1300,47 @@
         }
       }
     },
+    "%lld to finish first" : {
+      "comment" : "Dependencies header: how many beads have to finish before the selected one can start",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld zuerst zu erledigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld por terminar antes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld à terminer d'abord"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件が先に完了必要"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 끝나야 함 %lld개"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld para terminar antes"
+          }
+        }
+      }
+    },
     "%lld to receive" : {
       "comment" : "Toolbar sharing status: count of remote changes",
       "localizations" : {
@@ -1425,6 +1466,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld a enviar · %2$lld a receber"
+          }
+        }
+      }
+    },
+    "%lld waiting on it" : {
+      "comment" : "Dependencies header: how many beads are waiting on the selected one",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld wartend"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld a la espera"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld en attente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件が待機中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기다리는 중 %lld개"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld esperando"
           }
         }
       }
@@ -7027,6 +7109,47 @@
         }
       }
     },
+    "None" : {
+      "comment" : "Dependencies header: the selected bead has no dependencies",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ninguna"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma"
+          }
+        }
+      }
+    },
     "Not sent yet" : {
       "comment" : "Toolbar sharing status: a remote is set up and nothing was pushed",
       "localizations" : {
@@ -7144,6 +7267,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Não configurado. O compartilhamento já mantém uma cópia fora deste Mac."
+          }
+        }
+      }
+    },
+    "Not shown" : {
+      "comment" : "Dependencies header: the selected bead has dependencies, but the graph's scope leaves them out",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht angezeigt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se muestran"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non affichées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "표시 안 됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não exibidas"
           }
         }
       }
@@ -8089,47 +8253,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fixar %@"
-          }
-        }
-      }
-    },
-    "Pin Dependency Graph to Details" : {
-      "comment" : "Command: show the dependency graph as a pane in the details panel, or hide it again",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abhängigkeitsgraph in den Details anheften"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fijar el grafo de dependencias en los detalles"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Épingler le graphe des dépendances aux détails"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "依存関係グラフを詳細にピン留め"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "의존성 그래프를 세부사항에 고정"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fixar o grafo de dependências nos detalhes"
           }
         }
       }
@@ -11361,6 +11484,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Título: “%1$@” → “%2$@”"
+          }
+        }
+      }
+    },
+    "Toggle Dependency Graph in Details" : {
+      "comment" : "Command: open the Dependencies section at the foot of the details panel, or close it again",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abhängigkeitsgraph in den Details ein-/ausblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar u ocultar el grafo de dependencias en los detalles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher/masquer le graphe des dépendances dans les détails"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細の依存関係グラフを表示/非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세부사항의 의존성 그래프 전환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar ou ocultar o grafo de dependências nos detalhes"
           }
         }
       }

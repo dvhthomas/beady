@@ -1,5 +1,17 @@
 import Foundation
 
+/// Where one bead stands in a drawn dependency graph: the starting point the rest is read from.
+public enum DependencyStanding: Equatable, Sendable {
+    /// It is drawn. `before` beads have to finish first and `after` are waiting on it, at any
+    /// distance, counting only what the graph shows.
+    case drawn(before: Int, after: Int)
+    /// It has dependencies, but the graph as scoped draws none of them. The flags name the
+    /// switches that have to change to show them: the view's scope, finished work, or both.
+    case hidden(byView: Bool, byFinished: Bool)
+    /// Nothing blocks it and nothing waits on it.
+    case unconnected
+}
+
 /// Every `blocks` dependency in a database, laid out to be read left to right: what can start now
 /// on the left, what waits on it further right — the same reading `bd graph` gives.
 ///
@@ -63,6 +75,35 @@ public struct DependencyGraph: Sendable {
 
     public func layer(of id: IssueID) -> Int? {
         layers[id]
+    }
+
+    /// Whether this bead is drawn: it is only when at least one of its dependencies is.
+    public func contains(_ id: IssueID) -> Bool {
+        layers[id] != nil
+    }
+
+    /// Where one bead stands in the graph as scoped — the question to settle before drawing a
+    /// graph that is supposed to be about that bead. `limitedTo` and `includeFinished` mean what
+    /// they do in `init`.
+    public static func standing(
+        of id: IssueID,
+        in snapshot: IssueSnapshot,
+        limitedTo visible: Set<IssueID>? = nil,
+        includeFinished: Bool = true
+    ) -> DependencyStanding {
+        let drawn = DependencyGraph(snapshot, limitedTo: visible, includeFinished: includeFinished)
+        if drawn.contains(id) {
+            return .drawn(before: drawn.upstream(of: id).count, after: drawn.downstream(of: id).count)
+        }
+        guard DependencyGraph(snapshot).contains(id) else { return .unconnected }
+        // Which switch brings it back. Finished work is tried first: it keeps to this view.
+        if !includeFinished, DependencyGraph(snapshot, limitedTo: visible).contains(id) {
+            return .hidden(byView: false, byFinished: true)
+        }
+        if visible != nil, DependencyGraph(snapshot, includeFinished: includeFinished).contains(id) {
+            return .hidden(byView: true, byFinished: false)
+        }
+        return .hidden(byView: true, byFinished: true)
     }
 
     /// The beads this one waits on directly.

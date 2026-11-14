@@ -28,11 +28,24 @@ left, and what waits on it is further right.
 
 {{< shot name="graph" alt="The dependency graph focused on one bead. Arrows run from blockers on the left to waiting beads on the right; the focused bead's chain is highlighted and the others are faded." caption="Focused on one bead: what it's waiting on is bold, what's waiting on it is tinted, and the rest fades." >}}
 
-- **Click a bead** to follow it. The view recentres on it.
+- **Click a bead** to follow it. The view recentres on it and tags its card **Following**:
+  that's the bead the bold and tinted chains are read from.
 - Selecting a bead in the main window moves the graph too, and **Show in Main Window** goes
   the other way.
 - **This view only** limits the graph to the beads in the current view.
 - Finished beads are drawn struck through. Untick **Finished work** to hide them.
 - {{< k "⌘+" >}} and {{< k "⌘−" >}} zoom.
 
-You can also pin a small graph under the details pane, where it follows your selection.
+## Dependencies in the details pane
+
+The foot of the details pane is a **Dependencies** section. Its header says where the selected
+bead stands, such as "1 to finish first · 1 waiting on it", or "None". Click the header, or
+press {{< k "⇧⌘G" >}}, to open a small graph there that follows your selection as you move
+down a list. Click it again to close it. Drag the line above it to make it taller.
+
+- The selected bead's card is tagged **Selected**. What it waits on is bold, and what waits on
+  it is tinted.
+- A bead with no dependencies says so, rather than showing other beads' chains.
+- If its dependencies are finished or outside the current view, the section says so, and
+  **Show Them** turns on what's needed to draw them.
+- The window button in the header opens the full graph window on the same bead.

@@ -110,6 +110,29 @@ public enum DisplayText {
         }
     }
 
+    /// The Dependencies section's header, open or closed: where the selected bead stands, in the
+    /// graph legend's own words, so the header alone says whether there is anything to open. Nil
+    /// with nothing selected.
+    public static func dependencySummary(_ standing: DependencyStanding?) -> String? {
+        switch standing {
+        case nil:
+            return nil
+        case .unconnected:
+            return String(localized: "None", bundle: .module, comment: "Dependencies header: the selected bead has no dependencies")
+        case .hidden:
+            return String(localized: "Not shown", bundle: .module, comment: "Dependencies header: the selected bead has dependencies, but the graph's scope leaves them out")
+        case .drawn(let before, let after):
+            var parts: [String] = []
+            if before > 0 {
+                parts.append(String(localized: "\(before) to finish first", bundle: .module, comment: "Dependencies header: how many beads have to finish before the selected one can start"))
+            }
+            if after > 0 {
+                parts.append(String(localized: "\(after) waiting on it", bundle: .module, comment: "Dependencies header: how many beads are waiting on the selected one"))
+            }
+            return parts.joined(separator: " · ")
+        }
+    }
+
     public static func field(_ field: FilterField) -> String {
         switch field {
         case .lifecycle: String(localized: "Lifecycle", bundle: .module, comment: "A filter field")
