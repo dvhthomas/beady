@@ -35,6 +35,17 @@ public struct RGB: Equatable, Sendable {
         let b = other.luminance
         return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
+
+    /// The foreground for content drawn over a colour no theme colour was chosen against — the
+    /// system accent that macOS paints the focused selection with, or the theme's own accent.
+    /// White or black, whichever reads better: the worst background for the better of the two is
+    /// a mid-luminance one, where it still clears WCAG's 4.5:1 (≈4.58:1), so the result is
+    /// legible on anything.
+    public static func legibleForeground(on background: RGB) -> RGB {
+        let white = RGB(1, 1, 1)
+        let black = RGB(0, 0, 0)
+        return white.contrast(with: background) >= black.contrast(with: background) ? white : black
+    }
 }
 
 /// Every colour the app draws, named for what it means rather than what it looks like.
@@ -194,9 +205,9 @@ public enum AppearancePreference: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .system: String(localized: "System", bundle: .module, comment: "Appearance: follow macOS")
+        case .light: String(localized: "Light", bundle: .module, comment: "Appearance")
+        case .dark: String(localized: "Dark", bundle: .module, comment: "Appearance")
         }
     }
 }
@@ -213,15 +224,15 @@ public enum SidebarStyle: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .themed: "Themed"
-        case .native: "Translucent"
+        case .themed: String(localized: "Themed", bundle: .module, comment: "Sidebar style: painted by the theme")
+        case .native: String(localized: "Translucent", bundle: .module, comment: "Sidebar style: macOS's own material")
         }
     }
 
     public var detail: String {
         switch self {
-        case .themed: "One coherent window, painted by the theme."
-        case .native: "macOS's own material, which picks up what's behind the window."
+        case .themed: String(localized: "One coherent window, painted by the theme.", bundle: .module)
+        case .native: String(localized: "macOS's own material, which picks up what's behind the window.", bundle: .module)
         }
     }
 }
@@ -246,10 +257,10 @@ public enum TextSize: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .small: "Small"
-        case .default: "Default"
-        case .large: "Large"
-        case .extraLarge: "Extra Large"
+        case .small: String(localized: "Small", bundle: .module, comment: "Text size")
+        case .default: String(localized: "Default", bundle: .module, comment: "Text size")
+        case .large: String(localized: "Large", bundle: .module, comment: "Text size")
+        case .extraLarge: String(localized: "Extra Large", bundle: .module, comment: "Text size")
         }
     }
 }
@@ -364,9 +375,10 @@ public enum ThemeUsage: Equatable, Sendable {
 
     public var title: String {
         switch self {
-        case .inUse: "In use"
-        case .whenSystemIs(let appearance): "When macOS is \(appearance.rawValue)"
-        case .unusedWhile(let appearance): "Not used while Appearance is \(appearance.title)"
+        case .inUse: String(localized: "In use", bundle: .module, comment: "When a theme applies")
+        case .whenSystemIs(.dark): String(localized: "When macOS is dark", bundle: .module, comment: "When a theme applies")
+        case .whenSystemIs(.light): String(localized: "When macOS is light", bundle: .module, comment: "When a theme applies")
+        case .unusedWhile(let appearance): String(localized: "Not used while Appearance is \(appearance.title)", bundle: .module, comment: "When a theme applies; the value is Light or Dark")
         }
     }
 }

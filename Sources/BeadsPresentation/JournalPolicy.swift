@@ -28,6 +28,13 @@ public struct JournalPolicy: Sendable {
     /// Nothing is written unless asked: tests, the offscreen snapshots, the setting off.
     public static let manual = JournalPolicy(turnsOnAutomatically: false)
 
+    /// The workspaces Beady has turned the journal on in, with this one remembered once. One
+    /// wrong entry would read as "turned off by hand" forever, so the bookkeeping lives here,
+    /// where it is tested, not in the app layer.
+    public static func remembering(_ path: String, in paths: [String]) -> [String] {
+        paths.contains(path) ? paths : paths + [path]
+    }
+
     /// The one decision. Every reason not to stands alone: a bd older than 1.3 (or one that
     /// wouldn't say), a journal already on, a window that can't write, the setting off, or a
     /// workspace whose owner turned it off.

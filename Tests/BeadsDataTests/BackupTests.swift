@@ -45,7 +45,7 @@ struct BackupStatusTests {
         #expect(BDCommand.backupStatus.isReadOnly)
         #expect(BDCommand.backupSync.arguments == ["backup", "sync"])
         #expect(!BDCommand.backupSync.isReadOnly)
-        #expect(BDCommand.backupInit("/tmp/dest").arguments == ["backup", "init", "/tmp/dest"])
+        #expect(BDCommand.backupInit("/tmp/dest").arguments == ["backup", "init", "--", "/tmp/dest"])
         #expect(!BDCommand.backupInit("/tmp/dest").isReadOnly)
     }
 }

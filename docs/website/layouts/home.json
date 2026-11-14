@@ -1,0 +1,30 @@
+{{- /*
+  The search index: one entry per guide page and one per section (h2) of each, so a result can
+  link straight to the paragraph that answers the question. assets/js/site.js fetches this the
+  first time the search box opens and does all the matching in the browser; nothing is sent
+  anywhere.
+*/ -}}
+{{- $entries := slice }}
+{{- $guide := site.GetPage "/guide" }}
+{{- range (slice $guide) | append $guide.RegularPages.ByWeight }}
+  {{- $page := . }}
+  {{- $parts := split .Content "<h2" }}
+  {{- $intro := printf "%s %s" .Description (index $parts 0 | plainify | htmlUnescape) }}
+  {{- $entries = $entries | append (dict
+        "url" .RelPermalink
+        "page" .Title
+        "title" .Title
+        "text" (replaceRE `\s+` " " $intro | strings.TrimSpace)) }}
+  {{- range after 1 $parts }}
+    {{- $chunk := printf "<h2%s" . }}
+    {{- $id := index (index (findRESubmatch `<h2[^>]*id="([^"]+)"` $chunk 1) 0) 1 }}
+    {{- $heading := index (index (findRESubmatch `(?s)<h2[^>]*>(.*?)<a class="anchor"` $chunk 1) 0) 1 | plainify | htmlUnescape | strings.TrimSpace }}
+    {{- $body := replaceRE `(?s)^<h2.*?</h2>` "" $chunk | replaceRE `(?s)<a class="anchor".*?</a>` "" | plainify | htmlUnescape }}
+    {{- $entries = $entries | append (dict
+          "url" (printf "%s#%s" $page.RelPermalink $id)
+          "page" $page.Title
+          "title" $heading
+          "text" (replaceRE `\s+` " " $body | strings.TrimSpace)) }}
+  {{- end }}
+{{- end }}
+{{- $entries | jsonify -}}

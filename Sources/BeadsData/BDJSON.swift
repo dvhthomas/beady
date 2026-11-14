@@ -24,6 +24,128 @@ public enum BDJSON {
         )
     }
 
+    // MARK: Sharing (plan 0006)
+
+    /// `bd dolt remote list --json`: an array of remotes; empty when there are none.
+    public static func decodeRemotes(_ data: Data) throws -> [DoltRemote] {
+        guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw DecodingFailure(detail: "bd dolt remote list didn't return a list")
+        }
+        return rows.compactMap { row in
+            guard let name = row["name"] as? String, let url = row["url"] as? String else { return nil }
+            return DoltRemote(name: name, url: url)
+        }
+    }
+
+    /// `bd federation status --json`: one entry per remote. bd writes -1 for a count it couldn't
+    /// work out, which is what a remote with nothing published to it gives.
+    public static func decodePeers(_ data: Data) throws -> [PeerStatus] {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw DecodingFailure(detail: "bd federation status didn't return an object")
+        }
+        let peers = root["peers"] as? [[String: Any]] ?? []
+        return peers.compactMap { peer in
+            let status = peer["Status"] as? [String: Any] ?? [:]
+            guard let name = status["Peer"] as? String else { return nil }
+            func count(_ key: String) -> Int? {
+                guard let value = status[key] as? Int, value >= 0 else { return nil }
+                return value
+            }
+            let error = (peer["ReachError"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return PeerStatus(
+                name: name,
+                isReachable: peer["Reachable"] as? Bool ?? false,
+                reachError: error?.isEmpty == false ? error : nil,
+                ahead: count("LocalAhead"),
+                behind: count("LocalBehind")
+            )
+        }
+    }
+
+    /// What one `bd sync --json` did, from its output and its exit status. bd documents the
+    /// statuses 0 to 4; its JSON says the same thing in words, except for 3 and 4, which only
+    /// the exit status tells apart from an ordinary failure.
+    public static func decodeSyncOutcome(_ result: CommandResult) -> SyncOutcome {
+        let root = (try? JSONSerialization.jsonObject(with: result.stdout)) as? [String: Any] ?? [:]
+        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = (root["error"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? stderr
+        switch (result.exitCode, root["status"] as? String) {
+        case (_, "conflict"), (2, _):
+            return .conflict(tables: root["conflicts"] as? [String] ?? [])
+        case (3, _):
+            return .busy
+        case (4, _):
+            return .stuck(message)
+        case (0, "ok"):
+            return .synced
+        case (0, "no-remote"):
+            return .noRemote
+        case (0, "disabled"):
+            return .localOnly
+        default:
+            if SyncOutcome.isUnrelatedHistory(message) { return .unrelated(message) }
+            return .failed(message.isEmpty ? "bd sync exited with status \(result.exitCode)" : message)
+        }
+    }
+
+    /// `bd bootstrap --dry-run --json`.
+    public static func decodeBootstrapPlan(_ data: Data) throws -> BootstrapPlan {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let action = root["action"] as? String else {
+            throw DecodingFailure(detail: "bd bootstrap didn't report a plan")
+        }
+        return BootstrapPlan(
+            action: action,
+            hasExistingDatabase: root["has_existing"] as? Bool ?? false,
+            reason: root["reason"] as? String ?? ""
+        )
+    }
+
+    /// `bd context --json`. bd answers with an error object where it can't resolve the
+    /// repository; that is thrown, and the caller goes without.
+    public static func decodeContext(_ data: Data) throws -> WorkspaceContext {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any], root["error"] == nil else {
+            throw DecodingFailure(detail: "bd context didn't describe the workspace")
+        }
+        return WorkspaceContext(
+            bdVersion: root["bd_version"] as? String,
+            storage: StorageMode(doltMode: root["dolt_mode"] as? String),
+            role: root["role"] as? String,
+            isWorktree: root["is_worktree"] as? Bool ?? false,
+            repoRoot: root["repo_root"] as? String,
+            beadsDirectory: root["beads_dir"] as? String,
+            isRedirected: root["is_redirected"] as? Bool ?? false
+        )
+    }
+
+    /// `bd worktree list --json`.
+    public static func decodeCheckouts(_ data: Data) throws -> [Checkout] {
+        guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw DecodingFailure(detail: "bd worktree list didn't return a list")
+        }
+        return rows.compactMap { row in
+            guard let path = row["path"] as? String else { return nil }
+            return Checkout(
+                name: row["name"] as? String ?? URL(fileURLWithPath: path).lastPathComponent,
+                path: path,
+                branch: row["branch"] as? String ?? "",
+                isMain: row["is_main"] as? Bool ?? false
+            )
+        }
+    }
+
+    /// `bd hooks list --json`.
+    public static func decodeHooks(_ data: Data) throws -> [GitHook] {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = root["hooks"] as? [[String: Any]] else {
+            throw DecodingFailure(detail: "bd hooks list didn't return its hooks")
+        }
+        return rows.compactMap { row in
+            guard let name = row["Name"] as? String else { return nil }
+            return GitHook(name: name, isInstalled: row["Installed"] as? Bool ?? false, isOutdated: row["Outdated"] as? Bool ?? false)
+        }
+    }
+
     /// `bd history <id> --json`: one entry per Dolt commit, each with a snapshot of the issue.
     /// The commit date is used rather than the issue's `updated_at`, which several commits share.
     public static func decodeHistory(_ data: Data) throws -> [IssueVersion] {

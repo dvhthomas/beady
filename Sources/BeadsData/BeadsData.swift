@@ -13,15 +13,15 @@ public enum BeadsDataError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notAWorkspace(let path):
-            "\(path) has no initialised .beads folder. Choose a project that uses beads, or its .beads folder."
+            String(localized: "\(path) has no initialised .beads folder. Choose a project that uses beads, or its .beads folder.", bundle: .module)
         case .bdNotFound(let searched):
-            "Couldn't find the bd executable. Looked in: \(searched.joined(separator: ", ")). Set BD_PATH to override."
+            String(localized: "Couldn't find the bd executable. Looked in: \(searched.joined(separator: ", ")). Set BD_PATH to override.", bundle: .module)
         case .commandFailed(let exitCode, let message):
-            "bd exited with status \(exitCode): \(message.isEmpty ? "no error output" : message)"
+            String(localized: "bd exited with status \(exitCode): \(message.isEmpty ? String(localized: "no error output", bundle: .module) : message)", bundle: .module)
         case .timedOut(let seconds):
-            "bd didn't answer within \(seconds) seconds."
+            String(localized: "bd didn't answer within \(seconds) seconds.", bundle: .module, comment: "Plural on the number of seconds")
         case .unreadableOutput(let detail):
-            "bd returned output that couldn't be read: \(detail)"
+            String(localized: "bd returned output that couldn't be read: \(detail)", bundle: .module)
         }
     }
 }
@@ -44,7 +44,9 @@ public struct BDExecutableLocator: Sendable {
     /// PATH first, then common install locations. Apps launched from Finder get a
     /// minimal PATH, so the fallbacks matter in practice.
     public func candidates() -> [String] {
-        let fromPath = (environment["PATH"] ?? "").split(separator: ":").map { "\($0)/bd" }
+        // Only absolute entries: a relative PATH entry (".", say) would resolve against
+        // whatever the app's working directory happens to be.
+        let fromPath = (environment["PATH"] ?? "").split(separator: ":").filter { $0.hasPrefix("/") }.map { "\($0)/bd" }
         let wellKnown = [
             "/opt/homebrew/bin/bd",
             "/usr/local/bin/bd",

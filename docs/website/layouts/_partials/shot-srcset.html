@@ -1,0 +1,12 @@
+{{- /* "url 720w, url 1100w, …": WebP copies of .img at each of .widths it is big enough for, and at full size. */ -}}
+{{- $img := .img }}
+{{- $set := slice }}
+{{- range .widths }}
+  {{- if lt . $img.Width }}
+    {{- $r := $img.Resize (printf "%dx webp q88" .) }}
+    {{- $set = $set | append (printf "%s %dw" $r.RelPermalink .) }}
+  {{- end }}
+{{- end }}
+{{- $full := $img.Resize (printf "%dx webp q88" $img.Width) }}
+{{- $set = $set | append (printf "%s %dw" $full.RelPermalink $img.Width) }}
+{{- delimit $set ", " -}}

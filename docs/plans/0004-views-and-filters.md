@@ -410,3 +410,17 @@ BeadsCore or BeadsPresentation with tests; the app layer only wires them to AppK
    the `ViewIcon` catalogue, built-in icons, the user icon picker on save and in the context menu.
 8. **Presentation + UI:** the hover-help glossary; independent of the rest and can land now,
    on today's sidebar, chips and badges; step 4 keeps it.
+
+## Amendment, 2026-10-25: the This Workspace tier is removed
+
+Owner decision: "I don't want Beady stuff to be in a git repo — it should all live locally on
+the Mac." The two-tier table in §5 is reversed: the **This workspace** tier
+(`.beads/beady/views`, shared through git) is removed, along with moving views between tiers,
+the sidebar's This Workspace section and its drag targets. Views have one home, the Library in
+`~/Library/Application Support/Beady/views`, and Beady never writes files of its own inside a
+workspace's repository. (The `.beads` folder itself is bd's, not Beady's; Beady only reads it.)
+
+A `.beadyview` file someone committed to a repo before this change is simply ignored; it can
+still be imported by dropping it on the sidebar, which copies it into the Library. With the
+section gone, the Starred row — its own headerless section at the bottom — gets a thin rule
+above it so it no longer reads as the last row of My Views.

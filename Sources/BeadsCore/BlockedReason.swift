@@ -33,11 +33,11 @@ public struct BlockedReason: Equatable, Sendable {
         case .waitingOnBeads:
             let names = blockers.prefix(2).map(\.id.rawValue).joined(separator: ", ")
             let extra = blockers.count > 2 ? " +\(blockers.count - 2)" : ""
-            return "Waiting on \(names)\(extra)"
+            return String(localized: "Waiting on \(names)\(extra)", bundle: .module, comment: "Short: the bead ids it waits on, then an optional ‘ +N’ for any more")
         case .waitingOnAnotherProject:
-            return "Waiting on \(externalCapabilities.joined(separator: ", "))"
+            return String(localized: "Waiting on \(externalCapabilities.joined(separator: ", "))", bundle: .module, comment: "Short: the other projects’ capabilities it waits on")
         case .declared:
-            return "Marked blocked"
+            return String(localized: "Marked blocked", bundle: .module, comment: "Short: the status was set to blocked by hand")
         }
     }
 

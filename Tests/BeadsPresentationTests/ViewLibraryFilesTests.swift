@@ -102,6 +102,52 @@ struct ViewLibraryFilesTests {
         #expect(fresh.first?.name == "Other")
     }
 
+    @Test("an imported id that couldn't be a file name is re-minted, so a shared document can't name a path")
+    func importTraversalID() {
+        var library = ViewLibrary()
+        for evil in ["../../../tmp/escape", "..", ".", "", "nested/inside", "a:b", "line\nbreak"] {
+            let imported = library.importViews([makeView("Evil", id: evil)])
+            let id = imported.first?.id
+            #expect(id != IssueView.ID(evil), Comment(rawValue: evil))
+            #expect(id.map { UUID(uuidString: $0.rawValue) != nil } == true, Comment(rawValue: evil))
+        }
+    }
+
+    @MainActor
+    @Test("typing and filtering touch what's live, never the Library folder; the folder is written when a saved view changes")
+    func liveChangesStayOffDisk() async throws {
+        let directory = scratchDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try makeView("Mine", id: "mine").documentData().write(to: directory.appendingPathComponent("mine.beadyview"))
+        let model = WorkspaceModel(title: "demo", store: MemoryStore([]), preferences: scratchDefaults(), viewsDirectory: directory)
+        await model.load()
+        // Removing the file by hand tells whether a later save rewrites the folder: a save that
+        // touches it would put the file straight back.
+        try FileManager.default.removeItem(at: directory.appendingPathComponent("mine.beadyview"))
+
+        model.viewID = IssueView.ID("mine")
+        model.searchText = "typing"
+        model.toggleFilterValue("1", in: .priority)
+        #expect(files(in: directory).isEmpty, "live changes must not rewrite the Library folder")
+
+        #expect(model.renameView(IssueView.ID("mine"), to: "Renamed"))
+        #expect(files(in: directory) == ["mine.beadyview"], "a change to a saved view writes the folder")
+    }
+
+    @Test("saving never writes or deletes outside the views folder, whatever id a view carries")
+    func saveStaysInFolder() throws {
+        let parent = scratchDirectory()
+        let directory = parent.appendingPathComponent("views", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // A hostile id already in the library (an older saved state, not an import).
+        var library = ViewLibrary()
+        library.views.append(makeView("Evil", id: "../escape"))
+        library.views.append(makeView("Fine", id: "fine"))
+        library.save(to: directory, preferences: nil)
+        #expect(files(in: directory) == ["fine.beadyview"])
+        #expect(!FileManager.default.fileExists(atPath: parent.appendingPathComponent("escape.beadyview").path))
+    }
+
     @Test("a .beadyviews file is an array of views, imported one by one")
     func importArray() throws {
         let views = [makeView("A", id: "a"), makeView("B", id: "b")]

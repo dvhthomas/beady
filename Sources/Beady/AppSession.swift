@@ -13,21 +13,72 @@ extension UTType {
     static let beadyViews = UTType("me.bitsby.beady.views") ?? UTType(filenameExtension: ViewLibrary.bundleExtension) ?? .json
 }
 
+/// What the Get Beads alert shows: bd's bootstrap plan for the folder, and the exact command.
+struct BootstrapOfferAlert {
+    let offer: BootstrapOffer
+    let command: String
+}
+
+/// What the Create Database alert shows: the plan, and the exact command line it will run.
+struct NewDatabaseOffer {
+    let plan: NewDatabasePlan
+    let command: String
+}
+
 /// Composition root: turns a folder into a wired-up WorkspaceModel and remembers recents.
 @MainActor
 @Observable
 final class AppSession {
-    private(set) var model: WorkspaceModel?
+    private(set) var model: WorkspaceModel? {
+        // The window's undo manager holds unretained references into the model; a model being
+        // replaced or closed must take its registrations with it.
+        didSet { if oldValue !== model { oldValue?.detachUndoManager() } }
+    }
     private(set) var workspace: BeadsWorkspace?
     private(set) var openError: String?
     private(set) var recentPaths: [String]
+    /// A git repository without a database, waiting for the user's yes or no.
+    private(set) var databaseOffer: NewDatabaseOffer?
+    /// True while bd is making a database the user said yes to.
+    private(set) var isCreatingDatabase = false
+    /// A folder with bd's configuration and no database, usually a fresh clone, waiting for a
+    /// yes or no to bd's bootstrap plan.
+    private(set) var bootstrapOffer: BootstrapOfferAlert?
+    /// True while bd is fetching or setting up a database the user said yes to.
+    private(set) var isBootstrapping = false
     /// The setting: turn bd's change journal on in workspaces that don't have it. On by default;
     /// nil preferences (the offscreen snapshots) mean nothing is ever written.
     var turnsOnJournal: Bool {
         didSet { preferences?.set(turnsOnJournal, forKey: Self.turnsOnJournalKey) }
     }
+    /// The language Beady is shown in, or nil for the system's. Stored under the key macOS
+    /// itself reads for a per-app language, so this and System Settings can't disagree; bundles
+    /// follow it from the next launch.
+    var language: String? {
+        didSet {
+            guard let preferences else { return }
+            if let stored = LanguageSetting.stored(for: language) {
+                preferences.set(stored, forKey: LanguageSetting.key)
+            } else {
+                preferences.removeObject(forKey: LanguageSetting.key)
+            }
+        }
+    }
+    /// What this process launched with: when `language` differs, a relaunch is what applies it.
+    private let languageAtLaunch: String?
+    /// The setting: keep the Library the same on every Mac through iCloud's Key-Value Store. Off
+    /// by default, and only a signed build can honour it.
+    var syncsLibrary: Bool {
+        didSet {
+            preferences?.set(syncsLibrary, forKey: Self.syncsLibraryKey)
+            updateLibrarySyncer()
+        }
+    }
+    /// Whether this build carries the iCloud entitlement the setting needs.
+    static var canSyncLibrary: Bool { UbiquitousLibraryStore.isEntitled }
+    @ObservationIgnored private var librarySyncer: LibrarySyncer?
     /// Panels, sheets and column layout, shared with the menu bar.
-    let ui = WorkspaceUI()
+    let ui: WorkspaceUI
     /// Appearance, themes and text size.
     let themes = ThemeStore()
 
@@ -41,6 +92,10 @@ final class AppSession {
     private(set) var viewFileError: String?
 
     private static let recentsKey = "recentWorkspaces"
+    private static let syncsLibraryKey = "syncsLibraryWithiCloud"
+    /// The bd issue prefix seen in each remembered workspace, by path, so the switcher can show
+    /// it for workspaces that aren't open.
+    private static let prefixesKey = "workspacePrefixes"
     private static let turnsOnJournalKey = "turnsOnEventsJournal"
     /// Workspaces where Beady turned bd's change journal on. One found off again later was
     /// turned off by hand (an Undo here, or `bd config` elsewhere), and is left that way.
@@ -57,26 +112,133 @@ final class AppSession {
     /// `--workspace <path>` on the command line wins over the most recent workspace.
     init(arguments: [String] = CommandLine.arguments, preferences: UserDefaults? = .standard) {
         self.preferences = preferences
+        ui = WorkspaceUI(preferences: preferences)
         turnsOnJournal = preferences.map {
             $0.object(forKey: Self.turnsOnJournalKey) == nil || $0.bool(forKey: Self.turnsOnJournalKey)
         } ?? false
+        // Read from Beady's own domain: `object(forKey:)` would answer with the system's list.
+        let chosen = LanguageSetting.chosen(from: preferences?.persistentDomain(forName: Self.preferencesDomain)?[LanguageSetting.key])
+        language = chosen
+        languageAtLaunch = chosen
+        syncsLibrary = preferences?.bool(forKey: Self.syncsLibraryKey) ?? false
         viewsDirectory = preferences == nil ? nil : FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent("Beady/views", isDirectory: true)
         recentPaths = (UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? [])
             .filter { FileManager.default.fileExists(atPath: $0) }
+        publishRecents()
         if let viewsDirectory {
             try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
             libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
-                Task { @MainActor in self?.model?.reloadViews() }
+                Task { @MainActor in
+                    self?.model?.reloadViews()
+                    self?.librarySyncer?.sync()
+                }
             }
         }
+        updateLibrarySyncer()
         if let path = Self.value(of: "--workspace", in: arguments) ?? recentPaths.first {
             open(URL(fileURLWithPath: path))
         }
     }
 
+    /// Opens a database, offers to make one in a git repository that has none, or says why
+    /// neither can happen. The decision is `WorkspaceOpening`'s; this gathers the facts.
     func open(_ url: URL) {
+        let found = BeadsWorkspace.inspect(url)
+        let folder = ChosenFolder(
+            path: found.projectDirectory.path,
+            hasBeadsDatabase: found.hasBeadsDatabase,
+            isGitRepository: found.isGitRepository
+        )
+        switch WorkspaceOpening.decide(folder) {
+        case .open:
+            openWorkspace(url)
+        case .askBootstrapPlan:
+            askBootstrapPlan(url, path: found.projectDirectory.path)
+        case .offerNewDatabase(let plan):
+            forget(found.projectDirectory.path)
+            offerNewDatabase(plan)
+        case .refuse(let reason):
+            forget(found.projectDirectory.path)
+            openError = reason
+        }
+    }
+
+    private func offerNewDatabase(_ plan: NewDatabasePlan) {
+        do {
+            // The same gateway that will run it builds the preview, so what's shown is what runs.
+            let gateway = try BDGateway.forNewWorkspace(at: URL(fileURLWithPath: plan.projectPath))
+            databaseOffer = NewDatabaseOffer(plan: plan, command: gateway.preview(.initDatabase(prefix: plan.prefix)))
+            openError = nil
+        } catch {
+            openError = error.localizedDescription
+        }
+    }
+
+    /// bd's configuration is in the folder and its database isn't. bd says what that means: a
+    /// fresh clone whose beads are on the remote, a database kept elsewhere, or nothing at all.
+    /// Whatever it is, the answer is bd's; with none, the folder opens as it always did.
+    private func askBootstrapPlan(_ url: URL, path: String) {
+        Task {
+            let gateway = try? BDGateway.forNewWorkspace(at: url)
+            let plan = try? await gateway?.bootstrapPlan()
+            switch WorkspaceOpening.decide(plan, for: path) {
+            case .open:
+                openWorkspace(url)
+            case .offer(let offer):
+                forget(path)
+                bootstrapOffer = BootstrapOfferAlert(offer: offer, command: gateway?.preview(.bootstrap) ?? "bd bootstrap --yes")
+                openError = nil
+            }
+        }
+    }
+
+    /// Yes to bd's bootstrap plan: run it inside the folder, then open the folder.
+    func runBootstrap() {
+        guard let alert = bootstrapOffer, !isBootstrapping else { return }
+        bootstrapOffer = nil
+        isBootstrapping = true
+        let url = URL(fileURLWithPath: alert.offer.projectPath)
+        Task {
+            defer { isBootstrapping = false }
+            do {
+                _ = try await BDGateway.forNewWorkspace(at: url).run(.bootstrap)
+                openWorkspace(url)
+            } catch {
+                openError = String(localized: "Couldn't set up the beads database in \(alert.offer.folderName): \(error.localizedDescription)", comment: "The folder's name, then bd's error")
+            }
+        }
+    }
+
+    /// No to the plan: nothing is written, and nothing is remembered.
+    func declineBootstrap() {
+        bootstrapOffer = nil
+    }
+
+    /// Yes to the offer: run bd init, then open the folder like any other workspace.
+    func createDatabase() {
+        guard let offer = databaseOffer, !isCreatingDatabase else { return }
+        databaseOffer = nil
+        isCreatingDatabase = true
+        let url = URL(fileURLWithPath: offer.plan.projectPath)
+        Task {
+            defer { isCreatingDatabase = false }
+            do {
+                _ = try await BDGateway.forNewWorkspace(at: url).run(.initDatabase(prefix: offer.plan.prefix))
+                open(url)
+            } catch {
+                openError = String(localized: "Couldn't create a beads database in \(offer.plan.folderName): \(error.localizedDescription)", comment: "The folder's name, then bd's error")
+            }
+        }
+    }
+
+    /// No to the offer: nothing is written, and nothing is remembered.
+    func declineDatabase() {
+        databaseOffer = nil
+    }
+
+    private func openWorkspace(_ url: URL) {
         do {
             // Everything that reads or writes beads goes through this one gateway.
             let gateway = try BDGateway.open(url)
@@ -92,9 +254,13 @@ final class AppSession {
                     turnsOnAutomatically: turnsOnJournal,
                     wasTurnedOffByHand: journalsTurnedOn.contains(path),
                     noteTurnedOn: { [weak self] in self?.rememberJournalTurnedOn(at: path) }
-                )
+                ),
+                syncCadence: syncCadence(at: path),
+                noteSyncCadence: { [weak self] in self?.rememberSyncCadence($0, at: path) }
             )
             openError = nil
+            ui.currentWorkspacePath = path
+            if let model { rememberPrefix(of: model, at: path) }
             watcher?.stop()
             // Passive FSEvents on bd's folder: every write touches a marker file and grows Dolt's
             // storage, so this fires within a moment of any agent's change. It stays the wake-up
@@ -102,7 +268,11 @@ final class AppSession {
             // held open for as long as the window is, and FSEvents costs nothing. The events
             // journal is read after the wake-up, to say who made the change.
             watcher = gateway.watchChanges { [weak self] in
-                Task { @MainActor in await self?.model?.refreshIfChanged() }
+                Task { @MainActor in
+                    // The same folder holds the workspace's views: a pull or a hand edit shows up.
+                    self?.model?.reloadViews()
+                    await self?.model?.refreshIfChanged()
+                }
             }
             remember(gateway.workspace.projectDirectory.path)
             if !pendingImports.isEmpty {
@@ -112,9 +282,6 @@ final class AppSession {
             }
         } catch {
             openError = error.localizedDescription
-            if let dataError = error as? BeadsDataError, case .notAWorkspace = dataError {
-                forget(url.standardizedFileURL.path)
-            }
         }
     }
 
@@ -124,9 +291,25 @@ final class AppSession {
         preferences?.stringArray(forKey: Self.journalsTurnedOnKey) ?? []
     }
 
+    /// How often each workspace syncs by itself (plan 0007), by folder, in seconds. This Mac's
+    /// choice: it is not in bd's configuration, so no teammate or agent inherits it.
+    private static let syncCadencesKey = "syncCadences"
+
+    private func syncCadence(at path: String) -> SyncCadence {
+        let saved = preferences?.dictionary(forKey: Self.syncCadencesKey) as? [String: Int] ?? [:]
+        return SyncCadence(seconds: saved[path] ?? 0)
+    }
+
+    private func rememberSyncCadence(_ cadence: SyncCadence, at path: String) {
+        guard let preferences else { return }
+        var saved = preferences.dictionary(forKey: Self.syncCadencesKey) as? [String: Int] ?? [:]
+        saved[path] = cadence == .manual ? nil : cadence.rawValue
+        preferences.set(saved, forKey: Self.syncCadencesKey)
+    }
+
     private func rememberJournalTurnedOn(at path: String) {
-        guard let preferences, !journalsTurnedOn.contains(path) else { return }
-        preferences.set(journalsTurnedOn + [path], forKey: Self.journalsTurnedOnKey)
+        guard let preferences else { return }
+        preferences.set(JournalPolicy.remembering(path, in: journalsTurnedOn), forKey: Self.journalsTurnedOnKey)
     }
 
     /// ⌘P, for a workspace the setting left alone: the same write, listed under Changes with
@@ -147,6 +330,122 @@ final class AppSession {
 
     func dismissViewFileError() {
         viewFileError = nil
+    }
+
+    // MARK: Library sync
+
+    /// Runs the syncer while the setting is on and the build can; stops it otherwise.
+    private func updateLibrarySyncer() {
+        librarySyncer?.stop()
+        librarySyncer = nil
+        guard syncsLibrary, Self.canSyncLibrary, let preferences, let viewsDirectory else { return }
+        let syncer = LibrarySyncer(directory: viewsDirectory, store: UbiquitousLibraryStore(), preferences: preferences) { [weak self] in
+            self?.model?.reloadViews()
+        }
+        librarySyncer = syncer
+        syncer.start()
+    }
+
+    // MARK: Language
+
+    /// True once the language setting differs from the one this process launched with.
+    var needsRelaunchForLanguage: Bool { language != languageAtLaunch }
+
+    /// Starts a fresh copy of the app and quits this one, which is how a language change takes
+    /// effect: bundles pick their language once, at launch. The bare SwiftPM binary has no
+    /// bundle to reopen, so it only quits.
+    func relaunch() {
+        let url = Bundle.main.bundleURL
+        guard url.pathExtension == "app" else {
+            NSApp.terminate(nil)
+            return
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+    }
+
+    // MARK: Reset Configuration
+
+    /// The preferences domain a reset removes: the bundle's, or the inventory's name when running
+    /// the bare binary.
+    private static var preferencesDomain: String {
+        Bundle.main.bundleIdentifier ?? ConfigurationInventory.preferencesDomain
+    }
+
+    /// What a reset would remove, counted from what is actually stored right now.
+    func configurationInventory() -> ConfigurationInventory {
+        let stored = preferences?.persistentDomain(forName: Self.preferencesDomain) ?? [:]
+        return ConfigurationInventory(
+            presentKeys: Set(stored.keys),
+            recentWorkspaces: (stored[Self.recentsKey] as? [String])?.count ?? recentPaths.count,
+            journalWorkspaces: (stored[Self.journalsTurnedOnKey] as? [String])?.count ?? 0,
+            libraryViews: libraryViews.count
+        )
+    }
+
+    /// The user's own views in the Library folder, read from disk so this works with no
+    /// workspace open.
+    private var libraryViews: [IssueView] {
+        guard let viewsDirectory else { return [] }
+        return ViewLibrary.load(from: viewsDirectory, preferences: nil).views.filter { !$0.isBuiltIn }
+    }
+
+    /// Writes every saved view to one .beadyviews file, for before a reset that deletes them.
+    func exportLibraryViews() {
+        let views = libraryViews
+        guard !views.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.title = String(localized: "Export Saved Views")
+        panel.nameFieldStringValue = "\(String(localized: "Beady views", comment: "Default file name for an export of every saved view")).\(ViewLibrary.bundleExtension)"
+        panel.allowedContentTypes = [.beadyViews]
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try ViewLibrary.documentData(for: views).write(to: url, options: .atomic)
+        } catch {
+            viewFileError = "\(url.lastPathComponent): \(error.localizedDescription)"
+        }
+    }
+
+    /// Removes Beady's own settings on this Mac — the preferences domain, and the Library when
+    /// asked — and returns to the welcome screen with defaults. In-memory state is put back first
+    /// and the stores wiped last, so nothing written on the way back survives. No relaunch: the
+    /// window and the stores reload in place.
+    func resetConfiguration(deletingLibrary: Bool) {
+        let plan = configurationInventory().plan(deletingLibrary: deletingLibrary)
+        ui.showsResetConfiguration = false
+        close()
+        recentPaths = []
+        pendingImports = []
+        themes.restoreDefaults()
+        turnsOnJournal = true
+        language = nil
+        syncsLibrary = false
+        do {
+            try ConfigurationReset.perform(
+                plan,
+                defaults: preferences ?? .standard,
+                domain: Self.preferencesDomain,
+                libraryFolder: viewsDirectory?.deletingLastPathComponent()
+            )
+        } catch {
+            openError = String(localized: "Couldn't remove the Library folder: \(error.localizedDescription)")
+        }
+        // An empty Library folder is recreated so views can be saved again, and watched again,
+        // since the watch died with the folder.
+        if plan.removesLibrary, let viewsDirectory {
+            try? FileManager.default.createDirectory(at: viewsDirectory, withIntermediateDirectories: true)
+            libraryWatcher?.stop()
+            libraryWatcher = BDChangeWatcher(path: viewsDirectory.path) { [weak self] in
+                Task { @MainActor in
+                    self?.model?.reloadViews()
+                    self?.librarySyncer?.sync()
+                }
+            }
+        }
     }
 
     // MARK: View files
@@ -172,9 +471,9 @@ final class AppSession {
 
     func chooseViewsToImport() {
         let panel = NSOpenPanel()
-        panel.title = "Import Views"
-        panel.message = "Choose .beadyview or .beadyviews files."
-        panel.prompt = "Import"
+        panel.title = String(localized: "Import Views")
+        panel.message = String(localized: "Choose .beadyview or .beadyviews files.")
+        panel.prompt = String(localized: "Import", comment: "Open panel button")
         panel.allowedContentTypes = [.beadyView, .beadyViews]
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
@@ -185,7 +484,7 @@ final class AppSession {
     func exportView(_ id: IssueView.ID) {
         guard let model, let view = model.views.first(where: { $0.id == id }) else { return }
         let panel = NSSavePanel()
-        panel.title = "Export View"
+        panel.title = String(localized: "Export View")
         panel.nameFieldStringValue = view.exportFilename
         panel.allowedContentTypes = [.beadyView]
         panel.canCreateDirectories = true
@@ -198,20 +497,37 @@ final class AppSession {
         }
     }
 
+    /// The view's filter and ordering as a `bd query` line, on the pasteboard.
+    func copyAsBDCommand(_ id: IssueView.ID) {
+        guard let model, let view = model.views.first(where: { $0.id == id }) else { return }
+        let query = BDQueryRendering.query(for: view, catalog: model.snapshot?.catalog ?? .builtIn)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(query.commandLine, forType: .string)
+    }
+
+    /// SnapshotMode's refresh harness only: one status change made through a second gateway — a
+    /// separate bd process, the way an agent outside this app writes. Lives here because the
+    /// composition root is the one place that may touch the data layer.
+    func makeAgentWrite(settingStatusOf id: IssueID, to status: String) async throws {
+        guard let workspace else { return }
+        _ = try await BDGateway.open(workspace.projectDirectory).run(.setStatus(id, status))
+    }
+
     func close() {
         watcher?.stop()
         watcher = nil
         model = nil
         workspace = nil
+        ui.currentWorkspacePath = nil
     }
 
     /// A folder to back up into — anywhere Time Machine or a sync service already reaches.
     func chooseBackupFolder() {
         guard let model else { return }
         let panel = NSOpenPanel()
-        panel.title = "Choose a Backup Folder"
-        panel.message = "bd will push this database there: tables, branches and history, not just the issues."
-        panel.prompt = "Back Up Here"
+        panel.title = String(localized: "Choose a Backup Folder")
+        panel.message = String(localized: "bd will push this database there: tables, branches and history, not just the issues.")
+        panel.prompt = String(localized: "Back Up Here", comment: "Open panel button")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -227,9 +543,9 @@ final class AppSession {
 
     func chooseWorkspace() {
         let panel = NSOpenPanel()
-        panel.title = "Open Beads Workspace"
-        panel.message = "Choose a project folder containing .beads, or the .beads folder itself."
-        panel.prompt = "Open"
+        panel.title = String(localized: "Open Beads Workspace")
+        panel.message = String(localized: "Choose a project folder containing .beads, or a git repository to create one in.")
+        panel.prompt = String(localized: "Open", comment: "Open panel button")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
@@ -240,13 +556,50 @@ final class AppSession {
     }
 
     private func remember(_ path: String) {
-        recentPaths = Array(([path] + recentPaths.filter { $0 != path }).prefix(8))
+        recentPaths = WorkspaceSwitching.remembering(path, in: recentPaths)
         UserDefaults.standard.set(recentPaths, forKey: Self.recentsKey)
+        publishRecents()
     }
 
     private func forget(_ path: String) {
-        recentPaths.removeAll { $0 == path }
+        recentPaths = WorkspaceSwitching.forgetting(path, in: recentPaths)
         UserDefaults.standard.set(recentPaths, forKey: Self.recentsKey)
+        publishRecents()
+    }
+
+    // MARK: The workspace switcher
+
+    /// What the sidebar's switcher and the palette list: the recents with the prefixes seen in them.
+    private func publishRecents() {
+        let prefixes = preferences?.dictionary(forKey: Self.prefixesKey) as? [String: String] ?? [:]
+        ui.recentWorkspaces = WorkspaceSwitching.recents(paths: recentPaths, prefixes: prefixes)
+    }
+
+    /// The prefix is read off the beads, which arrive after the open; watch the model's snapshot
+    /// and note the prefix once it's there, and again when it changes.
+    private func rememberPrefix(of model: WorkspaceModel, at path: String) {
+        withObservationTracking {
+            _ = model.snapshot
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, self.model === model else { return }
+                if let prefix = model.issuePrefix, let preferences = self.preferences {
+                    var prefixes = preferences.dictionary(forKey: Self.prefixesKey) as? [String: String] ?? [:]
+                    if prefixes[path] != prefix {
+                        prefixes[path] = prefix
+                        preferences.set(prefixes, forKey: Self.prefixesKey)
+                        self.publishRecents()
+                    }
+                }
+                self.rememberPrefix(of: model, at: path)
+            }
+        }
+    }
+
+    /// ⌃⌘O: the next recent workspace, round the list.
+    func switchToNextWorkspace() {
+        guard let next = WorkspaceSwitching.next(after: ui.currentWorkspacePath, in: recentPaths) else { return }
+        open(URL(fileURLWithPath: next))
     }
 
     /// The one place a command turns into an action, whether it came from the palette, a menu
@@ -257,6 +610,8 @@ final class AppSession {
         switch command {
         case .openWorkspace: chooseWorkspace()
         case .closeWorkspace: close()
+        case .switchWorkspace(let path): open(URL(fileURLWithPath: path))
+        case .nextWorkspace: switchToNextWorkspace()
         case .refresh: if let model { Task { await model.load() } }
         case .newBead: if model?.canEdit == true { ui.showsNewBead = true }
         case .editSelected: model?.beginEditingSelection()
@@ -266,20 +621,29 @@ final class AppSession {
             model?.clearFilters()
             model?.searchText = ""
         case .displayOptions: ui.showsDisplayOptions = true
-        case .toggleDetails: ui.showsInspector.toggle()
+        case .toggleDetails: ui.details = ui.details.toggled()
+        case .toggleGraphPane:
+            ui.showsGraphPane.toggle()
+            if ui.showsGraphPane { ui.showsInspector = true }
         case .showShortcuts: ui.showsShortcuts = true
         case .showView(let id): model?.viewID = id
         case .saveView: model?.save()
         case .saveViewAs: ui.promptSaveAsNewView(suggesting: model.map { $0.view.isBuiltIn ? "" : $0.view.name } ?? "")
         case .resetView: model?.reset()
         case .exportView(let id): exportView(id)
+        case .copyAsBDCommand(let id): copyAsBDCommand(id)
         case .importViews: chooseViewsToImport()
+        case .resetConfiguration:
+            ui.showsResetConfiguration = true
+            NSApp.activate(ignoringOtherApps: true)
         case .setLayout(let layout): model?.layout = layout
         case .setGrouping(let grouping): model?.grouping = grouping
         case .setOrdering(let sort): model?.ordering = sort
         case .goToIssue(let id, _):
             model?.selection = id
-            ui.showsInspector = true
+            // Not left to the view's onChange: going to the bead already selected changes nothing
+            // there, and the pane should still come up for it.
+            ui.follow(selection: id)
         case .toggleMark(let mark):
             if let model, let id = model.selection {
                 Task { await model.toggleMark(mark, on: id) }
@@ -298,9 +662,26 @@ final class AppSession {
             if let model { Task { await report(await model.backUpNow()) } }
         case .setUpBackup: chooseBackupFolder()
         case .turnOnJournal: turnOnJournal()
+        case .shareBeads:
+            guard let model else { return }
+            // The sheet starts from the repository's origin, which has to be asked for.
+            Task {
+                await model.refreshSetup()
+                model.dismissSharingNotice()
+                ui.promptShareBeads(origin: model.gitOrigin)
+            }
+        case .syncNow:
+            if let model { Task { await model.syncNow() } }
+        case .stopSync:
+            model?.stopSync()
+        case .workspaceSetup:
+            if model != nil { ui.promptWorkspaceSetup() }
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .chooseTheme: ui.showsThemes = true
         case .setTextSize(let size): themes.textSize = size
+        case .setLanguage(let code):
+            language = code
+            if needsRelaunchForLanguage { ui.showsRelaunchPrompt = true }
         }
     }
 

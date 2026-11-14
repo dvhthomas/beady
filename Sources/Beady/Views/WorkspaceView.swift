@@ -5,6 +5,10 @@ import SwiftUI
 
 struct WorkspaceView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The window's undo manager: bead changes register on it, so ⌘Z and the Edit menu work
+    /// the way they do everywhere on the Mac. Nil in offscreen snapshots.
+    @Environment(\.undoManager) private var windowUndoManager
     @Bindable var model: WorkspaceModel
     /// Panels and sheets, shared with the menu bar so both run the same commands.
     let ui: WorkspaceUI
@@ -47,6 +51,8 @@ struct WorkspaceView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model, ui: ui, run: run, importFiles: importFiles)
+                // Anywhere in the sidebar is away from a bead: a pane that came with one closes.
+                .background(clickAwayWatcher)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240)
         } detail: {
             // Not `.inspector`: that grows the right pane by pushing the whole window's layout,
@@ -55,6 +61,9 @@ struct WorkspaceView: View {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     FilterBar(model: model, ui: ui, run: run)
+                        // So is the filter bar. A floating pane moves nothing when it goes, so
+                        // the control that was clicked is still under the pointer and still works.
+                        .background(clickAwayWatcher)
                     content
                         // Switching sidebar views must not leave the sidebar's own list holding the
                         // keyboard — otherwise the first arrow key after a click walks the sidebar
@@ -62,17 +71,24 @@ struct WorkspaceView: View {
                         .background(FocusesOnChange(trigger: model.viewID))
                 }
                 .frame(maxWidth: .infinity)
-                if ui.showsInspector {
-                    InspectorDivider(width: $inspectorWidth)
-                    IssueDetailView(model: model)
-                        .scrollContentBackground(.hidden)
-                        .frame(width: inspectorWidth)
-                        .background(theme.background)
-                        .transition(.move(edge: .trailing))
+                // Pinned, the pane is docked: the beads make room for it.
+                if ui.details == .pinned {
+                    Color.clear.frame(width: inspectorWidth + InspectorDivider.thickness)
+                }
+            }
+            // The pane itself always lies over that row, at its trailing edge. Peeking, that is
+            // all there is to it: it came up for one bead and will be gone again, so it flies
+            // in over the beads and out without moving anything underneath. Pinning it only
+            // clears the room above, so the pane stays put while the beads step aside.
+            .overlay(alignment: .trailing) {
+                if ui.details.isOpen {
+                    detailsPane(floating: ui.details.floats)
+                        .shadow(color: .black.opacity(ui.details.floats ? 0.22 : 0), radius: 14, x: -4)
+                        .transition(paneTransition)
                 }
             }
             .clipped()
-            .animation(.smooth(duration: 0.25), value: ui.showsInspector)
+            .animation(.smooth(duration: 0.25), value: ui.details)
         }
         .background(theme.background)
         .toolbarBackground(theme.surface, for: .windowToolbar)
@@ -84,6 +100,12 @@ struct WorkspaceView: View {
         .onChange(of: searchFocus.wrappedValue) { ui.isSearchFocused = searchFocus.wrappedValue }
         .toolbar { toolbar }
         .sheet(isPresented: sheetPresented) { sheetContent }
+        .sheet(isPresented: Binding(get: { ui.showsShareBeads }, set: { ui.showsShareBeads = $0 })) {
+            ShareBeadsSheet(model: model, ui: ui, run: run)
+        }
+        .sheet(isPresented: Binding(get: { ui.showsWorkspaceSetup }, set: { ui.showsWorkspaceSetup = $0 })) {
+            WorkspaceSetupSheet(model: model, ui: ui, run: run)
+        }
         .sheet(isPresented: Binding(get: { ui.showsSaveAsNewView }, set: { ui.showsSaveAsNewView = $0 })) {
             SaveAsNewViewSheet(model: model, ui: ui)
         }
@@ -98,19 +120,30 @@ struct WorkspaceView: View {
             }
             Button("Cancel", role: .cancel) { ui.renamingView = nil }
         }
-        .onAppear {
-            guard persistsPreferences else { return }
-            if !legacyScope.isEmpty {
-                if let id = ViewLibrary.builtIn(forScope: legacyScope) { storedView = id.rawValue }
-                legacyScope = ""
-            }
-            let id = IssueView.ID(rawValue: storedView)
-            if model.views.contains(where: { $0.id == id }) { model.viewID = id }
+        .onAppear(perform: restoreStoredView)
+        .onAppear { model.attachUndoManager(windowUndoManager) }
+        // The environment's undo manager can arrive after the first appearance.
+        .onChange(of: windowUndoManager.map(ObjectIdentifier.init)) { model.attachUndoManager(windowUndoManager) }
+        .onChange(of: ObjectIdentifier(model)) {
+            // A switched workspace arrives as a new model in the same hierarchy (RootView says
+            // why there is no remount), so whatever captured the old model re-arms here. The
+            // session detached the old model; the window's undo stack starts over with the new.
+            model.attachUndoManager(windowUndoManager)
+            restoreStoredView()
+            if let monitor = escapeMonitor.wrappedValue { NSEvent.removeMonitor(monitor) }
+            escapeMonitor.wrappedValue = nil
+            watchEscape()
         }
         .onChange(of: model.viewID) {
             if persistsPreferences { storedView = model.viewID.rawValue }
         }
-        .onChange(of: model.selection) { if model.selection != nil { ui.showsInspector = true } }
+        .onChange(of: model.selection) {
+            // Selecting a bead brings the pane up if it was hidden; letting go of the bead takes
+            // that pane away again. The pane can leave in this same update, before its own
+            // onChange runs, so an edit it had open ends here too.
+            model.endEditing()
+            ui.follow(selection: model.selection)
+        }
         .onChange(of: model.activity.first?.id) {
             if model.activity.first?.succeeded == true { ui.showsNewBead = false }
         }
@@ -119,8 +152,10 @@ struct WorkspaceView: View {
             if let monitor = escapeMonitor.wrappedValue { NSEvent.removeMonitor(monitor) }
             escapeMonitor.wrappedValue = nil
         }
-        .task {
+        .task(id: ObjectIdentifier(model)) {
             await model.load()
+            // Once per open, not per reload: this is the read that asks the remote.
+            await model.refreshSharing()
             // FSEvents on the .beads folder is the real trigger (AppSession). This is only a
             // backstop for changes it can't see, such as a database on a network volume.
             while !Task.isCancelled {
@@ -128,6 +163,39 @@ struct WorkspaceView: View {
                 await model.refreshIfChanged()
             }
         }
+        .task(id: ObjectIdentifier(model)) {
+            // The sync timer (plan 0007). The model holds the rules and the clock's reading;
+            // this only asks, every few seconds, whether a tick is due. Nothing is due until a
+            // cadence has been chosen for this workspace.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await model.autoSyncTick()
+            }
+        }
+    }
+
+    /// The details, with the edge you drag to resize them. A floating pane keeps showing its
+    /// bead while it leaves; a docked one says when nothing is selected.
+    private func detailsPane(floating: Bool) -> some View {
+        HStack(spacing: 0) {
+            InspectorDivider(width: $inspectorWidth)
+            IssueDetailView(model: model, ui: ui, leavesWithItsBead: floating)
+                .scrollContentBackground(.hidden)
+                .frame(width: inspectorWidth)
+        }
+        .background(theme.background)
+        .background(ViewMarker { ui.detailsPaneView = $0 })
+    }
+
+    /// Planted behind the sidebar and the filter bar: a click there lets go of the bead a
+    /// floating pane came up for. Not a click on the pane itself, where it covers the bar's end.
+    private var clickAwayWatcher: some View {
+        ClickWatcher(except: { ui.detailsCover($0, in: $1) }) { ui.clickedAway(in: model) }
+    }
+
+    /// The pane slides in from the trailing edge; under Reduce Motion it fades instead.
+    private var paneTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .trailing)
     }
 
     @ViewBuilder
@@ -145,11 +213,20 @@ struct WorkspaceView: View {
                 Button("Try Again") { Task { await model.load() } }
             }
         case .loaded:
-            if model.visibleIssues.isEmpty && model.layout != .board {
+            if model.visibleIssues.isEmpty && model.presentedLayout != .board {
+                let narrowed = model.hasClearableFilters || !model.searchText.isEmpty
                 ContentUnavailableView {
-                    Label(model.hasClearableFilters || !model.searchText.isEmpty ? "Nothing matches" : "No issues", systemImage: "line.3.horizontal.decrease.circle")
+                    if narrowed {
+                        Label("Nothing matches", systemImage: "line.3.horizontal.decrease.circle")
+                    } else {
+                        Label("No issues", systemImage: "line.3.horizontal.decrease.circle")
+                    }
                 } description: {
-                    Text(model.hasClearableFilters || !model.searchText.isEmpty ? "No issues in \(model.viewTitle) match this view's filters." : "\(model.viewTitle) is empty.")
+                    if narrowed {
+                        Text("No issues in \(model.viewTitle) match this view's filters.")
+                    } else {
+                        Text("\(model.viewTitle) is empty.")
+                    }
                 } actions: {
                     if model.hasClearableFilters || !model.searchText.isEmpty {
                         Button("Clear Filters") {
@@ -159,26 +236,28 @@ struct WorkspaceView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.layout == .board, let split = model.boardNeedsSplitting {
-                // Never a one-column board again: say so, and offer the groupings that would split it.
+            } else if model.presentedLayout == .board, let split = model.boardNeedsSplitting {
+                // Only reached by asking for the board: a view never opens here on its own. Say
+                // so, and offer the groupings that would split it, or the list.
                 ContentUnavailableView {
                     Label("Nothing to split", systemImage: "rectangle.split.3x1")
                 } description: {
-                    Text(split.groupings.isEmpty
-                        ? "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column, and no other grouping would spread it out. Try the list."
-                        : "Everything here lands in one \(DisplayText.grouping(model.grouping == .none ? .category : model.grouping).lowercased()) column. Group by something that would spread it out:")
+                    let grouping = DisplayText.grouping(model.grouping == .none ? .category : model.grouping)
+                    if split.groupings.isEmpty {
+                        Text("Everything here lands in one \(grouping) column, and no other grouping would spread it out.")
+                    } else {
+                        Text("Everything here lands in one \(grouping) column. Group by something that would spread it out, or show the list:")
+                    }
                 } actions: {
                     ForEach(split.groupings) { grouping in
                         Button(DisplayText.grouping(grouping)) { model.grouping = grouping }
                             .help(DisplayText.help(for: grouping))
                     }
-                    if split.groupings.isEmpty {
-                        Button("Show as List") { model.layout = .list }
-                    }
+                    Button("Show as List") { model.showBoardAsList() }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                switch model.layout {
+                switch model.presentedLayout {
                 case .list: IssueListView(model: model, columns: ui.columns)
                 case .board: IssueBoardView(model: model, ui: ui)
                 case .tree: IssueOutlineView(model: model)
@@ -189,9 +268,12 @@ struct WorkspaceView: View {
 
     /// One sheet serves both the new-bead form and the confirmation of any change, so a create
     /// can move from form to confirmation (and back, on cancel) without stacking sheets.
-    /// Escape lets go of the selected bead in the list, tree or board. It stands down whenever
+    /// Escape lets go of the selected bead in the list, tree or board — which closes a details
+    /// pane that only opened for that bead (`DetailsPane`). It stands down whenever
     /// something else has a better claim on the key: a sheet (Escape cancels it), the search
-    /// field (Escape clears it), any other text field, or an edit in progress.
+    /// field (Escape clears it), any other text field, or an edit in progress. Text that can
+    /// only be selected has no claim: clicking into the details to copy an id must not leave
+    /// Escape dead.
     private func watchEscape() {
         guard escapeMonitor.wrappedValue == nil else { return }
         let model = model
@@ -204,11 +286,22 @@ struct WorkspaceView: View {
                   model.pendingChange == nil,
                   !ui.isSheetOpen,
                   !ui.isSearchFocused,
-                  !(NSApp.keyWindow?.firstResponder is NSTextView)
+                  (NSApp.keyWindow?.firstResponder as? NSTextView)?.isEditable != true
             else { return event }
             model.selection = nil
             return nil
         }
+    }
+
+    /// The last-used view, remembered across launches and applied to each workspace as it opens.
+    private func restoreStoredView() {
+        guard persistsPreferences else { return }
+        if !legacyScope.isEmpty {
+            if let id = ViewLibrary.builtIn(forScope: legacyScope) { storedView = id.rawValue }
+            legacyScope = ""
+        }
+        let id = IssueView.ID(rawValue: storedView)
+        if model.views.contains(where: { $0.id == id }) { model.viewID = id }
     }
 
     /// The whole backup UI: one word about whether this database could be recovered, and a click
@@ -239,10 +332,12 @@ struct WorkspaceView: View {
 
     private var helpText: String {
         guard let destination = model.backup.destination else {
-            return "Nothing is backing this database up. bd's JSONL export carries the issues, not their history — click to choose a folder."
+            return String(localized: "Nothing is backing this database up. bd's JSONL export carries the issues, not their history — click to choose a folder.")
         }
-        let size = model.backup.databaseSize.map { " · \($0)" } ?? ""
-        return "Backed up to \(destination)\(size). Click to back up now."
+        if let size = model.backup.databaseSize {
+            return String(localized: "Backed up to \(destination) · \(size). Click to back up now.", comment: "Tooltip: the backup folder, then the database size")
+        }
+        return String(localized: "Backed up to \(destination). Click to back up now.", comment: "Tooltip: the backup folder")
     }
 
     /// One sheet, shown for whichever thing is open; a change being confirmed wins.
@@ -271,7 +366,7 @@ struct WorkspaceView: View {
         } else if ui.showsPalette {
             CommandPaletteView(model: model, ui: ui, run: run) { ui.showsPalette = false }
         } else if ui.showsShortcuts {
-            ShortcutsView(model: model) { ui.showsShortcuts = false }
+            ShortcutsView(model: model, ui: ui) { ui.showsShortcuts = false }
         } else if ui.showsThemes, let themes {
             ThemePickerView(themes: themes) { ui.showsThemes = false }
         }
@@ -279,13 +374,13 @@ struct WorkspaceView: View {
 
     private var subtitle: String {
         guard let snapshot = model.snapshot else { return model.title }
-        var parts = [model.title, "\(model.visibleIssues.count) of \(snapshot.issues.count)"]
-        if !model.canEdit { parts.append("read-only") }
+        var parts = [model.title, String(localized: "\(model.visibleIssues.count) of \(snapshot.issues.count)", comment: "Window subtitle: beads shown, beads in the database")]
+        if !model.canEdit { parts.append(String(localized: "read-only", comment: "Window subtitle")) }
         if snapshot.unreadableRecordCount > 0 {
-            parts.append("\(snapshot.unreadableRecordCount) unreadable records skipped")
+            parts.append(String(localized: "\(snapshot.unreadableRecordCount) unreadable records skipped", comment: "Window subtitle; plural on the number of records"))
         }
         if let lastLoaded = model.lastLoaded {
-            parts.append("refreshed \(lastLoaded.formatted(date: .omitted, time: .standard))")
+            parts.append(String(localized: "refreshed \(lastLoaded.formatted(date: .omitted, time: .standard))", comment: "Window subtitle; the value is a time of day"))
         }
 
         return parts.joined(separator: " · ")
@@ -294,7 +389,13 @@ struct WorkspaceView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            backupIndicator
+            // Where the beads live besides this Mac. Until bd has said, or when it won't, the
+            // backup word stands in, as it did before sharing had one.
+            if model.sharingSummary != nil {
+                SharingIndicator(model: model, ui: ui, run: run)
+            } else {
+                backupIndicator
+            }
 
             Button {
                 run(.newBead)
@@ -302,7 +403,7 @@ struct WorkspaceView: View {
                 Label("New Bead", systemImage: "plus")
             }
             .disabled(!model.canEdit)
-            .help("Create a bead (⌘N). Every change is confirmed before it's written.")
+            .help("Create a bead (⌘N)")
 
             Menu {
                 if model.activity.isEmpty {
@@ -317,7 +418,8 @@ struct WorkspaceView: View {
                             systemImage: record.succeeded ? "checkmark.circle" : "xmark.octagon"
                         )
                     }
-                    .help(record.message ?? "Applied and verified")
+                    .help(record.message ?? String(localized: "Applied and verified", comment: "Tooltip on a change that landed"))
+                    // Bead changes are taken back with ⌘Z, not here: this menu is the history.
                     if record.undo != nil {
                         Button {
                             undo(record)
@@ -349,6 +451,8 @@ private struct InspectorDivider: View {
     private var startWidth = State<Double?>(initialValue: nil)
 
     static let range = 280.0...640.0
+    /// The hairline and the margin either side of it that takes the drag.
+    static let thickness = 7.0
 
     init(width: Binding<Double>) {
         _width = width
@@ -358,7 +462,7 @@ private struct InspectorDivider: View {
         Rectangle()
             .fill(theme.border)
             .frame(width: 1)
-            .padding(.horizontal, 3)
+            .padding(.horizontal, (Self.thickness - 1) / 2)
             .contentShape(Rectangle())
             .onHover { inside in
                 if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
@@ -373,4 +477,84 @@ private struct InspectorDivider: View {
                     .onEnded { _ in startWidth.wrappedValue = nil }
             )
     }
+}
+
+/// Reports a left click that lands on whatever this is planted behind with `.background(...)`,
+/// without taking the click: the row, button or drag under the pointer still gets it.
+///
+/// A SwiftUI gesture can't do this over a `List` — the table underneath takes the mouse first —
+/// so it watches the window's events and compares against its own frame. Clicks in a sheet,
+/// popover or menu belong to other windows and never match; the strip under the toolbar is left
+/// out, since a sidebar runs up behind it.
+struct ClickWatcher: NSViewRepresentable {
+    /// True for a point, in the window's coordinates, where something lying over this view
+    /// keeps the click for itself.
+    var except: @MainActor (CGPoint, NSWindow) -> Bool = { _, _ in false }
+    let onClick: @MainActor () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.watch(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.except = except
+        context.coordinator.onClick = onClick
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(except: except, onClick: onClick)
+    }
+
+    @MainActor
+    final class Coordinator {
+        var except: @MainActor (CGPoint, NSWindow) -> Bool
+        var onClick: @MainActor () -> Void
+        private var monitor: Any?
+
+        init(except: @escaping @MainActor (CGPoint, NSWindow) -> Bool, onClick: @escaping @MainActor () -> Void) {
+            self.except = except
+            self.onClick = onClick
+        }
+
+        func watch(_ view: NSView) {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { @MainActor [weak self, weak view] event in
+                // Control-click is a right click: it opens a menu, it doesn't click away.
+                if let self, let view, let window = view.window, event.window === window,
+                   window.attachedSheet == nil,
+                   !event.modifierFlags.contains(.control),
+                   event.locationInWindow.y <= window.contentLayoutRect.maxY,
+                   view.convert(view.bounds, to: nil).contains(event.locationInWindow),
+                   !self.except(event.locationInWindow, window) {
+                    self.onClick()
+                }
+                return event
+            }
+        }
+
+        func stop() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
+}
+
+/// Hands back the `NSView` planted behind a SwiftUI view with `.background(...)`: its frame in
+/// the window is that view's, which is how AppKit-side code finds out where a SwiftUI view is.
+struct ViewMarker: NSViewRepresentable {
+    let found: @MainActor (NSView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        found(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

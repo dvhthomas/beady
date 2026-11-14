@@ -19,9 +19,12 @@ public struct UnblockPath: Equatable, Sendable {
     public static func to(_ id: IssueID, in snapshot: IssueSnapshot) -> UnblockPath {
         var depth: [IssueID: Int] = [:]
         var issues: [IssueID: Issue] = [:]
-        var seen: Set<IssueID> = [id]
         var hasCycle = false
         var frontier: [(IssueID, Int)] = [(id, -1)]
+        // No simple path through the blockers is longer than the number of issues, so a level
+        // still rising past it means the blockers loop somewhere below this bead. Flagging it
+        // and refusing to raise further is what makes a cycle survivable rather than a hang.
+        let maxLevel = snapshot.issues.count
 
         while let (current, level) = frontier.popLast() {
             guard let issue = snapshot.issue(current) else { continue }
@@ -30,16 +33,13 @@ public struct UnblockPath: Equatable, Sendable {
                     hasCycle = true
                     continue
                 }
-                if let existing = depth[blocker.id] {
-                    // Reached again by a longer route: it has to wait for that one too.
-                    if existing >= level + 1 { continue }
-                    hasCycle = hasCycle || seen.contains(blocker.id) && existing > level + 1
-                }
-                if !seen.insert(blocker.id).inserted, depth[blocker.id] == nil {
+                // Reached again by a longer route: it has to wait for that one too.
+                if let existing = depth[blocker.id], existing >= level + 1 { continue }
+                if level + 1 > maxLevel {
                     hasCycle = true
                     continue
                 }
-                depth[blocker.id] = max(depth[blocker.id] ?? 0, level + 1)
+                depth[blocker.id] = level + 1
                 issues[blocker.id] = blocker
                 frontier.append((blocker.id, level + 1))
             }

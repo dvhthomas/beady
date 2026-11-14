@@ -1,0 +1,209 @@
+# Releasing Beady
+
+Every merge to master is a release, and nobody bumps a number. The Version workflow
+([.github/workflows/version.yml](.github/workflows/version.yml)) works out the next version from
+the pull requests that merged, writes it to `VERSION`, tags `v<version>`, and starts the Release
+workflow ([.github/workflows/release.yml](.github/workflows/release.yml)), which tests, builds the
+app, attaches `Beady-<version>.zip` to a GitHub Release, and rewrites the Homebrew cask in
+[dvhthomas/homebrew-beady](https://github.com/dvhthomas/homebrew-beady). Homebrew only upgrades
+when the cask's `version` string changes, so every tag reaches `brew upgrade` users.
+
+## The one decision: how big is the change?
+
+Say it with a label on the pull request. At most one; none is fine.
+
+| Label | When | From 0.1.1 |
+|---|---|---|
+| *no label*, or `release:patch` | Nearly everything: a bug fix, a tweak, a new feature, a visible change in behaviour. The default, so forgetting is safe. | 0.1.2 |
+| `release:minor` | Rare, and never needed: the middle number moves by itself (below). For marking a milestone before the patch number gets there. | 0.2.0 |
+| `release:major` | Rare. It breaks how people use Beady or the files it writes. | 1.0.0 |
+| `release:none` | Rare. Nothing worth shipping on its own, like a README typo. Merged alone it releases nothing; merged alongside a patch, the patch wins. | 0.1.1 |
+
+```bash
+gh pr create --label release:none ...      # when opening
+gh pr edit <number> --add-label release:none   # afterwards
+```
+
+### The patch number does the counting
+
+Patches are the everyday release, so the last number is the one that climbs: 0.1.1, 0.1.2 …
+0.1.94 … 0.1.99. The patch after 0.1.99 is 0.2.0: `scripts/next-version.sh bump` rolls the
+hundredth patch into the next minor by itself (`PATCHES_PER_MINOR`). So the middle number says
+roughly how many hundred releases there have been, not how many features, and nobody has to
+decide when it moves. A new feature is a patch like any other.
+
+The Release size check ([.github/workflows/release-size.yml](.github/workflows/release-size.yml))
+fails a pull request that carries two `release:*` labels, or one it doesn't know, or that edits
+`VERSION`. The label is the whole decision; the number is derived.
+
+## What happens on merge
+
+1. **Version** runs on the push to master. It takes the highest `v*` tag reachable from master
+   (`scripts/next-version.sh current`), finds the pull requests merged since that tag, reads each
+   one's size from its labels (`size`), keeps the largest (`largest`) and bumps (`bump`). Several
+   pull requests merged between releases ship together at the largest of their sizes. A commit
+   pushed to master without a pull request counts as a patch.
+
+2. It writes `VERSION`, commits `Version X.Y.Z`, tags that commit `vX.Y.Z`, pushes commit and tag
+   together, and starts **Release** on the tag. The bump commit is the tagged commit, so a run
+   that starts from it finds master already released and stops; that is what keeps the workflow
+   from chasing its own tail. Runs started by merges close together queue, and each works from the
+   tip of master as it is then, so the second sees the first's tag and does nothing.
+
+3. **Release** checks that `VERSION` matches the tag, runs `scripts/test.sh`, then
+   `scripts/release.sh` (a release-configuration `scripts/bundle.sh` plus `ditto` into the zip,
+   which keeps the ad-hoc signature intact), publishes the GitHub Release with the quarantine notes
+   and the list of merged pull requests in its body, and finally runs `scripts/publish-cask.sh`,
+   which clones the tap, renders `Casks/beady.rb` through `scripts/cask.sh` with the zip's sha256,
+   and pushes. The cask push uses a write deploy key on the tap, stored as the
+   `HOMEBREW_TAP_DEPLOY_KEY` repository secret, because `GITHUB_TOKEN` cannot push to another
+   repository.
+
+4. **Website** is started by Version as its last step, whether or not it released anything (a
+   `release:none` merge is often a change to the documentation). It retakes the screenshots
+   from the app at that commit (`scripts/screenshots.sh`), builds the Hugo site in
+   `docs/website`, and deploys it to GitHub Pages at <https://dvhthomas.github.io/beady/>.
+   The site reads the version from `VERSION`, so it names the release just made. If the
+   screenshots can't be retaken, the site still deploys with the ones kept in the repository
+   and the Screenshots job is red. `gh workflow run pages.yml --ref master` republishes by hand.
+
+Watch it:
+
+```bash
+gh run list --repo dvhthomas/beady --limit 3
+gh run watch --repo dvhthomas/beady --exit-status
+```
+
+## Where the version lives
+
+- **Tags are the source of truth.** `v<version>` on master, made by the Version workflow.
+- `VERSION` is what the app reports: `scripts/bundle.sh` stamps it into the bundle as
+  `CFBundleShortVersionString` (`CFBundleVersion` is the commit count). Only the Version workflow
+  writes it. Release fails when `v$(cat VERSION)` is not the tag, so the cask and the app can't
+  disagree.
+- `scripts/next-version.sh` is the arithmetic, and `scripts/test-next-version.sh` tests it. Try it:
+
+  ```bash
+  scripts/next-version.sh current                 # 0.1.1
+  scripts/next-version.sh size release:minor bug  # minor
+  scripts/next-version.sh bump 0.1.1 patch        # 0.1.2
+  scripts/next-version.sh bump 0.1.99 patch       # 0.2.0
+  ```
+
+## Check what landed
+
+```bash
+gh release view "v$(cat VERSION)" --repo dvhthomas/beady
+curl -fsSL https://raw.githubusercontent.com/dvhthomas/homebrew-beady/main/Casks/beady.rb | head -3
+brew update && brew upgrade --cask beady
+defaults read /Applications/Beady.app/Contents/Info.plist CFBundleShortVersionString
+curl -fsSL https://dvhthomas.github.io/beady/ | grep -o 'version [0-9.]*' | head -1
+```
+
+The Open Anyway approval from the first install carries across upgrades, so the new build opens
+without another trip to System Settings.
+
+## Merging itself: the Merge-when-green workflow
+
+Patch pull requests merge themselves. The Merge-when-green workflow
+([.github/workflows/merge-when-green.yml](.github/workflows/merge-when-green.yml)) runs when
+CI or the Release size check finishes (and when labels change): if both checks passed on the
+head commit and the pull request carries no `release:minor` or `release:major` label and is
+not a draft, it merges, deletes the branch, and dispatches the Version workflow — a merge
+made by `GITHUB_TOKEN` starts no workflows on its own, which is why the dispatch is explicit.
+It needs **no secret, no branch protection, and no repository setting**; it ships in the repo
+and works as soon as it is on master.
+
+A `release:minor` or `release:major` label makes the workflow stand aside, so those always
+wait for a human to label and merge. Agents are forbidden from applying minor/major labels
+(CLAUDE.md, enforced by a hook), and they don't recommend `release:minor` at all: a feature
+goes up unlabeled and ships as a patch. A breaking change is the one thing they open as a
+**draft**, recommending `release:major`; the workflow skips drafts too, so it never slips
+through as a patch while you read the recommendation. Label it, mark it ready, and merge; or
+disagree, mark it ready unlabeled, and it ships as a patch.
+
+### Optional hardening: branch protection
+
+Master is otherwise unprotected: nothing stops an accidental direct push (which releases as a
+patch). To also close that, protect master requiring the `Tests` and `check` status checks
+with enforce_admins off — **but** protection blocks the Version workflow's own push, which
+uses `GITHUB_TOKEN`. So protection needs the `VERSION_PUSH_TOKEN` secret first: a fine-grained
+personal access token of the repository owner, scoped to this repository with **Contents:
+read and write** (an admin's token passes protection while "include administrators" is off,
+and its pushes *do* start workflows — the loop guard in version.yml prevents a cycle).
+
+```bash
+gh secret set VERSION_PUSH_TOKEN --repo dvhthomas/beady   # the PAT, then
+# protect master requiring Tests + check, enforce_admins off
+```
+
+Without protection the secret is unnecessary; version.yml falls back to `GITHUB_TOKEN` and
+dispatches Release by hand.
+
+## Signing for real, and iCloud sync
+
+The releases are ad-hoc signed, and that is enough for everything but one setting: **Sync my
+views between Macs with iCloud** (Settings › Views) uses iCloud's Key-Value Store, which macOS
+only grants to an app signed with a Developer ID and carrying the entitlement in
+`Resources/Beady.entitlements`. An ad-hoc build runs without it and says so under the toggle.
+To build one that has it:
+
+```bash
+CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" TEAM_ID=TEAMID scripts/bundle.sh
+```
+
+`scripts/bundle.sh` fills the team id into the entitlements and signs with them. The Release
+workflow doesn't do this: it has no certificate.
+
+## When something goes wrong
+
+**The Release size check is red.** The pull request has two `release:*` labels, or one that isn't
+`patch`, `minor`, `major` or `none`, or it changes `VERSION`. Fix the labels or drop the `VERSION`
+change; the check re-runs on every label change and push.
+
+**Version failed: "VERSION says X but the latest tag is vY".** Someone edited `VERSION` by hand
+and it got through. Put it back to Y on master (or, if X really was released by hand, tag `vX` on
+the commit that shipped it) and re-run the failed run.
+
+**Version failed: "more than one release size".** A pull request merged with conflicting labels.
+Labels can be changed after merge: fix them, then re-run the failed run with
+`gh run rerun <id> --repo dvhthomas/beady`. It reads the labels afresh.
+
+**Version pushed the tag but Release didn't run, or failed.** Start it again on the tag:
+
+```bash
+gh workflow run release.yml --repo dvhthomas/beady --ref "v$(cat VERSION)"
+```
+
+If the build itself failed, fix master; the fix is its own release (a patch), with a new tag. Only
+move a tag when the release on it never built, and then with `git tag -f` and `git push --force
+origin v<version>`; `softprops/action-gh-release` updates the existing release rather than making
+a second one.
+
+**The cask step was skipped.** Without the deploy key secret the workflow still makes the GitHub
+Release and only skips the cask. Publish it by hand from the release zip:
+
+```bash
+gh release download "v$(cat VERSION)" --repo dvhthomas/beady --pattern '*.zip' --dir build
+scripts/publish-cask.sh "build/Beady-$(cat VERSION).zip"
+```
+
+That pushes over HTTPS with your own GitHub credentials.
+
+**You want to re-run.** Re-run the failed run from the Actions tab or with
+`gh run rerun <id> --repo dvhthomas/beady`. `scripts/publish-cask.sh` is idempotent: it pushes
+nothing when the cask already matches.
+
+**Releasing by hand**, if Actions is unavailable. This is the old process; keep `VERSION` and the
+tag in step, and tag master, not a branch (v0.1.0 was tagged on a PR branch before another PR had
+merged, and shipped without Reset Configuration even though master had it).
+
+```bash
+git switch master && git pull --ff-only
+next=$(scripts/next-version.sh bump "$(scripts/next-version.sh current)" patch)
+echo "$next" > VERSION && git commit -am "Version $next"
+git tag -a "v$next" -m "Beady $next" && git push --atomic origin master "v$next"
+```
+
+**Intel Macs.** The zip and the cask are arm64 only (`depends_on arch: :arm64`). There is no
+Intel release; the README points Intel users at `scripts/bundle.sh`.

@@ -34,6 +34,31 @@ public protocol BeadsStore: IssueSnapshotLoading, IssueWriting {
     func writeJournalSettings(_ settings: [ConfigSetting]) async throws
     /// The exact commands `writeJournalSettings` would run.
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String]
+    /// Where the database is shared, and how it stands against that remote. Asks the remote.
+    func sharingFacts() async throws -> SharingFacts
+    /// The checkouts, hooks and storage bd reports, for the Workspace Setup sheet.
+    func workspaceSetup() async -> WorkspaceSetup
+    /// The URL of the repository's git `origin`, if it has one.
+    func gitOriginURL() async -> String?
+    /// One pull, check and push against the default remote.
+    func sync() async throws -> SyncOutcome
+    /// Runs one step of setting sharing up or settling a conflict.
+    func perform(_ step: SharingStep) async throws
+    /// The exact command a step runs.
+    func commandPreview(for step: SharingStep) -> String
+}
+
+/// The writes behind sharing, each one bd command (plan 0006).
+public enum SharingStep: Equatable, Sendable {
+    /// `bd dolt remote add`. `allowGitOrigin` is the consent bd asks for when the URL is the
+    /// repository's own origin.
+    case addRemote(name: String, url: String, allowGitOrigin: Bool)
+    /// `bd dolt push`: the first publish, which `bd sync` can't do against an empty remote.
+    case publish
+    /// `bd sync`, for showing its command; `BeadsStore.sync()` runs it.
+    case sync
+    /// `bd dolt pull --strategy`, keeping one side of everything bd wouldn't merge.
+    case settleConflict(keeping: ConflictSide)
 }
 
 /// A store with no journal: the app carries on with the file watcher and the interaction log.
@@ -42,4 +67,14 @@ public extension BeadsStore {
     func journalRecords(after checkpoint: Int64) async throws -> JournalRead { .records([]) }
     func writeJournalSettings(_ settings: [ConfigSetting]) async throws {}
     func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] { [] }
+}
+
+/// A store that shares nothing: a fixture, or a database the app only reads.
+public extension BeadsStore {
+    func sharingFacts() async throws -> SharingFacts { .none }
+    func workspaceSetup() async -> WorkspaceSetup { .unknown }
+    func gitOriginURL() async -> String? { nil }
+    func sync() async throws -> SyncOutcome { .noRemote }
+    func perform(_ step: SharingStep) async throws {}
+    func commandPreview(for step: SharingStep) -> String { "" }
 }

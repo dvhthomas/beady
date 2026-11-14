@@ -50,4 +50,17 @@ struct IssueViewTests {
         let decoded = try JSONDecoder().decode(IssueView.self, from: data)
         #expect(decoded.presentation.columns == nil)
     }
+
+    @Test("nesting sub-tasks is optional: set it round-trips, unset writes no key, old files read as off")
+    func nestsSubtasks() throws {
+        var nested = view
+        nested.presentation.nestsSubtasks = true
+        let decoded = try JSONDecoder().decode(IssueView.self, from: JSONEncoder().encode(nested))
+        #expect(decoded.presentation.nestsSubtasks == true)
+
+        let data = try JSONEncoder().encode(view)
+        let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect((json["presentation"] as? [String: Any])?["nestsSubtasks"] == nil, "a view that never set it writes no key")
+        #expect(try JSONDecoder().decode(IssueView.self, from: data).presentation.nestsSubtasks == nil, "and a file without the key reads as off")
+    }
 }

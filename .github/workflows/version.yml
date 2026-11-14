@@ -1,0 +1,121 @@
+# Turns a push to master into a release without anyone bumping a number. The
+# next version is the highest v* tag reachable from master plus the largest
+# release:* label on the pull requests merged since it (patch when there is no
+# label). It is written to VERSION, committed, tagged vX.Y.Z and handed to the
+# Release workflow, which builds the app and publishes the Homebrew cask.
+#
+# Why no loop: the commit this pushes is the tagged one, so a run that starts
+# from it finds master already released and stops. That guard is what matters
+# when the VERSION_PUSH_TOKEN secret (a fine-grained PAT with contents write,
+# which also lets this push past branch protection) is set: pushes made with it
+# DO start workflows, so the tag push starts Release by itself and the master
+# push starts another Version run that exits at the guard. Without the secret,
+# pushes use GITHUB_TOKEN, which starts no workflows, so Release is dispatched
+# explicitly instead.
+name: Version
+
+on:
+  push:
+    branches: [master]
+  # The Merge-when-green workflow merges with GITHUB_TOKEN, whose push starts
+  # no workflows, so it dispatches this one explicitly after merging.
+  workflow_dispatch:
+
+permissions:
+  contents: write # push the VERSION commit and the tag
+  pull-requests: read # read the merged pull requests' labels
+  actions: write # start the Release and Website workflows
+
+# Merges close together queue up; each run works from the tip of master as it
+# is then, so the second finds the first's tag and does nothing.
+concurrency:
+  group: version-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.VERSION_PUSH_TOKEN || github.token }}
+
+      - name: Work out the next version
+        id: next
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --quiet origin "$GITHUB_REF_NAME"
+          git checkout --quiet "origin/$GITHUB_REF_NAME"
+          if git describe --tags --exact-match --match 'v[0-9]*' HEAD >/dev/null 2>&1; then
+            echo "$GITHUB_REF_NAME is already released as $(git describe --tags --exact-match HEAD); nothing to do."
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          current=$(scripts/next-version.sh current)
+          if [ "$(cat VERSION)" != "$current" ]; then
+            echo "::error file=VERSION::VERSION says $(cat VERSION) but the latest tag is v$current. VERSION is derived from the tags; put it back to $current (or tag v$(cat VERSION) by hand if that release really happened). See RELEASE.md."
+            exit 1
+          fi
+
+          # The pull requests merged since the tag, one per first-parent commit.
+          prs=$(for sha in $(git rev-list --first-parent "v$current..HEAD"); do
+                  gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
+                    --jq ".[] | select(.merged_at != null and .base.ref == \"$GITHUB_REF_NAME\") | .number"
+                done | sort -un)
+          sizes=()
+          for pr in $prs; do
+            labels=()
+            while IFS= read -r label; do labels+=("$label"); done \
+              < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '.labels[].name')
+            size=$(scripts/next-version.sh size ${labels[@]+"${labels[@]}"})
+            echo "#$pr: $size"
+            sizes+=("$size")
+          done
+          if [ "${#sizes[@]}" -eq 0 ]; then
+            echo "No pull request since v$current (a direct push); treating it as a patch."
+            sizes=(patch)
+          fi
+
+          size=$(scripts/next-version.sh largest "${sizes[@]}")
+          next=$(scripts/next-version.sh bump "$current" "$size")
+          if [ "$next" = "$current" ]; then
+            echo "Everything since v$current is release:none; nothing to release."
+            exit 0
+          fi
+          echo "v$current -> v$next ($size)"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Commit VERSION, tag, and start the Release workflow
+        if: steps.next.outputs.next != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_PUSH_TOKEN: ${{ secrets.VERSION_PUSH_TOKEN != '' }}
+          NEXT: ${{ steps.next.outputs.next }}
+        run: |
+          echo "$NEXT" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --quiet -am "Version $NEXT"
+          git tag -a "v$NEXT" -m "Beady $NEXT"
+          git push --atomic origin "HEAD:$GITHUB_REF_NAME" "v$NEXT"
+          if [ "$HAS_PUSH_TOKEN" != "true" ]; then
+            # GITHUB_TOKEN pushes start no workflows, so start Release by hand.
+            gh workflow run release.yml --ref "v$NEXT"
+          fi
+          echo "Released **v$NEXT**: VERSION committed, tag pushed, Release follows." >> "$GITHUB_STEP_SUMMARY"
+
+      # The website (docs/website) is rebuilt for every change to master, released or not: a
+      # release:none merge is often a change to the documentation itself. Started by hand for
+      # the same reason Release is: nothing here starts a workflow by itself. A run that found
+      # master already released is a duplicate of one that has done this. Never fails a release.
+      - name: Start the Website workflow
+        if: steps.next.outputs.already != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --ref "$GITHUB_REF_NAME"
+          echo "Website workflow dispatched; the site follows." >> "$GITHUB_STEP_SUMMARY"

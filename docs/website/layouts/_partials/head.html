@@ -1,0 +1,20 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+{{- $title := cond .IsHome (printf "%s — a Mac app for beads" site.Title) (printf "%s · %s" .Title site.Title) }}
+{{- $description := .Description | default site.Params.description }}
+<title>{{ $title }}</title>
+<meta name="description" content="{{ $description }}">
+<link rel="canonical" href="{{ .Permalink }}">
+<link rel="icon" href="{{ "favicon.svg" | relURL }}" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ $title }}">
+<meta property="og:description" content="{{ $description }}">
+<meta property="og:url" content="{{ .Permalink }}">
+{{- with resources.Get "screenshots/ready-dark.png" }}
+{{- $card := .Resize "1200x jpg q85" }}
+<meta property="og:image" content="{{ $card.Permalink }}">
+<meta name="twitter:card" content="summary_large_image">
+{{- end }}
+{{- $css := resources.Get "css/main.css" | minify | fingerprint }}
+<link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">

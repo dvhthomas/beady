@@ -2,12 +2,22 @@ import BeadsCore
 import BeadsPresentation
 import SwiftUI
 
-/// Shown before any write: what changes, problems, the exact bd commands, and the outcome.
+/// Shown before a write that needs the user — a reason to give, a problem to read, a failure to
+/// understand. What changes stays front and centre; the exact bd commands and the safe-write
+/// mechanics sit behind a closed disclosure for whoever wants them.
 struct ChangeConfirmationView: View {
     @Environment(\.theme) private var theme
     @Bindable var model: WorkspaceModel
     let pending: PendingChange
     let onCancel: () -> Void
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var showsMechanics = State(initialValue: false)
+
+    init(model: WorkspaceModel, pending: PendingChange, onCancel: @escaping () -> Void) {
+        self.model = model
+        self.pending = pending
+        self.onCancel = onCancel
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,7 +33,7 @@ struct ChangeConfirmationView: View {
                 }
             }
 
-            box("Change") {
+            box("What changes", comment: "Heading on the confirmation sheet: the change, line by line") {
                 ForEach(Array(pending.details.enumerated()), id: \.offset) { _, line in
                     Text(line)
                         .textSelection(.enabled)
@@ -47,19 +57,27 @@ struct ChangeConfirmationView: View {
                     .textFieldStyle(.roundedBorder)
             }
 
-            box("bd will run") {
-                ForEach(Array(model.pendingCommands.enumerated()), id: \.offset) { _, command in
-                    Text(command)
-                        .font(.callout.monospaced())
-                        .textSelection(.enabled)
+            DisclosureGroup(isExpanded: showsMechanics.projectedValue) {
+                VStack(alignment: .leading, spacing: 8) {
+                    box("bd will run", comment: "Heading on the confirmation sheet: the exact bd commands") {
+                        ForEach(Array(model.pendingCommands.enumerated()), id: \.offset) { _, command in
+                            Text(command)
+                                .font(.callout.monospaced())
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Text("Right before writing, the bead is read again from bd, and nothing is written if a field you're changing has moved since you started. bd has no atomic check-and-write, so another session writing in that same instant can't be stopped; the read-back afterwards reports anything unexpected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.top, 6)
+            } label: {
+                Text("How this will be written", comment: "Disclosure on the confirmation sheet hiding the bd commands and safe-write details")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-
-            Text("Right before writing, the bead is read again from bd, and nothing is written if a field you're changing has moved since you started. bd has no atomic check-and-write, so another session writing in that same instant can't be stopped; the read-back afterwards reports anything unexpected.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             if let notice = pending.notice {
                 Label(notice, systemImage: "arrow.triangle.2.circlepath")
@@ -80,9 +98,15 @@ struct ChangeConfirmationView: View {
                     Text("Writing and verifying…").foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(pending.failure == nil ? "Cancel" : "Close", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(pending.isApplying)
+                Group {
+                    if pending.failure == nil {
+                        Button("Cancel", action: onCancel)
+                    } else {
+                        Button("Close", action: onCancel)
+                    }
+                }
+                .keyboardShortcut(.cancelAction)
+                .disabled(pending.isApplying)
                 Button("Apply Change") {
                     Task { await model.confirmPendingChange() }
                 }
@@ -96,9 +120,9 @@ struct ChangeConfirmationView: View {
         .interactiveDismissDisabled(pending.isApplying)
     }
 
-    private func box<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func box<Content: View>(_ title: LocalizedStringKey, comment: StaticString, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
+            Text(title, comment: comment).font(.headline)
             VStack(alignment: .leading, spacing: 4, content: content)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -181,9 +205,6 @@ struct NewBeadForm: View {
                 ProseEditor(text: description.projectedValue, prompt: "What is this bead about?", minHeight: 140)
             }
             HStack {
-                Text("Nothing is created until you review and confirm.")
-                    .font(.caption)
-                    .foregroundStyle(theme.secondaryText)
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
@@ -253,7 +274,7 @@ struct SaveAsNewViewSheet: View {
 
     private func save() {
         let name = ui.newViewName.trimmingCharacters(in: .whitespacesAndNewlines)
-        model.saveAsNewView(name: name.isEmpty ? "\(model.view.name) copy" : name, symbol: ui.newViewSymbol)
+        model.saveAsNewView(name: name.isEmpty ? String(localized: "\(model.view.name) copy", comment: "Default name for a view saved from another") : name, symbol: ui.newViewSymbol)
         ui.showsSaveAsNewView = false
     }
 }
@@ -273,9 +294,11 @@ struct ChangeIconSheet: View {
                 Spacer()
                 Button("Cancel") { ui.changingIconOf = nil }
                     .keyboardShortcut(.cancelAction)
-                Button("Change") {
+                Button {
                     if let id = ui.changingIconOf { model.setIcon(ui.chosenIcon, for: id) }
                     ui.changingIconOf = nil
+                } label: {
+                    Text("Change", comment: "Button that applies the chosen icon")
                 }
                 .keyboardShortcut(.defaultAction)
             }

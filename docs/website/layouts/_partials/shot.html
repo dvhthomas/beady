@@ -1,0 +1,45 @@
+{{- /*
+  One screenshot, by its name in assets/screenshots (scripts/screenshots.sh writes them).
+
+    partial "shot.html" (dict "name" "board" "alt" "…" "caption" "…" "light" "ready-light"
+                              "frame" "window" "eager" true "sizes" "…")
+
+  The PNGs are 2x; this serves WebP at a few widths and lets the browser choose. `light` names
+  a second screenshot to show instead when the reader's system is in light mode. `frame` is
+  "window" (a title bar is drawn on, since the snapshots are of the window's contents) or
+  "panel" (a sheet or popover, floating); left out, full-window snapshots get a window.
+  `crop` keeps only that many points from the top: the snapshot window is tall, and a list of
+  eight beads leaves most of it empty.
+*/ -}}
+{{- $img := resources.Get (printf "screenshots/%s.png" .name) }}
+{{- if not $img }}{{ errorf "shot: no screenshot named %q in assets/screenshots (see scripts/screenshots.sh)" .name }}{{ end }}
+{{- $wide := ge $img.Width 2400 }}
+{{- $crop := 0 }}
+{{- with .crop }}{{ $crop = mul (int .) 2 }}{{ end }}
+{{- if and (gt $crop 0) (lt $crop $img.Height) }}{{ $img = $img.Crop (printf "%dx%d TopLeft" $img.Width $crop) }}{{ end }}
+{{- $frame := .frame | default (cond $wide "window" "panel") }}
+{{- $sizes := .sizes | default (cond (eq $frame "window") "(min-width: 1180px) 1100px, 94vw" (printf "(min-width: %dpx) %dpx, 94vw" (div $img.Width 2) (div $img.Width 2))) }}
+{{- $widths := slice 720 1100 1600 2200 }}
+<figure class="shot shot--{{ $frame }}{{ with .light }} shot--adaptive{{ end }}{{ with .class }} {{ . }}{{ end }}">
+  <div class="shot__frame"{{ if eq $frame "panel" }} style="max-width: {{ div $img.Width 2 }}px"{{ end }}>
+    {{- if eq $frame "window" }}<div class="shot__bar" aria-hidden="true"><i></i><i></i><i></i></div>{{ end }}
+    {{- /* A window is shown well under its real size; a click opens it whole (site.js shows
+           it in place, and without script the link simply goes to the image). */}}
+    {{- $zoom := "" }}
+    {{- if and $wide (not .eager) }}{{ $zoom = ($img.Resize (printf "%dx webp q88" $img.Width)).RelPermalink }}{{ end }}
+    {{- with $zoom }}<a class="shot__zoom" href="{{ . }}" data-zoom aria-label="Show this screenshot larger">{{ end }}
+    <picture>
+      {{- with .light }}
+      {{- $light := resources.Get (printf "screenshots/%s.png" .) }}
+      {{- if not $light }}{{ errorf "shot: no screenshot named %q in assets/screenshots" . }}{{ end }}
+      {{- if and (gt $crop 0) (lt $crop $light.Height) }}{{ $light = $light.Crop (printf "%dx%d TopLeft" $light.Width $crop) }}{{ end }}
+      <source media="(prefers-color-scheme: light)" type="image/webp" sizes="{{ $sizes }}" srcset="{{ partial "shot-srcset.html" (dict "img" $light "widths" $widths) }}">
+      {{- end }}
+      <source type="image/webp" sizes="{{ $sizes }}" srcset="{{ partial "shot-srcset.html" (dict "img" $img "widths" $widths) }}">
+      {{- $fallback := $img.Resize (printf "%dx png" (math.Min $img.Width 1440 | int)) }}
+      <img src="{{ $fallback.RelPermalink }}" width="{{ div $img.Width 2 }}" height="{{ div $img.Height 2 }}" alt="{{ .alt }}"{{ if .eager }} fetchpriority="high"{{ else }} loading="lazy"{{ end }} decoding="async">
+    </picture>
+    {{- with $zoom }}</a>{{ end }}
+  </div>
+  {{- with .caption }}<figcaption>{{ . | markdownify }}</figcaption>{{ end }}
+</figure>

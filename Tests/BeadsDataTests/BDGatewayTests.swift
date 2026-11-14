@@ -25,13 +25,30 @@ struct BDCommandTests {
         #expect(BDCommand.setStatus("demo-1", "in_progress").arguments == ["update", "--status=in_progress", "--json", "--", "demo-1"])
         #expect(BDCommand.setParent("demo-1", "epic-b").arguments == ["update", "--parent=epic-b", "--json", "--", "demo-1"])
         #expect(BDCommand.setParent("demo-1", nil).arguments == ["update", "--parent=", "--json", "--", "demo-1"])
-        #expect(BDCommand.close("demo-1", reason: "shipped").arguments == ["close", "--reason=shipped", "--json", "--", "demo-1"])
+        // --force: bd refuses a plain close when the bead's assignee isn't its actor, and the actor is
+        // whatever the environment says ($USER from Finder, git user.name from a terminal), so a
+        // human's own beads would fail to close. The app checks pinned beads itself first.
+        #expect(BDCommand.close("demo-1", reason: "shipped").arguments == ["close", "--reason=shipped", "--force", "--json", "--", "demo-1"])
+        #expect(BDCommand.close("demo-1", reason: nil).arguments == ["close", "--force", "--json", "--", "demo-1"])
         #expect(BDCommand.reopen("demo-1", reason: nil).arguments == ["reopen", "--json", "--", "demo-1"])
+        // Marks ride on labels and blockers on dep edges; their values and ids must be as
+        // injection-proof as every other write.
+        #expect(BDCommand.addLabel("demo-1", "pinned").arguments == ["update", "--add-label=pinned", "--json", "--", "demo-1"])
+        #expect(BDCommand.removeLabel("demo-1", "starred").arguments == ["update", "--remove-label=starred", "--json", "--", "demo-1"])
+        #expect(BDCommand.addBlocker("demo-1", blocker: "demo-2").arguments == ["dep", "add", "--", "demo-1", "demo-2"])
+        #expect(BDCommand.removeBlocker("demo-1", blocker: "demo-2").arguments == ["dep", "remove", "--", "demo-1", "demo-2"])
         let new = NewIssue(title: "New", type: "bug", priority: 1, description: "why", parent: "epic-a")
         #expect(BDCommand.create(new, dryRun: true).arguments == [
             "create", "--title=New", "--type=bug", "--priority=1", "--parent=epic-a", "--description=why", "--dry-run", "--json",
         ])
         #expect(BDCommand.create(new, dryRun: false).arguments.last == "--json")
+    }
+
+    @Test("init makes the database and nothing else: no prompts, no agent files, no git hooks")
+    func initDatabase() {
+        #expect(BDCommand.initDatabase(prefix: "tile-engine").arguments == [
+            "init", "--non-interactive", "--skip-agents", "--skip-hooks", "--prefix=tile-engine",
+        ])
     }
 
     @Test("exactly the mutating commands are writes, and no write claims --readonly")
@@ -41,6 +58,9 @@ struct BDCommandTests {
             .updateFields("x", IssueEdit(title: "t")),
             .setStatus("x", "open"), .setParent("x", "y"), .close("x", reason: "r"),
             .reopen("x", reason: nil), .create(NewIssue(title: "t"), dryRun: false),
+            .addLabel("x", "pinned"), .removeLabel("x", "pinned"),
+            .addBlocker("x", blocker: "y"), .removeBlocker("x", blocker: "y"),
+            .initDatabase(prefix: "x"),
         ]
         #expect(reads.allSatisfy { $0.isReadOnly && $0.arguments.first == "--readonly" })
         #expect(writes.allSatisfy { !$0.isReadOnly && !$0.arguments.contains("--readonly") })
@@ -63,6 +83,15 @@ struct BDGatewayTests {
         #expect(runner.invocations.map { Array($0.arguments.dropFirst(2)) } == [
             BDCommand.list.arguments, BDCommand.close("demo-1", reason: "done").arguments,
         ])
+        #expect(runner.invocations.allSatisfy { $0.directory == nil })
+    }
+
+    @Test("init runs inside the folder instead of pointing -C at it, which bd refuses before init")
+    func initRunsInFolder() async throws {
+        let runner = FakeRunner { _ in ok("") }
+        _ = try await BDGateway(workspace: workspace, executable: bd, runner: runner).run(.initDatabase(prefix: "p"))
+        #expect(runner.invocations.map(\.arguments) == [BDCommand.initDatabase(prefix: "p").arguments])
+        #expect(runner.invocations.map(\.directory) == [workspace.projectDirectory])
     }
 
     @Test("a failing command surfaces bd's own error message")
@@ -78,6 +107,69 @@ struct BDGatewayTests {
         let gateway = BDGateway(workspace: workspace, executable: bd, runner: FakeRunner { _ in ok("") })
         #expect(gateway.preview(.reopen("demo-1", reason: "it's back")) == "bd -C /tmp/project reopen '--reason=it'\\''s back' --json -- demo-1")
         #expect(gateway.preview(.setParent("demo-1", nil)) == "bd -C /tmp/project update --parent= --json -- demo-1")
+        #expect(gateway.preview(.initDatabase(prefix: "tile-engine")) ==
+            "cd /tmp/project && bd init --non-interactive --skip-agents --skip-hooks --prefix=tile-engine")
+    }
+}
+
+@Suite("Workspace detection")
+struct WorkspaceDetectionTests {
+    /// A folder with whatever `.beads` and `.git` entries the case needs.
+    private func folder(beads: [String]?, git: String?) throws -> URL {
+        let dir = try makeTempDirectory()
+        if let beads {
+            let beadsDir = dir.appendingPathComponent(".beads")
+            try FileManager.default.createDirectory(at: beadsDir, withIntermediateDirectories: true)
+            for name in beads { try Data().write(to: beadsDir.appendingPathComponent(name)) }
+        }
+        switch git {
+        case "directory": try FileManager.default.createDirectory(at: dir.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        case "file": try Data("gitdir: /elsewhere/.git/worktrees/x\n".utf8).write(to: dir.appendingPathComponent(".git"))
+        default: break
+        }
+        return dir
+    }
+
+    @Test("an initialised .beads folder is a database; an empty one is not, since bd would use a parent's")
+    func database() throws {
+        #expect(try BeadsWorkspace.inspect(folder(beads: ["metadata.json"], git: nil)).hasBeadsDatabase)
+        #expect(try BeadsWorkspace.inspect(folder(beads: ["config.yaml"], git: nil)).hasBeadsDatabase)
+        #expect(try BeadsWorkspace.inspect(folder(beads: ["beads.db"], git: nil)).hasBeadsDatabase)
+        #expect(try !BeadsWorkspace.inspect(folder(beads: [], git: nil)).hasBeadsDatabase)
+        #expect(try !BeadsWorkspace.inspect(folder(beads: nil, git: nil)).hasBeadsDatabase)
+    }
+
+    @Test("a git repository is a folder with .git inside it: a directory, or a worktree's .git file")
+    func git() throws {
+        #expect(try BeadsWorkspace.inspect(folder(beads: nil, git: "directory")).isGitRepository)
+        #expect(try BeadsWorkspace.inspect(folder(beads: nil, git: "file")).isGitRepository)
+        #expect(try !BeadsWorkspace.inspect(folder(beads: nil, git: nil)).isGitRepository)
+    }
+
+    @Test("choosing the .beads folder itself means its parent project, even before it is initialised")
+    func beadsFolderChosen() throws {
+        let project = try folder(beads: [], git: "directory")
+        let inspection = BeadsWorkspace.inspect(project.appendingPathComponent(".beads"))
+        #expect(inspection.projectDirectory == project.standardizedFileURL)
+        #expect(!inspection.hasBeadsDatabase)
+        #expect(inspection.isGitRepository)
+    }
+
+    @Test("resolve and inspect agree on what is a workspace")
+    func resolveAgrees() throws {
+        let yes = try folder(beads: ["metadata.json"], git: nil)
+        let no = try folder(beads: [], git: "directory")
+        #expect(try BeadsWorkspace.resolve(yes).projectDirectory == BeadsWorkspace.inspect(yes).projectDirectory)
+        #expect(throws: BeadsDataError.notAWorkspace(path: no.path)) { try BeadsWorkspace.resolve(no) }
+    }
+
+    @Test("a gateway for a folder that is not yet a workspace points bd at the project, ready for init")
+    func gatewayForNewWorkspace() throws {
+        let project = try folder(beads: nil, git: "directory")
+        let locator = BDExecutableLocator(environment: ["BD_PATH": "/usr/bin/true"], isExecutable: { _ in true })
+        let gateway = try BDGateway.forNewWorkspace(at: project.appendingPathComponent(".beads"), locator: locator)
+        #expect(gateway.workspace.projectDirectory == project.standardizedFileURL)
+        #expect(gateway.preview(.initDatabase(prefix: "p")).hasPrefix("cd "))
     }
 }
 
@@ -202,7 +294,7 @@ struct BDHistoryTests {
     @Test("the history command is read-only and asks bd for JSON")
     func historyCommand() {
         #expect(BDCommand.history("demo-1", limit: 50).isReadOnly)
-        #expect(BDCommand.history("demo-1", limit: 50).arguments == ["--readonly", "history", "demo-1", "--limit", "50", "--json"])
+        #expect(BDCommand.history("demo-1", limit: 50).arguments == ["--readonly", "history", "--limit", "50", "--json", "--", "demo-1"])
     }
 }
 
@@ -271,19 +363,21 @@ struct BDGatewayActivityTests {
 
     @Test("a burst of writes wakes the app once, not once per file")
     func watchCoalescesBursts() async throws {
-        let (workspace, gateway) = try makeWorkspace(interactions: "")
+        let (workspace, _) = try makeWorkspace(interactions: "")
         let hits = Mutable(0)
-        let watcher = gateway.watchChanges { hits.value += 1 }
+        // A settle well above the burst's own spread, so a slow machine (a shared CI runner)
+        // can't stretch six writes across two settle windows and make the test lie.
+        let watcher = BDChangeWatcher(path: workspace.beadsDirectory.path, settle: 1.5) { hits.value += 1 }
         defer { watcher.stop() }
         try await Task.sleep(for: .milliseconds(300))
 
         // What an agent writing several beads looks like on disk.
         for index in 0..<6 {
             try Data("write \(index)".utf8).write(to: workspace.beadsDirectory.appendingPathComponent("issues.jsonl"))
-            try await Task.sleep(for: .milliseconds(40))
+            try await Task.sleep(for: .milliseconds(20))
         }
-        #expect(await waitUntil(seconds: 5) { hits.value > 0 })
-        try await Task.sleep(for: .milliseconds(600))
+        #expect(await waitUntil(seconds: 8) { hits.value > 0 })
+        try await Task.sleep(for: .milliseconds(1800))
         #expect(hits.value == 1, "six file writes in a burst should mean one reload, not six")
     }
 }
@@ -309,5 +403,48 @@ struct BDNoiseTests {
         let store = BDStore(gateway: gateway)
         let snapshot = try await store.loadSnapshot()
         #expect(snapshot.issues.count == 4, "the warning is noise, and the data is what matters")
+    }
+}
+
+@Suite("What is in a chosen folder")
+struct WorkspaceInspectionTests {
+    func folder(_ names: [String]) throws -> URL {
+        let project = try makeTempDirectory()
+        let beads = project.appendingPathComponent(".beads")
+        try FileManager.default.createDirectory(at: beads, withIntermediateDirectories: true)
+        for name in names {
+            if name.hasSuffix("/") {
+                try FileManager.default.createDirectory(at: beads.appendingPathComponent(name), withIntermediateDirectories: true)
+            } else {
+                try Data().write(to: beads.appendingPathComponent(name))
+            }
+        }
+        return project
+    }
+
+    @Test("a fresh clone has bd's tracked configuration and no database: initialised, with nothing to open yet")
+    func freshClone() throws {
+        let project = try folder(["config.yaml", "metadata.json", ".gitignore", "README.md"])
+        defer { try? FileManager.default.removeItem(at: project) }
+        let found = BeadsWorkspace.inspect(project)
+        #expect(found.hasBeadsDatabase)
+        #expect(!found.hasDatabaseFiles)
+    }
+
+    @Test("embedded storage, server storage and a legacy database file each count as a database being there")
+    func databases() throws {
+        for name in ["embeddeddolt/", "dolt/", "beads.db"] {
+            let project = try folder(["config.yaml", name])
+            defer { try? FileManager.default.removeItem(at: project) }
+            #expect(BeadsWorkspace.inspect(project).hasDatabaseFiles, "\(name)")
+        }
+    }
+
+    @Test("no .beads at all is neither")
+    func nothing() throws {
+        let project = try makeTempDirectory()
+        defer { try? FileManager.default.removeItem(at: project) }
+        let found = BeadsWorkspace.inspect(project)
+        #expect(!found.hasBeadsDatabase && !found.hasDatabaseFiles)
     }
 }

@@ -19,16 +19,33 @@ public final class WorkspaceModel {
     }
 
     public let title: String
-    public private(set) var snapshot: IssueSnapshot?
+    public private(set) var snapshot: IssueSnapshot? {
+        didSet { dataGeneration &+= 1 }
+    }
     public private(set) var loadState: LoadState = .idle
     public private(set) var lastLoaded: Date?
     /// Set when a reload fails while older data is still on screen.
     public private(set) var refreshError: String?
     public private(set) var isLoading = false
 
+    /// The last change this session wrote, until a view acknowledges it. Set after the write
+    /// lands and the data reloads, so the acknowledgement plays on the refreshed board.
+    public private(set) var lastAppliedChange: AppliedChange?
+
+    /// The window's undo manager, handed in by the app layer. Every reversible write this
+    /// session makes is registered here — the stack native macOS users already have, so ⌘Z and
+    /// ⇧⌘Z walk it, the Edit menu names each step ("Undo Move bdv-1 to In Progress"), and a
+    /// focused text field still gets its own typing undo first. Foundation's UndoManager, so
+    /// the model stays AppKit-free and tests supply their own.
+    @ObservationIgnored private weak var undoManager: UndoManager?
+
     /// The view picked in the sidebar.
     public var viewID: IssueView.ID = .frontier {
-        didSet { recordPlace(view: oldValue, selection: selection) }
+        didSet {
+            recordPlace(view: oldValue, selection: selection)
+            // Asking for a board that can't split is a decision about one view, now.
+            explicitBoardView = nil
+        }
     }
 
     /// The view on screen: the view as saved, with what's live on top.
@@ -42,6 +59,12 @@ public final class WorkspaceModel {
 
     /// Every view the sidebar offers: the built-ins, then the user's own, in order.
     public var views: [IssueView] { library.views }
+
+    /// The issue prefix bd uses in this database, read off its ids; nil before the first load
+    /// or in an empty database. The switcher shows it next to the workspace's name.
+    public var issuePrefix: String? {
+        WorkspaceSwitching.prefix(of: snapshot?.issues.map(\.id) ?? [])
+    }
 
     /// The current view as saved: a built-in's definition, or a user view as last saved. An id
     /// this Beady doesn't know falls back to the first built-in rather than showing nothing.
@@ -63,17 +86,17 @@ public final class WorkspaceModel {
     /// True while a confirmed change is being written; the sheet is locked meanwhile.
     public private(set) var isWriting = false
 
-    /// The saved views and what is live on top of each, written back on every change: views to
-    /// the Library folder, what's live to preferences.
+    /// The saved views and what is live on top of each, written back on every change — but only
+    /// the parts that changed: a search keystroke touches what's live, never the Library folder.
     private var library = ViewLibrary() {
-        didSet { library.save(to: viewsDirectory, preferences: preferences) }
+        didSet { library.save(changedFrom: oldValue, to: viewsDirectory, preferences: preferences) }
     }
 
     @ObservationIgnored private let store: any BeadsStore
     /// Where what's live on each view is remembered between launches.
     /// Standard macOS preferences: ~/Library/Preferences/me.bitsby.beady.plist.
     @ObservationIgnored private let preferences: UserDefaults?
-    /// The Library tier: one .beadyview per view. Nil keeps views in preferences.
+    /// The Library: one .beadyview per view. Nil keeps views in preferences.
     @ObservationIgnored private let viewsDirectory: URL?
     @ObservationIgnored private let allowsWriting: Bool
     @ObservationIgnored private let now: @Sendable () -> Date
@@ -115,8 +138,13 @@ public final class WorkspaceModel {
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600,
         /// Whether to turn bd's change journal on when this workspace opens.
-        journalPolicy: JournalPolicy = .manual
+        journalPolicy: JournalPolicy = .manual,
+        /// How often this workspace was left syncing by itself, and where to note a new choice.
+        syncCadence: SyncCadence = .manual,
+        noteSyncCadence: ((SyncCadence) -> Void)? = nil
     ) {
+        self.autoSync = AutoSync(cadence: syncCadence)
+        self.noteSyncCadence = noteSyncCadence
         self.title = title
         self.store = store
         self.allowsWriting = allowsWriting
@@ -132,9 +160,11 @@ public final class WorkspaceModel {
     /// Picks up views that changed on disk — a file dropped in, a sync, a hand edit. What's live
     /// here stays; the folder only ever says what's saved.
     public func reloadViews() {
-        guard let viewsDirectory else { return }
-        let onDisk = ViewLibrary.load(from: viewsDirectory, preferences: nil).views
-        if onDisk != library.views { library.views = onDisk }
+        guard viewsDirectory != nil else { return }
+        let onDisk = ViewLibrary.load(from: viewsDirectory, preferences: nil)
+        if onDisk.views != library.views {
+            library.views = onDisk.views
+        }
     }
 
     /// Adds the views in a .beadyview or .beadyviews document under My Views and shows the last
@@ -174,6 +204,7 @@ public final class WorkspaceModel {
         do {
             snapshot = try await store.loadSnapshot()
             reapplyDesiredMarks()
+            reapplyOptimisticDrops()
             loadState = .loaded
             lastLoaded = now()
             refreshError = nil
@@ -212,9 +243,40 @@ public final class WorkspaceModel {
         set { state.filter = newValue }
     }
 
+    /// The view's layout as remembered or chosen. What is drawn is `presentedLayout`.
     public var layout: Layout {
         get { state.presentation.layout }
-        set { present { $0.layout = newValue } }
+        set { chooseLayout(newValue) }
+    }
+
+    /// The view the user asked to see as a board even though it has nothing to split, if any.
+    /// Per view and per session: never saved, cleared when the view changes.
+    private var explicitBoardView: IssueView.ID?
+
+    /// Sets the layout as the user's choice: the switcher, ⌘1/2/3, the palette. Choosing Board
+    /// shows the board even when it can't split.
+    public func chooseLayout(_ layout: Layout) {
+        present { $0.layout = layout }
+        explicitBoardView = layout == .board ? viewID : nil
+    }
+
+    /// What is drawn. A view never opens on a board that can't split: Board stays its preference
+    /// and nothing is written, but it presents as a list, grouping and ordering unchanged, until
+    /// the data spreads out or the user asks for the board anyway.
+    public var presentedLayout: Layout {
+        if layout == .board, explicitBoardView != viewID, boardNeedsSplitting != nil { return .list }
+        return layout
+    }
+
+    /// True while a Board preference is being shown as a list, for the switcher's help.
+    public var isBoardShownAsList: Bool {
+        layout == .board && presentedLayout == .list
+    }
+
+    /// Back from an explicitly chosen board that can't split to the list, keeping Board as the
+    /// preference so the board returns on its own.
+    public func showBoardAsList() {
+        explicitBoardView = nil
     }
 
     public var grouping: IssueGrouping {
@@ -310,7 +372,7 @@ public final class WorkspaceModel {
         guard let source = library.view(id) else { return nil }
         var copy = source
         copy.id = IssueView.ID(UUID().uuidString)
-        copy.name = "\(source.name) copy"
+        copy.name = String(localized: "\(source.name) copy", bundle: .module, comment: "Name of a duplicated view")
         copy.isBuiltIn = false
         library.views.append(copy)
         return copy
@@ -350,15 +412,56 @@ public final class WorkspaceModel {
 
     // MARK: What the view shows
 
+    /// One body pass reads the filtered list many times over — the subtitle count, the board,
+    /// the split check, the tree — so each derived value below remembers its last answer and
+    /// the inputs it came from. A key carries everything the value derives from (the snapshot
+    /// by generation, the live filter, the ordering…), so a stale entry simply never matches.
+    /// Time-window rules re-evaluate with the next load rather than on every read, which the
+    /// staleness reload bounds at a few minutes.
+    @ObservationIgnored private var dataGeneration = 0
+
+    private struct VisibleKey: Equatable {
+        let generation: Int
+        let filter: ViewFilter
+        let ordering: IssueSort
+    }
+
+    @ObservationIgnored private var visibleCache: (key: VisibleKey, issues: [Issue])?
+    @ObservationIgnored private var treeCache: (key: VisibleKey, tree: [IssueTreeNode])?
+
+    private struct BoardKey: Equatable {
+        let generation: Int
+        let filter: ViewFilter
+        let ordering: IssueSort
+        let grouping: IssueGrouping
+        let canEdit: Bool
+    }
+
+    @ObservationIgnored private var boardGroupsCache: (key: BoardKey, groups: [IssueGroupModel])?
+    @ObservationIgnored private var boardColumnsCache: (key: BoardKey, nests: Bool, columns: [BoardColumnModel])?
+    @ObservationIgnored private var boardSplitCache: (key: BoardKey, split: BoardSplit?)?
+
+    private var visibleKey: VisibleKey {
+        VisibleKey(generation: dataGeneration, filter: filter, ordering: ordering)
+    }
+
+    private var boardKey: BoardKey {
+        BoardKey(generation: dataGeneration, filter: filter, ordering: ordering, grouping: boardGrouping, canEdit: canEdit)
+    }
+
     public var visibleIssues: [Issue] {
         guard let snapshot else { return [] }
+        let key = visibleKey
+        if let cached = visibleCache, cached.key == key { return cached.issues }
         let now = now()
-        let filter = filter
-        return ordering.sorted(
+        let filter = key.filter
+        let issues = ordering.sorted(
             snapshot.issues.filter { filter.matches($0, in: snapshot, now: now) },
             // A pin is a request to see something first, wherever it appears.
             pinnedFirst: true
         )
+        visibleCache = (key, issues)
+        return issues
     }
 
     public var groups: [IssueGroupModel] {
@@ -368,8 +471,38 @@ public final class WorkspaceModel {
     /// Board columns. A board needs columns, so no grouping means lifecycle columns. While editing,
     /// every value a card could be dropped into has a column, even when empty.
     public var boardGroups: [IssueGroupModel] {
-        let grouping = boardGrouping
-        return makeGroups(grouping, including: canEdit ? dropKeys(for: grouping) : [])
+        let key = boardKey
+        if let cached = boardGroupsCache, cached.key == key { return cached.groups }
+        let groups = makeGroups(key.grouping, including: key.canEdit ? dropKeys(for: key.grouping) : [])
+        boardGroupsCache = (key, groups)
+        return groups
+    }
+
+    /// The board's per-view option: fold sub-tasks into their parent's card. Reads off under
+    /// parent grouping, where the columns are the parents already.
+    public var nestsSubtasks: Bool {
+        get { boardGrouping != .parent && (state.presentation.nestsSubtasks ?? false) }
+        // Nil rather than false keeps the field out of files that never turned it on.
+        set { present { $0.nestsSubtasks = newValue ? true : nil } }
+    }
+
+    /// What the board actually draws: `boardGroups` with nesting applied.
+    public var boardColumns: [BoardColumnModel] {
+        guard let snapshot else { return [] }
+        let key = boardKey
+        let nests = nestsSubtasks
+        if let cached = boardColumnsCache, cached.key == key, cached.nests == nests { return cached.columns }
+        let columns = BoardNesting.columns(from: boardGroups, in: snapshot, nesting: nests)
+        boardColumnsCache = (key, nests, columns)
+        return columns
+    }
+
+    /// Cards expanded to show their folded children. This session's, like `collapsed`, but its
+    /// own set: the tree starts expanded, cards start collapsed.
+    public private(set) var boardExpanded: Set<IssueID> = []
+
+    public func toggleBoardCard(_ id: IssueID) {
+        if !boardExpanded.insert(id).inserted { boardExpanded.remove(id) }
     }
 
     /// What would split a board that has collapsed to one column. Nil when the board already has
@@ -378,10 +511,18 @@ public final class WorkspaceModel {
     /// cards out, so the board never silently shows one column again.
     public var boardNeedsSplitting: BoardSplit? {
         guard layout == .board, let snapshot else { return nil }
+        let key = boardKey
+        if let cached = boardSplitCache, cached.key == key { return cached.split }
+        let split: BoardSplit?
         let issues = visibleIssues
-        guard issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 else { return nil }
-        let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
-        return BoardSplit(groupings: candidates.filter { $0 != boardGrouping && $0.groups(issues, in: snapshot).count > 1 })
+        if issues.count > 1, boardGroups.filter({ !$0.issues.isEmpty }).count <= 1 {
+            let candidates: [IssueGrouping] = [.status, .priority, .assignee, .parent]
+            split = BoardSplit(groupings: candidates.filter { $0 != key.grouping && $0.groups(issues, in: snapshot).count > 1 })
+        } else {
+            split = nil
+        }
+        boardSplitCache = (key, split)
+        return split
     }
 
     public struct BoardSplit: Equatable, Sendable {
@@ -391,7 +532,11 @@ public final class WorkspaceModel {
 
     public var tree: [IssueTreeNode] {
         guard let snapshot else { return [] }
-        return IssueTree.build(matches: visibleIssues, in: snapshot)
+        let key = visibleKey
+        if let cached = treeCache, cached.key == key { return cached.tree }
+        let tree = IssueTree.build(matches: visibleIssues, in: snapshot)
+        treeCache = (key, tree)
+        return tree
     }
 
     /// Resolved from the whole snapshot, so following a link to a filtered-out issue still works.
@@ -438,8 +583,8 @@ public final class WorkspaceModel {
         case .status: return DisplayText.status(key)
         case .priority: return Int(key).map(DisplayText.priority) ?? key
         case .type: return key.prefix(1).uppercased() + key.dropFirst()
-        case .assignee: return key.isEmpty ? "Unassigned" : key
-        case .parent: return key.isEmpty ? "No parent" : (snapshot?.issue(IssueID(key))?.title ?? key)
+        case .assignee: return key.isEmpty ? String(localized: "Unassigned", bundle: .module, comment: "Group header for beads with no assignee") : key
+        case .parent: return key.isEmpty ? String(localized: "No parent", bundle: .module, comment: "Group header for top-level beads") : (snapshot?.issue(IssueID(key))?.title ?? key)
         }
     }
 
@@ -526,9 +671,9 @@ public final class WorkspaceModel {
         case .lifecycle: StatusCategory(rawValue: raw).map(DisplayText.lifecycle) ?? raw
         case .status: DisplayText.status(raw)
         case .priority: Int(raw).map(DisplayText.priority) ?? raw
-        case .assignee: raw.isEmpty ? "Unassigned" : raw
-        case .blocked: "Blocked"
-        case .ready: raw
+        case .assignee: raw.isEmpty ? String(localized: "Unassigned", bundle: .module, comment: "Filter value for beads with no assignee") : raw
+        case .blocked: String(localized: "Blocked", bundle: .module, comment: "Filter value")
+        case .ready: raw == FilterRule.readyValue ? String(localized: "yes", bundle: .module, comment: "Filter value for Ready: ‘Ready · is · yes’") : raw
         case .parent: snapshot?.issue(IssueID(raw))?.title ?? raw
         case .updated, .closed: TimeWindow(rawValue: raw).map(DisplayText.window) ?? raw
         case .type, .labels: raw
@@ -566,8 +711,8 @@ public final class WorkspaceModel {
         let builtIns = library.views.filter { $0.isBuiltIn && $0.id != .starred }
         let mine = library.views.filter { !$0.isBuiltIn }
         var sections = [
-            SidebarSection(kind: .views, title: "Views", entries: builtIns.map(sidebarEntry), canAdd: false),
-            SidebarSection(kind: .mine, title: "My Views", entries: mine.map(sidebarEntry), canAdd: true),
+            SidebarSection(kind: .views, title: String(localized: "Views", bundle: .module, comment: "Sidebar section: the built-in views"), entries: builtIns.map(sidebarEntry), canAdd: false),
+            SidebarSection(kind: .mine, title: String(localized: "My Views", bundle: .module, comment: "Sidebar section: the user's own views"), entries: mine.map(sidebarEntry), canAdd: true),
         ]
         if let starred = library.view(.starred), total(in: starred) > 0 {
             sections.append(SidebarSection(kind: .starred, title: "", entries: [sidebarEntry(starred)], canAdd: false))
@@ -600,29 +745,41 @@ public final class WorkspaceModel {
     /// this — otherwise the arrows wander off into the sidebar.
     public func moveSelection(_ direction: MoveDirection) {
         guard layout == .board else { return }
-        let columns = boardGroups.filter { !$0.issues.isEmpty }
+        let columns = boardColumns.filter { !$0.cards.isEmpty }
         guard !columns.isEmpty else { return }
+        // Each column flattened to what can be landed on: cards, and the children of expanded
+        // cards, in drawn order.
+        let rows = columns.map { BoardNesting.selectableIDs(in: $0, expanded: boardExpanded) }
 
-        guard let selection,
-              let column = columns.firstIndex(where: { $0.issues.contains { $0.id == selection } }),
-              let row = columns[column].issues.firstIndex(where: { $0.id == selection })
-        else {
+        // Where an id stands. A selected child inside a collapsed card stands where its card
+        // does, so the arrows always have somewhere to start from.
+        func place(of id: IssueID) -> (column: Int, row: Int)? {
+            for (column, ids) in rows.enumerated() {
+                if let row = ids.firstIndex(of: id) { return (column, row) }
+            }
+            for (column, list) in columns.enumerated() {
+                if let card = list.cards.first(where: { $0.children.contains { $0.id == id } }),
+                   let row = rows[column].firstIndex(of: card.id) { return (column, row) }
+            }
+            return nil
+        }
+
+        guard let selection, let (column, row) = place(of: selection) else {
             // Nothing selected yet: start at the top of the first column with anything in it.
-            self.selection = columns[0].issues.first?.id
+            self.selection = rows.first?.first
             return
         }
 
         switch direction {
         case .up:
-            self.selection = columns[column].issues[max(row - 1, 0)].id
+            self.selection = rows[column][max(row - 1, 0)]
         case .down:
-            self.selection = columns[column].issues[min(row + 1, columns[column].issues.count - 1)].id
+            self.selection = rows[column][min(row + 1, rows[column].count - 1)]
         case .left, .right:
             let next = direction == .left ? column - 1 : column + 1
-            guard columns.indices.contains(next) else { return }
-            // Keep your place down the column, or land on the last card of a shorter one.
-            let issues = columns[next].issues
-            self.selection = issues[min(row, issues.count - 1)].id
+            guard rows.indices.contains(next) else { return }
+            // Keep your place down the column, or land on the last row of a shorter one.
+            self.selection = rows[next][min(row, rows[next].count - 1)]
         }
     }
 
@@ -719,10 +876,231 @@ public final class WorkspaceModel {
 
     /// One phrase for the window's subtitle: the whole backup UI, as agreed.
     public var backupSummary: String? {
-        if isBackingUp { return "backing up…" }
-        guard backup.isConfigured else { return "not backed up" }
-        guard let last = backup.lastSync else { return "backup set up, not run yet" }
-        return "backed up \(ChangeDescriber.ago(last, from: now()))"
+        if isBackingUp { return String(localized: "backing up…", bundle: .module, comment: "Toolbar backup status") }
+        guard backup.isConfigured else { return String(localized: "not backed up", bundle: .module, comment: "Toolbar backup status") }
+        guard let last = backup.lastSync else { return String(localized: "backup set up, not run yet", bundle: .module, comment: "Toolbar backup status") }
+        return String(localized: "backed up \(ChangeDescriber.ago(last, from: now()))", bundle: .module, comment: "Toolbar backup status; the value is a relative time such as ‘6 minutes ago’")
+    }
+
+    // MARK: Sharing
+
+    /// What bd reports about sharing (plan 0006). Nil until first read, and when bd wouldn't say,
+    /// in which case the app shows nothing rather than guess.
+    public private(set) var sharing: SharingFacts?
+    /// The last sync this session. A halted merge leaves nothing for bd to report afterwards,
+    /// so this is how a conflict stays on screen until it is settled.
+    public private(set) var lastSync: SyncOutcome?
+    /// What is running: a sync, which can be stopped, or a share or a settlement, which can't.
+    public private(set) var sharingActivity: SharingActivity = .idle
+    /// True while a sync, a share or a conflict settlement is running.
+    public var isSyncing: Bool { sharingActivity != .idle }
+    /// The sync timer: its cadence, and what the last sync means for the next tick (plan 0007).
+    public private(set) var autoSync: AutoSync
+    /// The running `bd sync`, so Stop has something to cancel.
+    @ObservationIgnored private var syncTask: Task<SyncOutcome, Error>?
+    @ObservationIgnored private let noteSyncCadence: ((SyncCadence) -> Void)?
+    /// What the last sharing action has to say that the status doesn't: a failure in bd's words.
+    public private(set) var sharingNotice: String?
+    /// The checkouts, hooks and storage bd reports, for the Workspace Setup sheet.
+    public private(set) var setup: WorkspaceSetup = .unknown
+    /// The repository's git origin, the Share Beads sheet's starting point.
+    public private(set) var gitOrigin: String?
+
+    public var sharingState: SharingState? {
+        sharing.map { SharingState.derive($0, lastSync: lastSync) }
+    }
+
+    public var sharingSummary: SharingSummary? {
+        sharingState?.summary(activity: sharingActivity)
+    }
+
+    /// How often this workspace syncs by itself. This Mac's choice: it is kept in Beady's
+    /// preferences by whoever opened the model, and changes nothing in bd's configuration.
+    public var syncCadence: SyncCadence {
+        get { autoSync.cadence }
+        set {
+            guard newValue != autoSync.cadence else { return }
+            autoSync.choose(newValue)
+            noteSyncCadence?(newValue)
+        }
+    }
+
+    /// The line under the cadence choice.
+    public var autoSyncCaption: String {
+        autoSync.caption(remote: sharingState?.remote)
+    }
+
+    /// Asks bd where the database is shared and how it stands against that remote. This is the
+    /// one read that goes to the network, so it runs when a workspace opens, after each sharing
+    /// action and when asked, not with every reload.
+    public func refreshSharing() async {
+        sharing = try? await store.sharingFacts()
+    }
+
+    /// Reads what the Workspace Setup and Share Beads sheets show besides sharing itself.
+    public func refreshSetup() async {
+        setup = await store.workspaceSetup()
+        gitOrigin = await store.gitOriginURL()
+    }
+
+    /// False for the one notice that isn't a complaint: the word that a sync was stopped.
+    public var sharingNoticeIsFailure: Bool {
+        sharingNotice != SyncOutcome.stopped.notice
+    }
+
+    public func dismissSharingNotice() {
+        sharingNotice = nil
+    }
+
+    /// One `bd sync`: pull, check, push. Nothing is retried here; bd does its own bounded
+    /// retrying, and a second press is the user's to make.
+    public func syncNow() async {
+        await runSync(automatic: false)
+    }
+
+    /// Asks bd to stop the sync that is running. bd is sent the signal Ctrl-C sends, finishes
+    /// what it is writing and exits; `syncNow` then reads how things stand. Only a sync can be
+    /// stopped: a share and a settlement run to the end.
+    public func stopSync() {
+        guard sharingActivity == .syncing else { return }
+        sharingActivity = .stopping
+        syncTask?.cancel()
+    }
+
+    /// Called every few seconds while the window is open. Runs one sync when the timer's rules
+    /// say one is due, and otherwise does nothing.
+    public func autoSyncTick() async {
+        let isBusy = isSyncing || isWriting || isBackingUp
+        guard autoSync.isDue(at: now(), state: sharingState, isBusy: isBusy, canWrite: allowsWriting) else { return }
+        await runSync(automatic: true)
+    }
+
+    private func runSync(automatic: Bool) async {
+        guard allowsWriting, !isSyncing else { return }
+        sharingActivity = .syncing
+        if !automatic { sharingNotice = nil }
+        let remote = sharing?.remote?.name ?? SharePlan.remoteName
+
+        // Its own task, so Stop cancels the sync and not whoever asked for it.
+        let task = Task { [store] in try await store.sync() }
+        syncTask = task
+        let answer: Result<SyncOutcome, Error>
+        do { answer = .success(try await task.value) } catch { answer = .failure(error) }
+        syncTask = nil
+        let stopRequested = sharingActivity == .stopping
+
+        let outcome: SyncOutcome
+        var thrown: Error?
+        switch answer {
+        case .success(let reported):
+            outcome = reported.afterStop(requested: stopRequested)
+        case .failure(let error):
+            outcome = stopRequested ? .stopped : .failed(error.localizedDescription)
+            if !stopRequested { thrown = error }
+        }
+        lastSync = outcome
+        let shown = autoSync.record(outcome, at: now(), automatic: automatic) == .show
+        if shown {
+            sharingNotice = thrown?.localizedDescription ?? outcome.notice
+        } else if outcome == .synced {
+            // A good sync answers whatever an earlier one complained of.
+            sharingNotice = nil
+        }
+
+        // The Changes menu lists what a person did and what they need to know: a quiet tick is
+        // neither, and a stop is not a failure.
+        let failedSummary = String(localized: "Sync with \(remote)", bundle: .module, comment: "Changes menu entry for a sync that failed; the remote's name")
+        switch outcome {
+        case .synced:
+            if !automatic {
+                record(summary: String(localized: "Synced with \(remote)", bundle: .module, comment: "Changes menu entry; the remote's name"))
+            }
+        case .conflict:
+            record(summary: String(localized: "Sync with \(remote) stopped on a conflict", bundle: .module, comment: "Changes menu entry; the remote's name"), error: SharingFailure(message: String(localized: "Nothing was sent and nothing here was lost.", bundle: .module)))
+        case .busy, .stuck, .unrelated, .failed:
+            if shown {
+                record(summary: failedSummary, error: thrown ?? SharingFailure(message: outcome.notice ?? ""))
+            }
+        case .noRemote, .localOnly, .stopped:
+            break
+        }
+        sharingActivity = .idle
+        await afterSharingAction()
+    }
+
+    /// What Share Beads would do for the URL in its field.
+    public func sharePlan(url: String, audience: ShareAudience) -> SharePlan {
+        SharePlan.make(facts: sharing ?? .none, gitOrigin: gitOrigin, url: url, audience: audience)
+    }
+
+    /// The exact commands a plan runs.
+    public func commands(for plan: SharePlan) -> [String] {
+        plan.steps.map(store.commandPreview(for:))
+    }
+
+    /// The exact command behind a sharing action, for showing before it runs.
+    public func command(for action: SharingAction) -> String? {
+        switch action {
+        case .sync: store.commandPreview(for: .sync)
+        case .settleConflict(let side): store.commandPreview(for: .settleConflict(keeping: side))
+        case .share, .checkAgain, .stop: nil
+        }
+    }
+
+    /// Runs a share plan, a step at a time, stopping at the first that fails. Returns whether it
+    /// all went through; a failure is in `sharingNotice`, in bd's words.
+    @discardableResult
+    public func share(_ plan: SharePlan) async -> Bool {
+        guard allowsWriting, !isSyncing, plan.canShare else { return false }
+        sharingActivity = .working
+        defer { sharingActivity = .idle }
+        sharingNotice = nil
+        let summary = String(localized: "Shared beads with \(plan.destination)", bundle: .module, comment: "Changes menu entry; the remote's URL")
+        do {
+            for step in plan.steps { try await store.perform(step) }
+            lastSync = nil
+            record(summary: summary)
+            await afterSharingAction()
+            return true
+        } catch {
+            let message = error.localizedDescription
+            if SyncOutcome.isUnrelatedHistory(message) { lastSync = .unrelated(message) }
+            sharingNotice = message
+            record(summary: String(localized: "Share beads with \(plan.destination)", bundle: .module, comment: "Changes menu entry for a share that failed; the remote's URL"), error: error)
+            // A remote that was added before the failure is real; show it.
+            await afterSharingAction()
+            return false
+        }
+    }
+
+    /// Settles a conflict for one side, then publishes the result. Only where bd offers it:
+    /// embedded storage (`SharingState.conflict(_, canChooseSide:)`).
+    public func settleConflict(keeping side: ConflictSide) async {
+        guard allowsWriting, !isSyncing, case .conflict(let remote, true) = sharingState else { return }
+        sharingActivity = .working
+        sharingNotice = nil
+        do {
+            try await store.perform(.settleConflict(keeping: side))
+            lastSync = nil
+            record(summary: side == .mine
+                ? String(localized: "Settled the conflict with \(remote.name), keeping this Mac's beads", bundle: .module, comment: "Changes menu entry; the remote's name")
+                : String(localized: "Settled the conflict with \(remote.name), taking its beads", bundle: .module, comment: "Changes menu entry; the remote's name"))
+        } catch {
+            sharingNotice = error.localizedDescription
+            record(summary: String(localized: "Settle the conflict with \(remote.name)", bundle: .module, comment: "Changes menu entry for a settlement that failed; the remote's name"), error: error)
+            sharingActivity = .idle
+            await afterSharingAction()
+            return
+        }
+        sharingActivity = .idle
+        // The pull merged; the push is what tells the remote.
+        await syncNow()
+    }
+
+    /// A sharing action may have brought beads in, and has changed how this database stands.
+    private func afterSharingAction() async {
+        await refreshSharing()
+        await load()
     }
 
     // MARK: Editing a bead
@@ -902,11 +1280,24 @@ public final class WorkspaceModel {
         snapshot?.issue(id)?.has(mark) ?? false
     }
 
+    /// The sidebar badges depend only on the saved filters and the data, so typing in search
+    /// must not recount them: one pass fills every view's total, remembered until the data or
+    /// the saved views change.
+    @ObservationIgnored private var totalsCache: (generation: Int, views: [IssueView], totals: [IssueView.ID: Int])?
+
     /// What a view's own filter matches, for the sidebar badge.
     private func total(in view: IssueView) -> Int {
         guard let snapshot else { return 0 }
+        if let cached = totalsCache, cached.generation == dataGeneration, cached.views == library.views {
+            return cached.totals[view.id] ?? 0
+        }
         let now = now()
-        return snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
+        var totals: [IssueView.ID: Int] = [:]
+        for view in library.views {
+            totals[view.id] = snapshot.issues.lazy.filter { view.filter.matches($0, in: snapshot, now: now) }.count
+        }
+        totalsCache = (dataGeneration, library.views, totals)
+        return totals[view.id] ?? 0
     }
 
     // MARK: Focus
@@ -1025,10 +1416,18 @@ public final class WorkspaceModel {
 
     /// Loaded only when asked for: reading a bead's history runs another bd command.
     public private(set) var history: [IssueID: HistoryState] = [:]
+    /// The beads whose history is kept, oldest first, so a long session can't grow it forever.
+    @ObservationIgnored private var historyOrder: [IssueID] = []
+    private static let maxHistoryEntries = 50
 
     public func loadHistory(for id: IssueID, limit: Int = 50) async {
         if case .loading = history[id] { return }
         history[id] = .loading
+        historyOrder.removeAll { $0 == id }
+        historyOrder.append(id)
+        while historyOrder.count > Self.maxHistoryEntries {
+            history[historyOrder.removeFirst()] = nil
+        }
         do {
             let versions = try await store.versions(of: id, limit: limit)
             // The cached activity only covers the last few minutes; history reaches back further,
@@ -1061,11 +1460,11 @@ public final class WorkspaceModel {
         do {
             try await store.writeJournalSettings(written)
         } catch {
-            record(summary: "Turn on bd's change journal in \(title)", error: error)
+            record(summary: String(localized: "Turn on bd's change journal in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"), error: error)
             return error.localizedDescription
         }
         journalPolicy.noteTurnedOn()
-        record(summary: "Turned on bd's change journal in \(title)", undo: .journalSettings(JournalRetention.settings(toUndo: written)))
+        record(summary: String(localized: "Turned on bd's change journal in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"), undo: .journalSettings(JournalRetention.settings(toUndo: written)))
         await followJournal()
         return nil
     }
@@ -1073,7 +1472,7 @@ public final class WorkspaceModel {
     /// Takes back a change that offered it. Returns the failure, if any, for the caller to show.
     @discardableResult
     public func undo(_ entry: ChangeRecord) async -> String? {
-        guard let undo = entry.undo, let index = activity.firstIndex(where: { $0.id == entry.id }) else { return nil }
+        guard let undo = entry.undo, activity.contains(where: { $0.id == entry.id }) else { return nil }
         switch undo {
         case .journalSettings(let settings):
             do {
@@ -1081,11 +1480,93 @@ public final class WorkspaceModel {
             } catch {
                 return error.localizedDescription
             }
-            activity[index].undo = nil
-            record(summary: "Turned bd's change journal off in \(title)")
+            consumeUndo(of: entry)
+            record(summary: String(localized: "Turned bd's change journal off in \(title)", bundle: .module, comment: "Changes menu entry; the value is the workspace name"))
             await followJournal()
         }
         return nil
+    }
+
+    // MARK: Undo and redo
+
+    /// Hands this model the window's undo manager. Nothing already registered moves over: a
+    /// different manager means a different window, whose stack starts clean.
+    public func attachUndoManager(_ manager: UndoManager?) {
+        guard manager !== undoManager else { return }
+        undoManager?.removeAllActions(withTarget: self)
+        undoManager = manager
+    }
+
+    /// Lets go of the undo manager before this model does: registrations target this model
+    /// without retaining it, so they must not outlive it.
+    public func detachUndoManager() {
+        undoManager?.removeAllActions(withTarget: self)
+        undoManager = nil
+    }
+
+    /// Puts a landed change onto the window's undo stack, named so the Edit menu reads "Undo
+    /// Move bdv-1 to In Progress". Registration is optimistic: the database is shared, so each
+    /// invocation re-validates against that moment's data instead of pretending bd can be rolled
+    /// back blind — a step that can no longer apply explains itself when chosen (`perform`).
+    /// The explicit group makes each write one step even where no run loop turns, as in tests.
+    private func registerUndo(of step: UndoStep) {
+        guard let undoManager else { return }
+        undoManager.beginUndoGrouping()
+        undoManager.registerUndo(withTarget: self) { model in
+            MainActor.assumeIsolated { model.undoStepChosen(step) }
+        }
+        undoManager.setActionName(step.summary)
+        undoManager.endUndoGrouping()
+    }
+
+    /// Runs when the user picks Undo. Registering here, while the manager is undoing, files the
+    /// opposite entry on the redo stack — that is all redo is — and the write follows.
+    private func undoStepChosen(_ step: UndoStep) {
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { model in
+                MainActor.assumeIsolated { model.redoStepChosen(step) }
+            }
+            undoManager.setActionName(step.summary)
+        }
+        Task {
+            await perform(step.undoChange, titled: String(localized: "Undo \(step.summary)", bundle: .module, comment: "Changes menu entry and sheet title; the value is the original change's summary"))
+        }
+    }
+
+    /// Runs when the user picks Redo: files the undo back and applies the original change again.
+    private func redoStepChosen(_ step: UndoStep) {
+        if let undoManager {
+            undoManager.registerUndo(withTarget: self) { model in
+                MainActor.assumeIsolated { model.undoStepChosen(step) }
+            }
+            undoManager.setActionName(step.summary)
+        }
+        Task {
+            await perform(step.redoChange, titled: String(localized: "Redo \(step.summary)", bundle: .module, comment: "Changes menu entry and sheet title; the value is the original change's summary"))
+        }
+    }
+
+    /// Writes one undo or redo step: a bead change like any other, validated against today's
+    /// data, written safely, journalled. Written at once when clean — the Edit menu named
+    /// exactly what would happen — but a step that can't apply any more (the bead moved on
+    /// since) raises the confirmation sheet with the problems spelled out and Apply disabled,
+    /// so it explains itself rather than failing silently; so does a write that fails.
+    private func perform(_ change: IssueChange, titled summary: String) async {
+        guard var pending = makePending(change) else { return }
+        pending.summary = summary
+        pending.registersUndo = false
+        if pending.problems.contains(where: { $0.severity == .error }) {
+            pendingChange = pending
+            return
+        }
+        await write(pending)
+    }
+
+    /// Spends an entry's one Undo, once it has been used successfully.
+    private func consumeUndo(of entry: ChangeRecord) {
+        if let index = activity.firstIndex(where: { $0.id == entry.id }) {
+            activity[index].undo = nil
+        }
     }
 
     /// Re-reads the journal's settings after writing them, and starts over from whichever
@@ -1124,7 +1605,14 @@ public final class WorkspaceModel {
     /// - Parameter base: the issue as the user saw it when they started, if earlier than the
     ///   current snapshot (an edit form opened before an auto-refresh, for example).
     public func propose(_ change: IssueChange, basedOn base: Issue? = nil) {
-        guard canEdit, !isWriting, let snapshot else { return }
+        // A refused proposal (mid-write, say) leaves whatever is staged alone.
+        guard let pending = makePending(change, basedOn: base) else { return }
+        pendingChange = pending
+    }
+
+    /// A change with everything needed to judge it: normalized, validated, described.
+    private func makePending(_ change: IssueChange, basedOn base: Issue? = nil) -> PendingChange? {
+        guard canEdit, !isWriting, let snapshot else { return nil }
         let normalized = change.normalized()
         let asksForReason: Bool = if case .setStatus(_, let from, let to, _) = normalized {
             to == "closed" || from == "closed"
@@ -1136,10 +1624,10 @@ public final class WorkspaceModel {
             problems.append(ChangeProblem(
                 code: .recentlyChangedElsewhere,
                 severity: .warning,
-                message: "\(recent.actor) changed \(recent.field ?? "this bead") \(ChangeDescriber.ago(recent.date, from: now())). Refresh if you're not sure you're looking at the latest."
+                message: String(localized: "\(recent.actor) changed \(recent.field ?? String(localized: "this bead", bundle: .module, comment: "Stands in for a field name when bd didn't record one")) \(ChangeDescriber.ago(recent.date, from: now())). Refresh if you're not sure you're looking at the latest.", bundle: .module, comment: "Warning: who changed what, and a relative time such as ‘2 minutes ago’")
             ))
         }
-        pendingChange = PendingChange(
+        return PendingChange(
             change: normalized,
             base: base ?? normalized.issueID.flatMap { snapshot.issue($0) },
             summary: ChangeDescriber.summary(normalized),
@@ -1195,7 +1683,10 @@ public final class WorkspaceModel {
     /// staging a change, so a drag can be accepted or refused while the cursor is still moving.
     /// Dropping a card back where it started must snap straight home, not wait on validation.
     public func canDrop(_ id: IssueID, onGroup key: String) -> Bool {
-        guard canEdit, !isWriting, let snapshot, let issue = snapshot.issue(id) else { return false }
+        // A bead whose own drop is still writing can't be dropped again (the retry would race
+        // the write), but every other bead stays droppable while writes queue up behind.
+        guard canEdit, !isWriting, optimisticIssues[id] == nil,
+              let snapshot, let issue = snapshot.issue(id) else { return false }
         switch boardGrouping {
         case .category:
             guard let category = StatusCategory(rawValue: key) else { return false }
@@ -1255,6 +1746,12 @@ public final class WorkspaceModel {
         return store.commandPreview(for: pendingChange.change.normalized())
     }
 
+    /// A view calls this once it has finished acknowledging the change on screen, so the same
+    /// acknowledgement doesn't play again when the view is rebuilt.
+    public func acknowledgeAppliedChange(_ change: AppliedChange) {
+        if lastAppliedChange == change { lastAppliedChange = nil }
+    }
+
     /// Ignored while the change is being written: closing the sheet wouldn't stop bd.
     public func cancelPendingChange() {
         guard !isWriting else { return }
@@ -1269,7 +1766,7 @@ public final class WorkspaceModel {
         let problems = ChangeValidator.problems(for: pending.change.normalized(), in: snapshot)
         if problems != pending.problems {
             pending.problems = problems
-            pending.notice = "The checks changed since this was proposed, because the data was refreshed. Review them, then apply again."
+            pending.notice = String(localized: "The checks changed since this was proposed, because the data was refreshed. Review them, then apply again.", bundle: .module)
             pendingChange = pending
             return
         }
@@ -1277,6 +1774,112 @@ public final class WorkspaceModel {
         pending.isApplying = true
         pending.notice = nil
         pendingChange = pending
+        await write(pending)
+    }
+
+    /// Stages the drop and, when there is nothing for the user to decide, applies it at once:
+    /// the drag was the decision, so the card moves this instant — the snapshot previews the
+    /// change while bd (the best part of a second across several processes) catches up in the
+    /// background, the glow confirms the write landing, and the journal entry's Undo is the way
+    /// back. The confirmation sheet still appears when something needs the user — a close or
+    /// reopen (bd stores a reason), a warning or error from the checks, or a write that fails,
+    /// which also puts the card back. Returns whether the drop was accepted at all.
+    @discardableResult
+    public func applyDrop(_ id: IssueID, onGroup key: String) async -> Bool {
+        guard proposeDrop(id, onGroup: key), let pending = pendingChange else { return false }
+        guard !pending.asksForReason, pending.problems.isEmpty else { return true }
+        pendingChange = nil
+        guard let seenIn = snapshot, let base = pending.base,
+              let preview = pending.change.applied(to: base) else {
+            // No one-bead preview for this change; the slower, known-good path.
+            await write(pending)
+            return true
+        }
+        optimisticIssues[id] = preview
+        snapshot = seenIn.replacing(preview)
+        selection = id
+        dropQueue.append(QueuedDrop(pending: pending, seenIn: seenIn))
+        await drainDrops()
+        return true
+    }
+
+    /// A drop already shown on the board, waiting for its bd write.
+    private struct QueuedDrop {
+        let pending: PendingChange
+        /// The data the change was validated against, before the board showed it early.
+        let seenIn: IssueSnapshot
+    }
+
+    @ObservationIgnored private var dropQueue: [QueuedDrop] = []
+    @ObservationIgnored private var isDrainingDrops = false
+    /// Previews shown ahead of bd, keyed by bead: re-applied after a reload so a refresh landing
+    /// mid-write doesn't snap the card back (`reapplyDesiredMarks` is the same idea for marks),
+    /// and the marker that keeps the bead from being dropped again before its write settles.
+    @ObservationIgnored private var optimisticIssues: [IssueID: Issue] = [:]
+
+    /// Writes queued drops one at a time, never alongside a confirmed change's write. On
+    /// success, only the changed bead is read back — the full reload costs three more bd
+    /// processes and the file watcher covers anything else. On failure the preview is taken
+    /// back, so the card visibly returns, and the sheet says why.
+    private func drainDrops() async {
+        guard !isDrainingDrops else { return }
+        isDrainingDrops = true
+        defer { isDrainingDrops = false }
+        while !dropQueue.isEmpty {
+            while isWriting { try? await Task.sleep(for: .milliseconds(25)) }
+            let drop = dropQueue.removeFirst()
+            let pending = drop.pending
+            guard let id = pending.change.issueID else { continue }
+            noteOwnWrite(id)
+            do {
+                let written = try await ChangeRunner(writer: store).run(pending.change, seenIn: drop.seenIn, base: pending.base)
+                noteOwnWrite(written)
+                optimisticIssues[id] = nil
+                record(pending, issueID: written, error: nil)
+                // The optimistic path lands on the undo stack just as write(_:) does (rule 12).
+                if pending.registersUndo, let reverse = pending.change.reversed(from: pending.base) {
+                    registerUndo(of: UndoStep(summary: pending.summary, undoChange: reverse, redoChange: pending.change))
+                }
+                if let fresh = try? await store.currentIssue(written), let current = snapshot {
+                    snapshot = current.replacing(fresh)
+                    reapplyDesiredMarks()
+                    reapplyOptimisticDrops()
+                }
+                lastAppliedChange = AppliedChange(issueID: written, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
+            } catch {
+                optimisticIssues[id] = nil
+                // Put the card back as bd has it (one cheap read), or as it was before the drop.
+                let truth = (try? await store.currentIssue(id)) ?? pending.base
+                if let truth, let current = snapshot {
+                    snapshot = current.replacing(truth)
+                }
+                record(pending, issueID: id, error: error)
+                if pendingChange == nil {
+                    var failed = pending
+                    failed.failure = error.localizedDescription
+                    pendingChange = failed
+                }
+            }
+        }
+    }
+
+    /// Puts in-flight previews back on top of a freshly loaded snapshot.
+    private func reapplyOptimisticDrops() {
+        guard var updated = snapshot else { return }
+        for issue in optimisticIssues.values { updated = updated.replacing(issue) }
+        snapshot = updated
+    }
+
+    /// Runs the safe write and settles the outcome: the journal entry (with its Undo where the
+    /// change has a reverse), the reload, the selection and the on-screen acknowledgement. A
+    /// failure keeps the sheet up when it was showing — and raises it when the write had skipped
+    /// the sheet, so a drop never fails silently.
+    private func write(_ pending: PendingChange) async {
+        guard !isWriting, allowsWriting else { return }
+        // Queued drops write one at a time; a confirmed change waits its turn like any of them.
+        while isDrainingDrops { try? await Task.sleep(for: .milliseconds(25)) }
+        guard let snapshot else { return }
+        var pending = pending
         isWriting = true
         noteOwnWrite(pending.change.issueID)
         let outcome: Result<IssueID, Error>
@@ -1293,11 +1896,17 @@ public final class WorkspaceModel {
             noteOwnWrite(id)
             record(pending, issueID: id, error: nil)
             if stillShowing { pendingChange = nil }
+            // A change that landed and has a reverse goes onto the window's undo stack; an undo
+            // or redo being written manages its own place there instead.
+            if pending.registersUndo, let reverse = pending.change.reversed(from: pending.base) {
+                registerUndo(of: UndoStep(summary: pending.summary, undoChange: reverse, redoChange: pending.change))
+            }
             await reloadAfterWrite()
             selection = id
+            lastAppliedChange = AppliedChange(issueID: id, sequence: (lastAppliedChange?.sequence ?? 0) + 1)
         case .failure(let error):
             record(pending, issueID: pending.change.issueID, error: error)
-            if stillShowing {
+            if stillShowing || pendingChange == nil {
                 pending.isApplying = false
                 pending.failure = error.localizedDescription
                 pendingChange = pending

@@ -1,0 +1,331 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ has no initialised .beads folder. Choose a project that uses beads, or its .beads folder." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hat keinen initialisierten .beads-Ordner. Wähle ein Projekt, das beads verwendet, oder dessen .beads-Ordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no tiene una carpeta .beads inicializada. Elige un proyecto que use beads, o su carpeta .beads."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ n'a pas de dossier .beads initialisé. Choisissez un projet qui utilise beads, ou son dossier .beads."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@には初期化された.beadsフォルダがありません。beadsを使っているプロジェクトか、その.beadsフォルダを選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 초기화된 .beads 폴더가 없습니다. beads를 사용하는 프로젝트나 그 .beads 폴더를 선택하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não tem uma pasta .beads inicializada. Escolha um projeto que use o beads, ou a pasta .beads dele."
+          }
+        }
+      }
+    },
+    "Couldn't find the bd executable. Looked in: %@. Set BD_PATH to override." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Programm bd wurde nicht gefunden. Gesucht in: %@. Setze BD_PATH, um den Pfad vorzugeben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encontró el ejecutable de bd. Se buscó en: %@. Define BD_PATH para indicar otra ruta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de trouver l'exécutable bd. Recherché dans : %@. Définissez BD_PATH pour imposer un chemin."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bdの実行ファイルが見つかりませんでした。探した場所：%@。BD_PATHを設定すると上書きできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd 실행 파일을 찾을 수 없습니다. 찾아본 위치: %@. 다른 경로를 쓰려면 BD_PATH를 설정하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível encontrar o executável do bd. Procurado em: %@. Defina BD_PATH para indicar outro caminho."
+          }
+        }
+      }
+    },
+    "bd didn't answer within %lld seconds." : {
+      "comment" : "Plural on the number of seconds",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd hat innerhalb von %lld Sekunde nicht geantwortet."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd hat innerhalb von %lld Sekunden nicht geantwortet."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd didn't answer within %lld second."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd didn't answer within %lld seconds."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd no respondió en %lld segundo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd no respondió en %lld segundos."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd n'a pas répondu en %lld seconde."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd n'a pas répondu en %lld secondes."
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bdが%lld秒以内に応答しませんでした。"
+                }
+              }
+            }
+          }
+        },
+        "ko" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "bd가 %lld초 안에 응답하지 않았습니다."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "O bd não respondeu em %lld segundo."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "O bd não respondeu em %lld segundos."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "bd exited with status %d: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd wurde mit Status %1$d beendet: %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "bd exited with status %1$d: %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd terminó con el estado %1$d: %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd s'est terminé avec le code %1$d : %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bdは終了ステータス%1$dで終了しました：%2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd 종료 상태 %1$d: %2$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O bd saiu com status %1$d: %2$@"
+          }
+        }
+      }
+    },
+    "bd returned output that couldn't be read: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd hat eine Ausgabe geliefert, die nicht gelesen werden konnte: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd devolvió una salida que no se pudo leer: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd a renvoyé une sortie illisible : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bdが読み取れない出力を返しました：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd가 읽을 수 없는 출력을 반환했습니다: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O bd retornou uma saída que não pôde ser lida: %@"
+          }
+        }
+      }
+    },
+    "no error output" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "keine Fehlerausgabe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin salida de error"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aucune sortie d'erreur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エラー出力なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오류 출력 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sem saída de erro"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

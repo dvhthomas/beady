@@ -1,0 +1,22 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "hugo",
+      "runtimeArgs": [
+        "server",
+        "--source",
+        "docs/website",
+        "--port",
+        "1313",
+        "--baseURL",
+        "http://localhost:1313/",
+        "--appendPort=false",
+        "--disableFastRender",
+        "--renderToMemory"
+      ],
+      "port": 1313
+    }
+  ]
+}

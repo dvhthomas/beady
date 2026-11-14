@@ -94,7 +94,7 @@ struct WaitingMark: View {
             showsDetail.wrappedValue = true
         } label: {
             Image(systemName: "pause.circle")
-                .foregroundStyle(prominence == .increased ? .primary : theme.color(.frozen))
+                .foregroundStyle(prominence == .increased ? SystemSelection.foreground : theme.color(.frozen))
         }
         .buttonStyle(.plain)
         .help(tooltip)
@@ -109,12 +109,12 @@ struct WaitingMark: View {
     private var tooltip: String {
         switch reason.kind {
         case .waitingOnBeads:
-            let names = reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: "\n")
-            return "Waiting on:\n\(names)\n\nClick for details."
+            let names = reason.blockers.map { "\($0.id.rawValue) \($0.title)" }.joined(separator: "\n")
+            return String(localized: "Waiting on:\n\(names)\n\nClick for details.", comment: "Tooltip; the value is one bead per line")
         case .waitingOnAnotherProject:
-            return "Waiting on another project: \(reason.externalCapabilities.joined(separator: ", "))"
+            return String(localized: "Waiting on another project: \(reason.externalCapabilities.joined(separator: ", "))", comment: "Tooltip")
         case .declared:
-            return "Someone set this bead's status to blocked. bd records no reason for that."
+            return String(localized: "Someone set this bead's status to blocked. bd records no reason for that.", comment: "Tooltip")
         }
     }
 }
@@ -195,7 +195,7 @@ struct WaitingDetail: View {
             .background(theme.surface, in: RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .help("Open \(blocker.id)")
+        .help("Open \(blocker.id.rawValue)")
     }
 }
 
@@ -208,7 +208,7 @@ struct CompletionMeter: View {
         HStack(spacing: 6) {
             ProgressView(value: completion.fraction)
                 .progressViewStyle(.linear)
-                .tint(prominence == .increased ? Color.primary : theme.color(.done))
+                .tint(prominence == .increased ? SystemSelection.foreground : theme.color(.done))
                 .frame(width: 56)
             Text("\(completion.closed)/\(completion.total)")
                 .font(.caption.monospacedDigit())
@@ -227,13 +227,21 @@ enum MarkStyle {
         }
     }
 
+    /// The mark's name, for a glyph that can't be clicked off.
+    static func name(_ mark: IssueMark) -> String {
+        switch mark {
+        case .pinned: String(localized: "Pinned", comment: "Tooltip on the pin glyph")
+        case .starred: String(localized: "Starred", comment: "Tooltip on the star glyph")
+        }
+    }
+
     /// What the menu item says, given what the bead already is.
     static func action(_ mark: IssueMark, isOn: Bool) -> String {
         switch (mark, isOn) {
-        case (.pinned, false): "Pin to Top"
-        case (.pinned, true): "Unpin"
-        case (.starred, false): "Star"
-        case (.starred, true): "Unstar"
+        case (.pinned, false): String(localized: "Pin to Top", comment: "Menu item")
+        case (.pinned, true): String(localized: "Unpin", comment: "Menu item")
+        case (.starred, false): String(localized: "Star", comment: "Menu item")
+        case (.starred, true): String(localized: "Unstar", comment: "Menu item")
         }
     }
 }
@@ -258,7 +266,7 @@ struct MarkGlyphs: View {
                     .help(MarkStyle.action(mark, isOn: true))
             } else {
                 glyph(mark)
-                    .help(mark.title)
+                    .help(MarkStyle.name(mark))
             }
         }
     }
@@ -270,16 +278,17 @@ struct MarkGlyphs: View {
     }
 
     private func color(for mark: IssueMark) -> Color {
-        guard prominence != .increased else { return .primary }
+        guard prominence != .increased else { return SystemSelection.foreground }
         return mark == .pinned ? theme.pinned : theme.starred
     }
 }
 
 
-/// macOS paints a highlighted row in the colour the user chose, and everything on top of it
-/// should be the single colour the system picked to sit there — white on most accents, dark on
-/// pale ones. `backgroundProminence` is how SwiftUI says "this row is highlighted"; asking the
-/// model which row is selected doesn't work, because table cells aren't re-evaluated for it.
+/// macOS paints a highlighted row with the system accent, and everything on top of it should be
+/// the one colour that reads there — `SystemSelection.foreground`, derived by contrast, rather
+/// than the system's `.primary`, which is white whatever the accent. `backgroundProminence` is
+/// how SwiftUI says "this row is highlighted"; asking the model which row is selected doesn't
+/// work, because table cells aren't re-evaluated for it.
 private struct RowForeground: ViewModifier {
     @Environment(\.backgroundProminence) private var prominence
     let color: Color
@@ -291,7 +300,9 @@ private struct RowForeground: ViewModifier {
 
     private var style: AnyShapeStyle {
         guard prominence == .increased else { return AnyShapeStyle(color) }
-        return secondary ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
+        // Secondary content keeps its place in the hierarchy; 0.85 of the colour still reads.
+        let foreground = SystemSelection.foreground
+        return secondary ? AnyShapeStyle(foreground.opacity(0.85)) : AnyShapeStyle(foreground)
     }
 }
 

@@ -97,7 +97,8 @@ struct OptimisticMarkTests {
         let writing = Task { await model.toggleMark(.starred, on: "a") }
 
         #expect(await waitUntil(seconds: 2) { model.isMarked(.starred, "a") }, "the UI shouldn't wait for bd")
-        #expect(store.applyStarted)
+        // The write starts right behind the mark, on another task: give it a moment to get there.
+        #expect(await waitUntil(seconds: 2) { store.applyStarted }, "the write should have begun")
         store.release()
         await writing.value
         #expect(model.isMarked(.starred, "a"), "and it stays once the write lands")

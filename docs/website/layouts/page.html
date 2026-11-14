@@ -1,0 +1,23 @@
+{{ define "bodyclass" }}guide{{ end }}
+{{ define "main" }}
+{{- $pages := (site.GetPage "/guide").RegularPages.ByWeight }}
+<div class="wrap guide-layout">
+  {{ partial "guide-sidebar.html" . }}
+  <article class="prose">
+    <h1>{{ .Title }}</h1>
+    {{ with .Description }}<p class="lede">{{ . }}</p>{{ end }}
+    {{ .Content }}
+    <nav class="pager" aria-label="Guide pages">
+      {{- with $pages.Next . }}<a class="pager__prev" href="{{ .RelPermalink }}"><span>Previous</span>{{ .Title }}</a>{{ end }}
+      {{- with $pages.Prev . }}<a class="pager__next" href="{{ .RelPermalink }}"><span>Next</span>{{ .Title }}</a>{{ end }}
+    </nav>
+    <p class="edit"><a href="{{ site.Params.repo }}/edit/master/docs/website/content/{{ .File.Path }}">Improve this page on GitHub</a></p>
+  </article>
+  {{- if gt (len .Fragments.Headings) 0 }}
+  <aside class="outline" aria-label="On this page" data-outline>
+    <p class="outline__title">On this page</p>
+    {{ .TableOfContents }}
+  </aside>
+  {{- end }}
+</div>
+{{ end }}

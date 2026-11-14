@@ -3,24 +3,54 @@ import BeadsPresentation
 import SwiftUI
 
 struct IssueDetailView: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var model: WorkspaceModel
+    /// Panels shared with the menu bar; nil where there is no window around the pane.
+    var ui: WorkspaceUI?
+    /// A floating pane closes the moment its bead is let go, and is still on screen, sliding
+    /// away, for a quarter of a second after. It keeps showing that bead on the way out rather
+    /// than flashing "No Selection".
+    var leavesWithItsBead = false
 
-    init(model: WorkspaceModel) {
+    init(model: WorkspaceModel, ui: WorkspaceUI? = nil, leavesWithItsBead: Bool = false) {
         self.model = model
+        self.ui = ui
+        self.leavesWithItsBead = leavesWithItsBead
+    }
+
+    /// The bead on show: the selected one, or for a pane on its way out, the one it had.
+    private var shownIssue: Issue? {
+        if let issue = model.selectedIssue { return issue }
+        guard leavesWithItsBead, let id = ui?.lastShownBead else { return nil }
+        return model.snapshot?.issue(id)
     }
 
     var body: some View {
-        // The history bar is pinned to the top in both states, where it sits when a bead is
-        // selected; what's below takes the rest of the height, so the empty state centres in
-        // the pane rather than hanging just under the arrows.
+        // The bar is pinned to the top in both states, where it sits when a bead is selected;
+        // what's below takes the rest of the height, so the empty state centres in the pane
+        // rather than hanging just under the arrows. The Dependencies section is the foot of the
+        // pane: a header that is always there, and under it, when open, the graph at a height
+        // you drag.
         VStack(alignment: .leading, spacing: 0) {
-            if model.canGoBack || model.canGoForward {
-                historyBar
+            // In a window the bar is always there, so the close button never moves; without one
+            // (a snapshot of the pane alone) it shows only for the history arrows.
+            if hasHistory || ui != nil {
+                paneBar
             }
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let ui {
+                // Open, its top edge drags; closed, it is one line of header and a rule above it.
+                GraphPaneDivider(ui: ui, resizes: ui.showsGraphPane)
+                GraphPane(model: model, ui: ui)
+                    .frame(height: ui.showsGraphPane ? ui.graphPaneHeight : nil)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Keyed to the state, not the click, so the header, ⇧⌘G and the palette all open it the
+        // same way.
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: ui?.showsGraphPane)
         .onChange(of: model.selection) { model.endEditing() }
         .onChange(of: model.editRequests) {
             if let id = model.selection { model.beginEditing(id) }
@@ -43,23 +73,40 @@ struct IssueDetailView: View {
         )
     }
 
-    /// Following a blocker link replaces what's in this pane, so there has to be a way back to
-    /// the bead you came from.
-    private var historyBar: some View {
-        HStack(spacing: 6) {
-            Button { model.goBack() } label: {
-                Label("Back", systemImage: "chevron.left")
-            }
-            .disabled(!model.canGoBack)
-            .help("Back to the last bead you were looking at (⌘[)")
+    private var hasHistory: Bool { model.canGoBack || model.canGoForward }
 
-            Button { model.goForward() } label: {
-                Label("Forward", systemImage: "chevron.right")
+    /// Following a blocker link replaces what's in this pane, so there has to be a way back to
+    /// the bead you came from. And a pane that opens by itself when a bead is clicked needs a
+    /// visible way to be sent away again: the close button, at the trailing edge.
+    private var paneBar: some View {
+        HStack(spacing: 6) {
+            if hasHistory {
+                Button { model.goBack() } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .disabled(!model.canGoBack)
+                .help("Back to the last bead you were looking at (⌘[)")
+
+                Button { model.goForward() } label: {
+                    Label("Forward", systemImage: "chevron.right")
+                }
+                .disabled(!model.canGoForward)
+                .help("Forward (⌘])")
             }
-            .disabled(!model.canGoForward)
-            .help("Forward (⌘])")
 
             Spacer(minLength: 0)
+
+            if let ui {
+                Button { ui.closeDetails(of: model) } label: {
+                    Label("Close Details", systemImage: "xmark")
+                }
+                // An edit has its own Cancel and Save; closing is not a third way out of it.
+                .disabled(model.draft != nil)
+                // Escape only closes a pane that came with the bead, so only that one says so.
+                .help(leavesWithItsBead
+                    ? String(localized: "Close the details (Esc)", comment: "Tooltip on the details pane's close button")
+                    : String(localized: "Close the details (⌘I)", comment: "Tooltip on the details pane's close button"))
+            }
         }
         .labelStyle(.iconOnly)
         .buttonStyle(.accessoryBar)
@@ -71,11 +118,11 @@ struct IssueDetailView: View {
     @ViewBuilder
     private var content: some View {
         Group {
-            if let issue = model.selectedIssue, let snapshot = model.snapshot {
+            if let issue = shownIssue, let snapshot = model.snapshot {
                 if let draft = draftBinding(for: issue) {
                     EditBeadForm(model: model, draft: draft) { model.endEditing() }
                 } else {
-                    IssueDetailContent(issue: issue, snapshot: snapshot, model: model) {
+                    IssueDetailContent(issue: issue, snapshot: snapshot, model: model, ui: ui) {
                         model.beginEditing(issue.id)
                     }
                 }
@@ -95,6 +142,7 @@ private struct IssueDetailContent: View {
     let issue: Issue
     let snapshot: IssueSnapshot
     let model: WorkspaceModel
+    var ui: WorkspaceUI?
     let onEdit: () -> Void
 
     var body: some View {
@@ -168,8 +216,8 @@ private struct IssueDetailContent: View {
                 }
                 .accessibilityLabel(MarkStyle.action(mark, isOn: issue.has(mark)))
                 .help(mark == .pinned
-                    ? "Pinned beads lead every list, tree and board column (bd label “pinned”)"
-                    : "Starred beads collect in the Starred view (bd label “starred”)")
+                    ? String(localized: "Pinned beads lead every list, tree and board column (bd label “pinned”)", comment: "Tooltip")
+                    : String(localized: "Starred beads collect in the Starred view (bd label “starred”)", comment: "Tooltip"))
             }
 
             Menu {
@@ -206,7 +254,7 @@ private struct IssueDetailContent: View {
 
     private var metadata: some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-            row("Assignee", issue.assignee ?? "Unassigned")
+            row("Assignee", issue.assignee ?? String(localized: "Unassigned", comment: "Shown for a bead with no assignee"))
             if let owner = issue.owner { row("Owner", owner) }
             if !issue.labels.isEmpty { row("Labels", issue.labels.joined(separator: ", ")) }
             row("Created", formatted(issue.createdAt))
@@ -220,7 +268,7 @@ private struct IssueDetailContent: View {
         .font(.callout)
     }
 
-    private func row(_ title: String, _ value: String) -> some View {
+    private func row(_ title: LocalizedStringKey, _ value: String) -> some View {
         GridRow {
             Text(title)
                 .foregroundStyle(.secondary)
@@ -245,7 +293,7 @@ private struct IssueDetailContent: View {
         if !children.isEmpty { relationGroup("Children", children) }
     }
 
-    private func relationGroup(_ title: String, _ issues: [Issue]) -> some View {
+    private func relationGroup(_ title: LocalizedStringKey, _ issues: [Issue]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.headline)
             ForEach(issues) { related in
@@ -285,7 +333,7 @@ private struct IssueDetailContent: View {
     }
 
     @ViewBuilder
-    private func textSection(_ title: String, _ text: String) -> some View {
+    private func textSection(_ title: LocalizedStringKey, _ text: String) -> some View {
         if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title).font(.headline)
@@ -302,7 +350,7 @@ private struct IssueDetailContent: View {
     }
 
     private func formatted(_ date: Date) -> String {
-        "\(date.formatted(date: .abbreviated, time: .shortened)) (\(date.formatted(.relative(presentation: .named))))"
+        String(localized: "\(date.formatted(date: .abbreviated, time: .shortened)) (\(date.formatted(.relative(presentation: .named))))", comment: "A date, then how long ago it was")
     }
 }
 
@@ -339,7 +387,9 @@ struct HistorySection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(isExpanded.wrappedValue ? "Hide this bead's history" : "Every change bd has recorded for this bead")
+            .help(isExpanded.wrappedValue
+                ? String(localized: "Hide this bead's history", comment: "Tooltip")
+                : String(localized: "Every change bd has recorded for this bead", comment: "Tooltip"))
 
             if isExpanded.wrappedValue {
                 content
@@ -387,7 +437,7 @@ private struct HistoryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text(event.field)
+                Text(fieldTitle)
                     .font(.caption.weight(.semibold))
                 Text(event.date.formatted(.relative(presentation: .named)))
                     .font(.caption)
@@ -408,9 +458,146 @@ private struct HistoryRow: View {
         .help(event.date.formatted(date: .abbreviated, time: .standard))
     }
 
+    /// bd's field names, as the history reports them, in the reader's language.
+    private var fieldTitle: String {
+        switch event.field {
+        case "created": String(localized: "created", comment: "History: the bead was created")
+        case "title": String(localized: "title", comment: "History: a field name")
+        case "status": String(localized: "status", comment: "History: a field name")
+        case "priority": String(localized: "priority", comment: "History: a field name")
+        case "type": String(localized: "type", comment: "History: a field name")
+        case "assignee": String(localized: "assignee", comment: "History: a field name")
+        case "labels": String(localized: "labels", comment: "History: a field name")
+        case "parent": String(localized: "parent", comment: "History: a field name")
+        case "description": String(localized: "description", comment: "History: a field name")
+        case "notes": String(localized: "notes", comment: "History: a field name")
+        case "close reason": String(localized: "close reason", comment: "History: a field name")
+        default: event.field
+        }
+    }
+
     private var change: String {
         if event.field == "created" { return event.to }
-        if event.from.isEmpty { return event.to.isEmpty ? "cleared" : "set to \(event.to)" }
-        return event.to.isEmpty ? "cleared (was \(event.from))" : "\(event.from) → \(event.to)"
+        if event.from.isEmpty {
+            return event.to.isEmpty
+                ? String(localized: "cleared", comment: "History: the field was emptied")
+                : String(localized: "set to \(event.to)", comment: "History: the field got its first value")
+        }
+        return event.to.isEmpty
+            ? String(localized: "cleared (was \(event.from))", comment: "History: the field was emptied; the value is what it held")
+            : String(localized: "\(event.from) → \(event.to)", comment: "History: old value, new value")
+    }
+}
+
+/// The Dependencies section at the foot of the details pane: a header that is always there and
+/// opens and closes the section, the way History's does, and under it the graph, about the
+/// selected bead — what it waits on in bold, what waits on it tinted, the rest faded. It follows
+/// the selection as you move down a list, which is the point of having it here rather than in a
+/// window.
+///
+/// The header is the one control for both directions, in one place, and says nothing of pins: a
+/// pin is something a bead has, and its button is a few rows up.
+struct GraphPane: View {
+    @Environment(\.theme) private var theme
+    let model: WorkspaceModel
+    let ui: WorkspaceUI
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            if ui.showsGraphPane {
+                DependencyGraphView(model: model, ui: ui, embedded: true)
+            }
+        }
+        .background(theme.background)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Button {
+                ui.showsGraphPane.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(ui.showsGraphPane ? 90 : 0))
+                    Text("Dependencies")
+                        .font(.subheadline.weight(.semibold))
+                    // Where the selected bead stands, so the closed header already says whether
+                    // there is anything to open.
+                    if let summary = DisplayText.dependencySummary(DependencyGraphView.standing(model: model, ui: ui)) {
+                        Text(verbatim: summary)
+                            .font(.caption)
+                            .foregroundStyle(theme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                // The whole row is the target, not the chevron.
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(ui.showsGraphPane
+                ? String(localized: "Hide the dependency graph (⇧⌘G)", comment: "Tooltip on the Dependencies header in the details pane, when open")
+                : String(localized: "Show the dependency graph here, following the selected bead (⇧⌘G)", comment: "Tooltip on the Dependencies header in the details pane, when closed"))
+            if ui.showsGraphPane {
+                Button {
+                    ui.openGraph(focusing: model.selection)
+                } label: {
+                    Image(systemName: "macwindow")
+                }
+                .buttonStyle(.plain)
+                .help("Open the graph in its own window (⌘G)")
+            }
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+}
+
+/// The edge above the Dependencies section: a rule, and with the section open, a handle that
+/// drags its height.
+private struct GraphPaneDivider: View {
+    @Environment(\.theme) private var theme
+    let ui: WorkspaceUI
+    let resizes: Bool
+    private var startHeight = State<Double?>(initialValue: nil)
+    private var hovering = State(initialValue: false)
+
+    static let range = 160.0...600.0
+
+    init(ui: WorkspaceUI, resizes: Bool) {
+        self.ui = ui
+        self.resizes = resizes
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(theme.border)
+            .frame(height: 1)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                guard resizes || hovering.wrappedValue else { return }
+                // Pushes and pops stay paired even if the section closes under the pointer.
+                if inside, !hovering.wrappedValue {
+                    NSCursor.resizeUpDown.push()
+                    hovering.wrappedValue = true
+                } else if !inside, hovering.wrappedValue {
+                    NSCursor.pop()
+                    hovering.wrappedValue = false
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { drag in
+                        let start = startHeight.wrappedValue ?? ui.graphPaneHeight
+                        startHeight.wrappedValue = start
+                        ui.graphPaneHeight = min(max(start - drag.translation.height, Self.range.lowerBound), Self.range.upperBound)
+                    }
+                    .onEnded { _ in startHeight.wrappedValue = nil },
+                including: resizes ? .all : .none
+            )
     }
 }

@@ -30,12 +30,9 @@ final class ColumnLayout {
         column.isVisible(customized: choice(for: column))
     }
 
-    /// What the user has dragged wins; otherwise the view says which columns it shows (Stuck
-    /// turns Blocked-by on), and a view that doesn't say takes the defaults.
+    /// The precedence lives in `ListColumn.isVisible(customized:in:)`, where it is tested.
     func isVisible(_ column: ListColumn, in presentation: ViewPresentation) -> Bool {
-        if let chosen = choice(for: column) { return column.isVisible(customized: chosen) }
-        if let columns = presentation.columns { return column.isAlwaysVisible || columns.contains(column.id) }
-        return isVisible(column)
+        column.isVisible(customized: choice(for: column), in: presentation)
     }
 
     /// What the table has stored: nil when the user has never shown or hidden this column.

@@ -19,17 +19,37 @@ public struct BeadsWorkspace: Hashable, Sendable {
     /// Accepts either a project folder or the `.beads` folder inside it. The `.beads` folder must
     /// be one bd has initialised: bd would silently use a parent folder's database for an empty one.
     public static func resolve(_ url: URL) throws -> BeadsWorkspace {
+        let inspection = inspect(url)
+        guard inspection.hasBeadsDatabase else { throw BeadsDataError.notAWorkspace(path: url.path) }
+        return BeadsWorkspace(projectDirectory: inspection.projectDirectory)
+    }
+
+    /// What is at a chosen folder, for deciding whether to open it or offer to create a database
+    /// in it. Accepts the same folders as `resolve`, and never throws: a folder with nothing in
+    /// it is a plain answer, not an error.
+    public static func inspect(_ url: URL) -> WorkspaceInspection {
         let standardized = url.standardizedFileURL
         let project = standardized.lastPathComponent == ".beads"
             ? standardized.deletingLastPathComponent()
             : standardized
         let beads = project.appendingPathComponent(".beads")
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: beads.path, isDirectory: &isDirectory), isDirectory.boolValue,
-              isInitialised(beads) else {
-            throw BeadsDataError.notAWorkspace(path: url.path)
+        let hasBeads = FileManager.default.fileExists(atPath: beads.path, isDirectory: &isDirectory) && isDirectory.boolValue
+        return WorkspaceInspection(
+            projectDirectory: project,
+            hasBeadsDatabase: hasBeads && isInitialised(beads),
+            hasDatabaseFiles: hasBeads && holdsDatabase(beads),
+            // A directory in a checkout, a file in a git worktree; either way the folder is a repository.
+            isGitRepository: FileManager.default.fileExists(atPath: project.appendingPathComponent(".git").path)
+        )
+    }
+
+    /// Only names are looked at, never what is inside: the database is bd's.
+    private static func holdsDatabase(_ beads: URL) -> Bool {
+        let contents = (try? FileManager.default.contentsOfDirectory(atPath: beads.path)) ?? []
+        return contents.contains { name in
+            ["embeddeddolt", "dolt"].contains(name) || name.hasSuffix(".db")
         }
-        return BeadsWorkspace(projectDirectory: project)
     }
 
     private static func isInitialised(_ beads: URL) -> Bool {
@@ -38,6 +58,19 @@ public struct BeadsWorkspace: Hashable, Sendable {
             ["metadata.json", "config.yaml", "embeddeddolt", "dolt"].contains(name) || name.hasSuffix(".db")
         }
     }
+}
+
+/// The facts `BeadsWorkspace.inspect` reports about a folder.
+public struct WorkspaceInspection: Equatable, Sendable {
+    /// The project folder: the chosen one, or the parent when `.beads` itself was chosen.
+    public let projectDirectory: URL
+    /// bd has initialised `.beads`: its configuration is there, or a database is.
+    public let hasBeadsDatabase: Bool
+    /// A database is in `.beads` itself. False on a fresh clone, where only the tracked
+    /// configuration arrived, and for a database bd keeps somewhere else; which of those it is
+    /// is bd's to say (`BDGateway.bootstrapPlan`).
+    public let hasDatabaseFiles: Bool
+    public let isGitRepository: Bool
 }
 
 /// Every bd invocation the app makes. Reads always carry `--readonly`; writes pass values as
@@ -67,13 +100,59 @@ public enum BDCommand: Equatable, Sendable {
     case close(IssueID, reason: String?)
     case reopen(IssueID, reason: String?)
     case create(NewIssue, dryRun: Bool)
+    /// `bd init` with Beady's defaults; the reasoning is on `NewDatabasePlan` in BeadsPresentation.
+    case initDatabase(prefix: String)
+    // Sharing (plan 0006). Each is the command bd's own docs give for the step.
+    case remoteList
+    /// How this database stands against each remote. It fetches, so it is not a read to bd.
+    case peerStatus
+    case sync
+    case remoteAdd(name: String, url: String, allowGitOrigin: Bool)
+    case push
+    /// A pull that settles what bd's own resolver declines for one side; embedded storage only.
+    case pull(keeping: ConflictSide)
+    case bootstrapPlan
+    case bootstrap
+    case context
+    case worktrees
+    case hooks
 
     public var isReadOnly: Bool {
         switch self {
         case .list, .listTitled, .statuses, .show, .ready, .blocked, .history, .backupStatus,
-             .version, .configGet, .eventsTail: true
+             .version, .configGet, .eventsTail, .remoteList, .bootstrapPlan, .context, .worktrees, .hooks: true
         case .updateFields, .setStatus, .setParent, .addLabel, .removeLabel, .addBlocker,
-             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet: false
+             .removeBlocker, .close, .reopen, .create, .backupInit, .backupSync, .configSet, .initDatabase,
+             .peerStatus, .sync, .remoteAdd, .push, .pull, .bootstrap: false
+        }
+    }
+
+    /// Commands bd only gets right from inside the folder. `bd -C <folder>` refuses init outright;
+    /// with bootstrap it misses the git origin's data and plans a fresh database where it should
+    /// clone the shared one; and `bd -C <folder> worktree list` and `context` look for the
+    /// repository in the directory Beady was started from, which for an app is `/`: they report
+    /// no repository, or another one's.
+    public var runsInsideFolder: Bool {
+        switch self {
+        case .initDatabase, .bootstrapPlan, .bootstrap, .worktrees, .context: true
+        default: false
+        }
+    }
+
+    /// The one command a person can stop part-way. bd is asked with SIGINT and answers for
+    /// itself (plan 0007): interrupted at any point of a sync it left nothing to repair. A first
+    /// push and a conflict settlement run to the end, since each is the step that puts a
+    /// database right.
+    public var stopsGracefully: Bool {
+        if case .sync = self { return true }
+        return false
+    }
+
+    /// Commands that talk to a remote, which can take as long as the network does.
+    public var usesNetwork: Bool {
+        switch self {
+        case .peerStatus, .sync, .push, .pull, .bootstrap, .bootstrapPlan: true
+        default: false
         }
     }
 
@@ -93,12 +172,12 @@ public enum BDCommand: Equatable, Sendable {
         case .blocked:
             return Self.readOnly(["blocked", "--json"])
         case .history(let id, let limit):
-            return Self.readOnly(["history", id.rawValue, "--limit", String(limit), "--json"])
+            return Self.readOnly(["history", "--limit", String(limit), "--json", "--", id.rawValue])
         case .backupStatus:
             // Not --readonly: bd rejects that flag here, and reading status writes nothing.
             return ["backup", "status", "--json"]
         case .backupInit(let path):
-            return ["backup", "init", path]
+            return ["backup", "init", "--", path]
         case .backupSync:
             return ["backup", "sync"]
         case .version:
@@ -134,11 +213,15 @@ public enum BDCommand: Equatable, Sendable {
             return ["update", "--remove-label=\(label)", "--json", "--", id.rawValue]
         case .addBlocker(let id, let blocker):
             // bd's own wording: this bead depends on that one.
-            return ["dep", "add", id.rawValue, blocker.rawValue]
+            return ["dep", "add", "--", id.rawValue, blocker.rawValue]
         case .removeBlocker(let id, let blocker):
-            return ["dep", "remove", id.rawValue, blocker.rawValue]
+            return ["dep", "remove", "--", id.rawValue, blocker.rawValue]
         case .close(let id, let reason):
-            return ["close"] + Self.reasonFlag(reason) + ["--json", "--", id.rawValue]
+            // --force: bd refuses a plain close when the bead's assignee isn't its actor, and the
+            // actor is whatever the environment supplies ($USER under Finder, git user.name in a
+            // terminal), so the person at the keyboard can't close their own beads without it. The
+            // other thing it overrides, closing a pinned bead, the validator refuses before bd runs.
+            return ["close"] + Self.reasonFlag(reason) + ["--force", "--json", "--", id.rawValue]
         case .reopen(let id, let reason):
             return ["reopen"] + Self.reasonFlag(reason) + ["--json", "--", id.rawValue]
         case .create(let new, let dryRun):
@@ -146,6 +229,35 @@ public enum BDCommand: Equatable, Sendable {
             if let parent = new.parent { arguments.append("--parent=\(parent.rawValue)") }
             if !new.description.isEmpty { arguments.append("--description=\(new.description)") }
             return arguments + (dryRun ? ["--dry-run", "--json"] : ["--json"])
+        case .initDatabase(let prefix):
+            // No wizards (there is no terminal to answer them), no agent instruction files, no
+            // git hooks: the database and nothing else. Embedded Dolt is bd's own default.
+            return ["init", "--non-interactive", "--skip-agents", "--skip-hooks", "--prefix=\(prefix)"]
+        case .remoteList:
+            return Self.readOnly(["dolt", "remote", "list", "--json"])
+        case .peerStatus:
+            // Not --readonly: bd then skips the fetch and reports every remote unreachable.
+            return ["federation", "status", "--json"]
+        case .sync:
+            return ["sync", "--json"]
+        case .remoteAdd(let name, let url, let allowGitOrigin):
+            // bd refuses the git origin's own URL without the flag, as a guard against sharing
+            // by accident; the Share Beads sheet is where that decision is made.
+            return ["dolt", "remote", "add"] + (allowGitOrigin ? ["--allow-git-origin"] : []) + ["--", name, url]
+        case .push:
+            return ["dolt", "push"]
+        case .pull(let side):
+            return ["dolt", "pull", "--strategy=\(side.rawValue)"]
+        case .bootstrapPlan:
+            return Self.readOnly(["bootstrap", "--dry-run", "--json"])
+        case .bootstrap:
+            return ["bootstrap", "--yes"]
+        case .context:
+            return Self.readOnly(["context", "--json"])
+        case .worktrees:
+            return Self.readOnly(["worktree", "list", "--json"])
+        case .hooks:
+            return Self.readOnly(["hooks", "list", "--json"])
         }
     }
 
@@ -164,22 +276,33 @@ public struct BDGateway: Sendable {
     private let executable: URL
     private let runner: any CommandRunning
     private let timeout: TimeInterval
+    /// For commands that move a database over the network: a first clone or push of a large one.
+    private let networkTimeout: TimeInterval
 
     public init(
         workspace: BeadsWorkspace,
         executable: URL,
         runner: any CommandRunning = ProcessCommandRunner(),
-        timeout: TimeInterval = 60
+        timeout: TimeInterval = 60,
+        networkTimeout: TimeInterval = 300
     ) {
         self.workspace = workspace
         self.executable = executable
         self.runner = runner
         self.timeout = timeout
+        self.networkTimeout = networkTimeout
     }
 
     /// Resolves a folder to a workspace and finds the bd executable.
     public static func open(_ url: URL, locator: BDExecutableLocator = BDExecutableLocator()) throws -> BDGateway {
         BDGateway(workspace: try BeadsWorkspace.resolve(url), executable: try locator.locate())
+    }
+
+    /// A gateway on a folder that is not a workspace yet, for `.initDatabase`, `.bootstrapPlan`
+    /// and `.bootstrap` and nothing else; once one has run, `open` the folder for a gateway that
+    /// has checked it. Accepts the same folders as `open`.
+    public static func forNewWorkspace(at url: URL, locator: BDExecutableLocator = BDExecutableLocator()) throws -> BDGateway {
+        BDGateway(workspace: BeadsWorkspace(projectDirectory: BeadsWorkspace.inspect(url).projectDirectory), executable: try locator.locate())
     }
 
     /// Runs a command and returns its output, throwing bd's own error message when it fails.
@@ -191,12 +314,42 @@ public struct BDGateway: Sendable {
 
     /// Runs a command and returns the raw result, for callers that interpret failures themselves.
     public func result(of command: BDCommand) async throws -> CommandResult {
-        try await runner.run(executable, arguments: ["-C", workspace.projectDirectory.path] + command.arguments, timeout: timeout)
+        let project = workspace.projectDirectory
+        let timeout = command.usesNetwork ? networkTimeout : timeout
+        let stop: StopStyle = command.stopsGracefully ? .interrupt : .terminate
+        if command.runsInsideFolder {
+            return try await runner.run(executable, arguments: command.arguments, directory: project, timeout: timeout, stop: stop)
+        }
+        return try await runner.run(executable, arguments: ["-C", project.path] + command.arguments, directory: nil, timeout: timeout, stop: stop)
+    }
+
+    /// The URL of the repository's git `origin`, or nil when there is none. The one question in
+    /// sharing that is git's to answer, not bd's: bd needs the URL handed to it.
+    public func gitOriginURL() async -> String? {
+        let result = try? await runner.run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["git", "-C", workspace.projectDirectory.path, "remote", "get-url", "origin"],
+            directory: nil, timeout: timeout
+        )
+        guard let result, result.exitCode == 0 else { return nil }
+        let url = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return url.isEmpty ? nil : url
+    }
+
+    /// What `bd bootstrap` would do here, for a folder with bd's configuration and no database.
+    public func bootstrapPlan() async throws -> BootstrapPlan {
+        do {
+            return try BDJSON.decodeBootstrapPlan(try await run(.bootstrapPlan))
+        } catch let failure as BDJSON.DecodingFailure {
+            throw BeadsDataError.unreadableOutput(detail: failure.detail)
+        }
     }
 
     /// The exact command line, quoted the way a shell would need.
     public func preview(_ command: BDCommand) -> String {
-        (["bd", "-C", workspace.projectDirectory.path] + command.arguments).map(Self.shellQuoted).joined(separator: " ")
+        let project = Self.shellQuoted(workspace.projectDirectory.path)
+        let arguments = command.arguments.map(Self.shellQuoted).joined(separator: " ")
+        return command.runsInsideFolder ? "cd \(project) && bd \(arguments)" : "bd -C \(project) \(arguments)"
     }
 
     /// A cheap summary of the files bd changes when it writes.
@@ -270,9 +423,7 @@ public struct BDGateway: Sendable {
     }
 
     static func shellQuoted(_ argument: String) -> String {
-        let safe = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-")
-        if !argument.isEmpty, argument.allSatisfy(safe.contains) { return argument }
-        return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        ShellQuoting.quoted(argument)
     }
 
     private static func describe(_ url: URL, includeModificationDate: Bool) -> String {

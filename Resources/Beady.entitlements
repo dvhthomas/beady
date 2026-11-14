@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- iCloud Key-Value Store, for syncing the view Library between Macs (Settings › Views).
+       Only a build signed with a Developer ID can carry it: scripts/bundle.sh fills TEAM_ID in
+       and signs with it when CODESIGN_IDENTITY is set; an ad-hoc build leaves it out. -->
+  <key>com.apple.developer.ubiquity-kvstore-identifier</key>
+  <string>TEAM_ID.me.bitsby.beady</string>
+</dict>
+</plist>

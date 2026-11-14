@@ -10,6 +10,7 @@ public struct KeyBinding: Equatable, Sendable {
         public static let command = Modifiers(rawValue: 1 << 0)
         public static let shift = Modifiers(rawValue: 1 << 1)
         public static let option = Modifiers(rawValue: 1 << 2)
+        public static let control = Modifiers(rawValue: 1 << 3)
     }
 
     public let key: Character
@@ -20,9 +21,10 @@ public struct KeyBinding: Equatable, Sendable {
         self.modifiers = modifiers
     }
 
-    /// Written the way macOS writes it: ⌥⇧⌘ in that order, then the key.
+    /// Written the way macOS writes it: ⌃⌥⇧⌘ in that order, then the key.
     public var display: String {
         var text = ""
+        if modifiers.contains(.control) { text += "⌃" }
         if modifiers.contains(.option) { text += "⌥" }
         if modifiers.contains(.shift) { text += "⇧" }
         if modifiers.contains(.command) { text += "⌘" }
@@ -39,6 +41,10 @@ public struct KeyBinding: Equatable, Sendable {
 public enum AppCommand: Equatable, Sendable, Identifiable {
     case openWorkspace
     case closeWorkspace
+    /// Opens a workspace Beady has opened before, by its path.
+    case switchWorkspace(path: String)
+    /// ⌃⌘O: the next recent workspace, round the list.
+    case nextWorkspace
     case refresh
     case newBead
     case editSelected
@@ -54,12 +60,16 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case resetView
     case exportView(IssueView.ID)
     case importViews
+    /// Puts the view's filter and ordering on the pasteboard as a `bd query` line.
+    case copyAsBDCommand(IssueView.ID)
     case setLayout(WorkspaceModel.Layout)
     case setGrouping(IssueGrouping)
     case setOrdering(IssueSort)
     case goToIssue(IssueID, title: String)
     case toggleMark(IssueMark)
     case showGraph
+    /// Opens the Dependencies section of the details pane, its graph following the selected bead; again closes it.
+    case toggleGraphPane
     case goBack
     case goForward
     case focusSelected
@@ -69,17 +79,30 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case toggleColumn(ListColumn)
     case resetColumns
     case openSettings
+    case resetConfiguration
     case backUpNow
     case setUpBackup
     case turnOnJournal
+    /// Open the Share Beads sheet (plan 0006).
+    case shareBeads
+    /// One `bd sync` against the default remote.
+    case syncNow
+    /// Ask bd to stop the sync that is running (plan 0007).
+    case stopSync
+    /// Open the Workspace Setup sheet.
+    case workspaceSetup
     case setSidebarStyle(SidebarStyle)
     case chooseTheme
     case setTextSize(TextSize)
+    /// A language Beady ships with, or nil for the system's; takes effect after a relaunch.
+    case setLanguage(String?)
 
     public var id: String {
         switch self {
         case .openWorkspace: "open-workspace"
         case .closeWorkspace: "close-workspace"
+        case .switchWorkspace(let path): "switch-\(path)"
+        case .nextWorkspace: "next-workspace"
         case .refresh: "refresh"
         case .newBead: "new-bead"
         case .editSelected: "edit-selected"
@@ -94,6 +117,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveViewAs: "save-view-as"
         case .resetView: "reset-view"
         case .exportView(let id): "export-\(id.rawValue)"
+        case .copyAsBDCommand(let id): "copy-bd-\(id.rawValue)"
         case .importViews: "import-views"
         case .setLayout(let layout): "layout-\(layout.rawValue)"
         case .setGrouping(let grouping): "group-\(grouping.rawValue)"
@@ -101,6 +125,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .goToIssue(let id, _): "go-\(id.rawValue)"
         case .toggleMark(let mark): "mark-\(mark.rawValue)"
         case .showGraph: "show-graph"
+        case .toggleGraphPane: "toggle-graph-pane"
         case .goBack: "go-back"
         case .goForward: "go-forward"
         case .focusSelected: "focus-selected"
@@ -110,55 +135,72 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn(let column): "column-\(column.id)"
         case .resetColumns: "reset-columns"
         case .openSettings: "open-settings"
+        case .resetConfiguration: "reset-configuration"
         case .backUpNow: "back-up-now"
         case .setUpBackup: "set-up-backup"
         case .turnOnJournal: "turn-on-journal"
+        case .shareBeads: "share-beads"
+        case .syncNow: "sync-now"
+        case .stopSync: "stop-sync"
+        case .workspaceSetup: "workspace-setup"
         case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
         case .setTextSize(let size): "text-size-\(size.rawValue)"
+        case .setLanguage(let code): "language-\(code ?? "system")"
         }
     }
 
     public var title: String {
         switch self {
-        case .openWorkspace: "Open Beads Workspace…"
-        case .closeWorkspace: "Close Workspace"
-        case .refresh: "Refresh from bd"
-        case .newBead: "New Bead"
-        case .editSelected: "Edit Selected Bead"
-        case .focusSearch: "Find in This View"
-        case .addFilter: "Add Filter"
-        case .clearFilters: "Clear Filters"
-        case .displayOptions: "Display Options"
-        case .toggleDetails: "Toggle Details Panel"
-        case .showShortcuts: "Keyboard Shortcuts"
-        case .showView(let id): "Go to \(Self.viewName(id))"
-        case .saveView: "Save View"
-        case .saveViewAs: "Save as New View…"
-        case .resetView: "Reset View"
-        case .exportView: "Export View…"
-        case .importViews: "Import Views…"
-        case .setLayout(let layout): "Show as \(layout.rawValue.capitalized)"
-        case .setGrouping(let grouping): "Group by \(DisplayText.grouping(grouping))"
-        case .setOrdering(let sort): "Order by \(DisplayText.sort(sort))"
+        case .openWorkspace: String(localized: "Open Beads Workspace…", bundle: .module, comment: "Command")
+        case .closeWorkspace: String(localized: "Close Workspace", bundle: .module, comment: "Command")
+        case .switchWorkspace(let path): String(localized: "Switch to \(RecentWorkspace(path: path).name)", bundle: .module, comment: "Command; the value is a workspace's folder name")
+        case .nextWorkspace: String(localized: "Next Workspace", bundle: .module, comment: "Command: the next recent workspace")
+        case .refresh: String(localized: "Refresh from bd", bundle: .module, comment: "Command")
+        case .newBead: String(localized: "New Bead", bundle: .module, comment: "Command")
+        case .editSelected: String(localized: "Edit Selected Bead", bundle: .module, comment: "Command")
+        case .focusSearch: String(localized: "Find in This View", bundle: .module, comment: "Command")
+        case .addFilter: String(localized: "Add Filter", bundle: .module, comment: "Command")
+        case .clearFilters: String(localized: "Clear Filters", bundle: .module, comment: "Command")
+        case .displayOptions: String(localized: "Display Options", bundle: .module, comment: "Command")
+        case .toggleDetails: String(localized: "Toggle Details Panel", bundle: .module, comment: "Command")
+        case .showShortcuts: String(localized: "Keyboard Shortcuts", bundle: .module, comment: "Command")
+        case .showView(let id): String(localized: "Go to \(Self.viewName(id))", bundle: .module, comment: "Command; the value is a view's name")
+        case .saveView: String(localized: "Save View", bundle: .module, comment: "Command")
+        case .saveViewAs: String(localized: "Save as New View…", bundle: .module, comment: "Command")
+        case .resetView: String(localized: "Reset View", bundle: .module, comment: "Command: back to the view as saved")
+        case .exportView: String(localized: "Export View…", bundle: .module, comment: "Command")
+        case .copyAsBDCommand: String(localized: "Copy as bd Command", bundle: .module, comment: "Command: the view's filter and ordering as a bd query line, to the pasteboard")
+        case .importViews: String(localized: "Import Views…", bundle: .module, comment: "Command")
+        case .setLayout(let layout): String(localized: "Show as \(DisplayText.layout(layout))", bundle: .module, comment: "Command; the value is List, Board or Tree")
+        case .setGrouping(let grouping): String(localized: "Group by \(DisplayText.grouping(grouping))", bundle: .module, comment: "Command; the value is a grouping such as Status")
+        case .setOrdering(let sort): String(localized: "Order by \(DisplayText.sort(sort))", bundle: .module, comment: "Command; the value is an ordering such as Priority")
         case .goToIssue(let id, let title): "\(id.rawValue) \(title)"
-        case .toggleMark(let mark): "Toggle \(mark == .pinned ? "Pin" : "Star")"
-        case .showGraph: "Show Dependency Graph"
-        case .goBack: "Back"
-        case .goForward: "Forward"
-        case .focusSelected: "Focus on Selected Bead"
-        case .unfocus: "Leave Focused View"
-        case .expandAll: "Expand All"
-        case .collapseAll: "Collapse All"
-        case .toggleColumn(let column): "Column: \(column.title)"
-        case .resetColumns: "Reset Columns"
-        case .openSettings: "Settings…"
-        case .backUpNow: "Back Up Now"
-        case .setUpBackup: "Set Up Backup…"
-        case .turnOnJournal: "Turn On bd's Change Journal"
-        case .setSidebarStyle(let style): "Sidebar: \(style.title)"
-        case .chooseTheme: "Theme…"
-        case .setTextSize(let size): "Text Size: \(size.title)"
+        case .toggleMark(.pinned): String(localized: "Toggle Pin", bundle: .module, comment: "Command")
+        case .toggleMark(.starred): String(localized: "Toggle Star", bundle: .module, comment: "Command")
+        case .showGraph: String(localized: "Show Dependency Graph", bundle: .module, comment: "Command")
+        case .toggleGraphPane: String(localized: "Toggle Dependency Graph in Details", bundle: .module, comment: "Command: open the Dependencies section at the foot of the details panel, or close it again")
+        case .goBack: String(localized: "Back", bundle: .module, comment: "Command: to the last bead looked at")
+        case .goForward: String(localized: "Forward", bundle: .module, comment: "Command: to the bead come back from")
+        case .focusSelected: String(localized: "Focus on Selected Bead", bundle: .module, comment: "Command: narrow the view to everything under it")
+        case .unfocus: String(localized: "Leave Focused View", bundle: .module, comment: "Command")
+        case .expandAll: String(localized: "Expand All", bundle: .module, comment: "Command, in the tree")
+        case .collapseAll: String(localized: "Collapse All", bundle: .module, comment: "Command, in the tree")
+        case .toggleColumn(let column): String(localized: "Column: \(column.title)", bundle: .module, comment: "Command: show or hide a list column; the value is its header")
+        case .resetColumns: String(localized: "Reset Columns", bundle: .module, comment: "Command")
+        case .openSettings: String(localized: "Settings…", bundle: .module, comment: "Command")
+        case .resetConfiguration: String(localized: "Reset Configuration…", bundle: .module, comment: "Command")
+        case .backUpNow: String(localized: "Back Up Now", bundle: .module, comment: "Command")
+        case .setUpBackup: String(localized: "Set Up Backup…", bundle: .module, comment: "Command")
+        case .turnOnJournal: String(localized: "Turn On bd's Change Journal", bundle: .module, comment: "Command")
+        case .shareBeads: SharingAction.share.title
+        case .syncNow: SharingAction.sync.title
+        case .stopSync: String(localized: "Stop Syncing", bundle: .module, comment: "Command: stop the sync that is running")
+        case .workspaceSetup: String(localized: "Workspace Setup…", bundle: .module, comment: "Command: open the Workspace Setup sheet")
+        case .setSidebarStyle(let style): String(localized: "Sidebar: \(style.title)", bundle: .module, comment: "Command; the value is Themed or Translucent")
+        case .chooseTheme: String(localized: "Theme…", bundle: .module, comment: "Command")
+        case .setTextSize(let size): String(localized: "Text Size: \(size.title)", bundle: .module, comment: "Command; the value is a text size such as Large")
+        case .setLanguage(let code): String(localized: "Language: \(LanguageSetting.title(for: code))", bundle: .module, comment: "Command; the value is a language name, or System Default")
         }
     }
 
@@ -168,6 +210,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch self {
         case .openWorkspace: ["open", "workspace", "project", "database", "folder"]
         case .closeWorkspace: ["close", "quit workspace"]
+        case .switchWorkspace(let path): ["switch", "workspace", "open", "recent", RecentWorkspace(path: path).name, path]
+        case .nextWorkspace: ["switch", "workspace", "cycle", "recent", "next"]
         case .refresh: ["reload", "sync", "update", "fetch"]
         case .newBead: ["create", "add", "issue", "task"]
         case .editSelected: ["change", "rename", "modify", "title", "description"]
@@ -182,12 +226,14 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveViewAs: ["save as", "new view", "duplicate", "copy", "keep", "filters"]
         case .resetView: ["reset", "revert", "discard", "undo changes", "back to saved"]
         case .exportView: ["export", "share", "save as file", "beadyview", "send"]
+        case .copyAsBDCommand: ["copy", "bd query", "command", "terminal", "clipboard", "pasteboard", "cli"]
         case .importViews: ["import", "open view", "beadyview", "file", "receive"]
         case .setLayout(let layout): layout == .board ? ["kanban", "columns", "swimlanes"] : ["view as", layout.rawValue]
         case .setGrouping: ["group", "section", "break down"]
         case .setOrdering: ["sort", "order", "arrange"]
         case .goToIssue: ["bead", "issue", "go to"]
         case .showGraph: ["graph", "dependencies", "blockers", "unblock", "chain", "why blocked"]
+        case .toggleGraphPane: ["graph", "show", "hide", "expand", "collapse", "section", "pane", "details", "inspector", "dependencies", "blockers", "pin", "split", "dock"]
         case .focusSelected: ["focus", "subtree", "children", "zoom in", "scope"]
         case .unfocus: ["unfocus", "leave", "out", "back to view"]
         case .expandAll: ["expand", "open all", "unfold"]
@@ -195,9 +241,14 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleColumn: ["column", "show", "hide", "table"]
         case .resetColumns: ["columns", "reset", "default widths"]
         case .openSettings: ["settings", "preferences", "options", "text size"]
+        case .resetConfiguration: ["reset", "configuration", "settings", "defaults", "preferences", "clean", "uninstall", "start over", "fresh install"]
         case .backUpNow: ["backup", "back up", "sync", "save", "copy", "dolt"]
         case .setUpBackup: ["backup", "back up", "configure backup", "destination", "folder"]
         case .turnOnJournal: ["journal", "events", "live", "activity", "who changed", "agents", "watch"]
+        case .shareBeads: ["share", "remote", "team", "multiuser", "origin", "push", "publish", "dolt", "collaborate"]
+        case .syncNow: ["sync", "pull", "push", "remote", "send", "receive", "fetch", "dolt"]
+        case .stopSync: ["stop", "cancel", "abort", "interrupt", "sync", "halt"]
+        case .workspaceSetup: ["setup", "configuration", "health", "doctor", "worktrees", "hooks", "remote", "sharing", "backup", "status"]
         case .setSidebarStyle: ["sidebar", "translucent", "vibrancy", "material", "native"]
         case .goBack: ["back", "previous", "return", "undo navigation"]
         case .goForward: ["forward", "next", "again"]
@@ -207,25 +258,31 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .chooseTheme: ["theme", "themes", "colour", "color", "appearance", "dark mode",
                             "light mode", "contrast", "dracula", "nord", "solarized"]
         case .setTextSize: ["text", "font", "bigger", "larger", "smaller", "size", "accessibility", "eyesight"]
+        case .setLanguage(let code): ["language", "locale", "translation", "english"] + (code.map { [$0, LanguageSetting.displayName($0, in: Locale(identifier: "en"))] } ?? ["system", "default"])
         }
     }
 
     /// The section it appears under in the palette and the shortcut sheet.
     public var group: String {
         switch self {
-        case .openWorkspace, .closeWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal: "Workspace"
-        case .newBead, .editSelected, .toggleMark, .showGraph: "Beads"
-        case .focusSearch, .addFilter, .clearFilters: "Find"
-        case .displayOptions, .toggleDetails, .setLayout, .setGrouping, .setOrdering,
-             .expandAll, .collapseAll, .toggleColumn, .resetColumns: "Display"
-        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews: "Views"
-        case .openSettings, .setSidebarStyle: "Appearance"
-        case .showShortcuts: "Help"
-        case .showView, .goBack, .goForward: "Views"
-        case .goToIssue: "Beads"
-        case .chooseTheme, .setTextSize: "Appearance"
+        case .openWorkspace, .closeWorkspace, .switchWorkspace, .nextWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal,
+             .shareBeads, .syncNow, .stopSync, .workspaceSetup: String(localized: "Workspace", bundle: .module, comment: "Command group")
+        case .newBead, .editSelected, .toggleMark, .showGraph: Self.beadsGroup
+        case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
+        case .displayOptions, .toggleDetails, .toggleGraphPane, .setLayout, .setGrouping, .setOrdering,
+             .expandAll, .collapseAll, .toggleColumn, .resetColumns: String(localized: "Display", bundle: .module, comment: "Command group")
+        case .focusSelected, .unfocus, .saveView, .saveViewAs, .resetView, .exportView, .importViews, .copyAsBDCommand: Self.viewsGroup
+        case .openSettings, .setSidebarStyle, .resetConfiguration: Self.appearanceGroup
+        case .showShortcuts: String(localized: "Help", bundle: .module, comment: "Command group")
+        case .showView, .goBack, .goForward: Self.viewsGroup
+        case .goToIssue: Self.beadsGroup
+        case .chooseTheme, .setTextSize, .setLanguage: Self.appearanceGroup
         }
     }
+
+    private static var beadsGroup: String { String(localized: "Beads", bundle: .module, comment: "Command group") }
+    private static var viewsGroup: String { String(localized: "Views", bundle: .module, comment: "Command group") }
+    private static var appearanceGroup: String { String(localized: "Appearance", bundle: .module, comment: "Command group") }
 
     /// The keys that run this command. The first is the one the palette leads with; a command
     /// with both a plain key and a ⌘ key has the plain one first, as Linear does.
@@ -233,6 +290,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         switch self {
         case .openWorkspace: [KeyBinding("o", .command)]
         case .closeWorkspace: [KeyBinding("w", [.command, .shift])]
+        case .nextWorkspace: [KeyBinding("o", [.control, .command])]
         case .refresh: [KeyBinding("r", .command)]
         case .newBead: [KeyBinding("n", .command)]
         case .editSelected: [KeyBinding("e", .command)]
@@ -245,6 +303,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setLayout(let layout): [KeyBinding(Character("\(layoutNumber(layout))"), .command)]
         case .toggleMark(let mark): [KeyBinding(mark == .pinned ? "p" : "s", [.command, .shift])]
         case .showGraph: [KeyBinding("g", .command)]
+        case .toggleGraphPane: [KeyBinding("g", [.command, .shift])]
         case .openSettings: [KeyBinding(",", .command)]
         case .goBack: [KeyBinding("[", .command)]
         case .goForward: [KeyBinding("]", .command)]
@@ -252,16 +311,18 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .saveView: [KeyBinding("s", .command)]
         case .saveViewAs: [KeyBinding("s", [.command, .option])]
         case .resetView: [KeyBinding("r", [.command, .option])]
-        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews,
+        case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
-             .backUpNow, .setUpBackup, .turnOnJournal: []
+             .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand, .switchWorkspace,
+             .shareBeads, .syncNow, .stopSync, .workspaceSetup: []
         }
     }
 
     /// How the keys are written in the palette and the shortcut sheet.
     public var shortcut: String? {
         let keys = bindings.map(\.display)
-        return keys.isEmpty ? nil : keys.joined(separator: " or ")
+        guard let first = keys.first else { return nil }
+        return keys.dropFirst().reduce(first) { String(localized: "\($0) or \($1)", bundle: .module, comment: "Two keys that both run a command, such as ‘/ or ⌘F’") }
     }
 
     /// The palette names a view the way the sidebar does.
@@ -302,16 +363,20 @@ public enum CommandCatalog {
     /// command that would do nothing — editing with no selection, creating in a read-only
     /// workspace — isn't offered, so nothing in the list is a dead end.
     @MainActor
-    public static func all(for model: WorkspaceModel) -> [AppCommand] {
+    public static func all(for model: WorkspaceModel, workspaces: [RecentWorkspace] = [], current: String? = nil) -> [AppCommand] {
         let backup = model.backup
-        var commands: [AppCommand] = [.openWorkspace, .refresh]
+        var commands: [AppCommand] = [.openWorkspace]
+        // The other recents, in Open Recent's order; ⌃⌘O only when there is somewhere to go.
+        commands += workspaces.filter { $0.path != current }.map { .switchWorkspace(path: $0.path) }
+        if WorkspaceSwitching.next(after: current, in: workspaces.map(\.path)) != nil { commands.append(.nextWorkspace) }
+        commands.append(.refresh)
         if model.canEdit { commands.append(.newBead) }
         if model.canEdit, model.selection != nil {
             commands.append(.editSelected)
             commands += IssueMark.allCases.map { .toggleMark($0) }
         }
         // The graph is a whole-database view now, so it doesn't need a selection to open.
-        commands.append(.showGraph)
+        commands += [.showGraph, .toggleGraphPane]
         if model.canGoBack { commands.append(.goBack) }
         if model.canGoForward { commands.append(.goForward) }
         if let id = model.selection, model.snapshot?.children(of: id).isEmpty == false {
@@ -323,16 +388,23 @@ public enum CommandCatalog {
             if model.canSave { commands.append(.saveView) }
             commands += [.saveViewAs, .resetView]
         }
-        commands += [.exportView(model.viewID), .importViews]
-        if model.layout == .tree { commands += [.expandAll, .collapseAll] }
-        if model.layout == .list {
+        commands += [.exportView(model.viewID), .copyAsBDCommand(model.viewID), .importViews]
+        if model.presentedLayout == .tree { commands += [.expandAll, .collapseAll] }
+        if model.presentedLayout == .list {
             commands += ListColumn.allCases.filter { !$0.isAlwaysVisible }.map { .toggleColumn($0) }
             commands.append(.resetColumns)
         }
         commands += SidebarStyle.allCases.map { .setSidebarStyle($0) }
-        commands.append(.openSettings)
+        commands += [.openSettings, .resetConfiguration]
         if model.hasClearableFilters || !model.searchText.isEmpty { commands.append(.clearFilters) }
         commands.append(backup.isConfigured ? .backUpNow : .setUpBackup)
+        // Sharing: what the state allows, as the toolbar's popover offers it.
+        if model.canEdit, let actions = model.sharingSummary?.actions {
+            if actions.contains(.share) { commands.append(.shareBeads) }
+            if actions.contains(.sync) { commands.append(.syncNow) }
+            if actions.contains(.stop) { commands.append(.stopSync) }
+        }
+        commands.append(.workspaceSetup)
         // With the setting off, or after an Undo: the palette is where a change of mind goes.
         if model.canEdit, model.journal.canBeTurnedOn { commands.append(.turnOnJournal) }
         commands.append(.closeWorkspace)
@@ -344,20 +416,21 @@ public enum CommandCatalog {
         commands += IssueSort.allCases.map { .setOrdering($0) }
         commands += [.displayOptions, .toggleDetails, .chooseTheme]
         commands += TextSize.allCases.map { .setTextSize($0) }
+        commands += LanguageSetting.choices.map { .setLanguage($0) }
         commands.append(.showShortcuts)
         return commands
     }
 
     /// What to show for what the user has typed: matching commands first, then matching beads.
     @MainActor
-    public static func results(for query: String, model: WorkspaceModel, limit: Int = 8) -> [AppCommand] {
+    public static func results(for query: String, model: WorkspaceModel, workspaces: [RecentWorkspace] = [], current: String? = nil, limit: Int = 8) -> [AppCommand] {
         let words = query.lowercased().split(separator: " ").map(String.init)
-        guard !words.isEmpty else { return all(for: model) }
+        guard !words.isEmpty else { return all(for: model, workspaces: workspaces, current: current) }
 
         // One or two letters can't mean a word, so they filter on what's written on screen.
         // Any more, and aliases come into play — "fin" should find Find, "kanban" the board.
         let aliasesCount = query.trimmingCharacters(in: .whitespaces).count >= 3
-        let commands = all(for: model)
+        let commands = all(for: model, workspaces: workspaces, current: current)
             .compactMap { command -> (AppCommand, Int)? in
                 if let score = score(command.title, words) { return (command, score) }
                 guard aliasesCount else { return nil }

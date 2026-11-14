@@ -1,6 +1,9 @@
-# Builds the app on a tagged commit and attaches the zip to a GitHub Release.
-# The app is ad-hoc signed only: there's no Developer ID, so downloads are
-# quarantined until the user allows them (see the release notes below).
+# Builds the app on a tagged commit, attaches the zip to a GitHub Release, and
+# publishes the matching Homebrew cask to the tap (dvhthomas/homebrew-beady).
+# The Version workflow makes the tag on every push to master and starts this
+# workflow on it; pushing a v* tag by hand works too. The app is ad-hoc signed
+# only: there's no Developer ID, so downloads are quarantined until the user
+# allows them (see the release notes below).
 name: Release
 
 on:
@@ -11,13 +14,29 @@ on:
 permissions:
   contents: write
 
+env:
+  # The private half of a write deploy key on dvhthomas/homebrew-beady, since
+  # GITHUB_TOKEN can't push to another repo. Without it the release is still
+  # made; only the cask step is skipped.
+  HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+
 jobs:
   build:
-    runs-on: macos-15
+    # macos-26: its Swift Build backend compiles the String Catalogs (scripts/swift-flags.sh);
+    # macos-15's Xcode 16 leaves them uncompiled, and the app would come up in English only.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the build number is the commit count
+
+      - name: Check the tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::VERSION says $(cat VERSION) but the tag is $GITHUB_REF_NAME. Tags come from the Version workflow, which keeps them in step; see RELEASE.md."
+            exit 1
+          fi
 
       - name: Test
         run: scripts/test.sh
@@ -29,12 +48,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/*.zip
+          generate_release_notes: true # the merged pull requests, after the body below
           body: |
             Built from ${{ github.sha }}.
 
-            **Installing.** Unzip and drag Beady to /Applications. The app is
-            ad-hoc signed but not notarised (no Apple Developer ID), so macOS quarantines
-            it on first launch. Either:
+            **Installing with Homebrew.** `brew install --cask dvhthomas/beady/beady`.
+            The cask clears macOS's quarantine flag for you, on install and on
+            every upgrade, and installs `bd` (the beads formula) alongside.
+
+            **Installing by hand.** Unzip and drag Beady to /Applications. The app
+            is ad-hoc signed but not notarised (no Apple Developer ID), so macOS
+            quarantines the download and refuses to open it. Either:
 
             * open it, then go to System Settings → Privacy & Security and choose
               **Open Anyway**; or
@@ -43,4 +67,20 @@ jobs:
             Prefer to avoid that entirely? Clone the repo and run `scripts/bundle.sh`;
             an app you build yourself is never quarantined.
 
-            Requires macOS 15 or later and `bd` on your PATH.
+            Requires macOS 15 or later and `bd` on your PATH; installing by
+            hand, get it with `brew install beads`.
+
+      - name: Publish Homebrew cask
+        if: startsWith(github.ref, 'refs/tags/v') && env.HOMEBREW_TAP_DEPLOY_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > ~/.ssh/homebrew-beady
+          chmod 600 ~/.ssh/homebrew-beady
+          # GitHub's SSH host keys, from its API rather than trusting first contact.
+          gh api meta --jq '.ssh_keys[]' | sed 's/^/github.com /' >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/homebrew-beady -o IdentitiesOnly=yes"
+          VERSION="${GITHUB_REF_NAME#v}" scripts/publish-cask.sh \
+            "build/Beady-${GITHUB_REF_NAME#v}.zip" \
+            git@github.com:dvhthomas/homebrew-beady.git

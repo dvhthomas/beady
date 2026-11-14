@@ -85,6 +85,37 @@ struct DependencyGraphTests {
         #expect(graph.layout().count == 2, "and still lays both out")
     }
 
+    @Test("limited to a set of beads, only edges with both ends inside survive")
+    func limited() {
+        let graph = DependencyGraph(snapshot, limitedTo: ["a", "b", "c"])
+        #expect(Set(graph.nodes.map(\.id)) == ["a", "b", "c"])
+        #expect(graph.edges.count == 2)
+        #expect(!graph.nodes.contains { $0.id == "d" }, "a → d has one end outside, so d is gone entirely")
+        #expect(!graph.nodes.contains { $0.id == "x" })
+    }
+
+    @Test("limited to nothing in particular, the graph is the whole database")
+    func unlimited() {
+        let scoped = DependencyGraph(snapshot, limitedTo: nil)
+        let whole = DependencyGraph(snapshot)
+        #expect(scoped.edges == whole.edges)
+        #expect(scoped.nodes.map(\.id) == whole.nodes.map(\.id))
+    }
+
+    @Test("the limit composes with leaving finished work out")
+    func limitedWithoutFinished() {
+        let graph = DependencyGraph(snapshot, limitedTo: ["a", "b", "x", "y"], includeFinished: false)
+        #expect(Set(graph.nodes.map(\.id)) == ["a", "b"], "x is done, so x → y goes too")
+    }
+
+    @Test("direct downstream mirrors direct upstream")
+    func directDownstream() {
+        let graph = DependencyGraph(snapshot)
+        #expect(graph.directDownstream(of: "a") == ["b", "d"])
+        #expect(graph.directDownstream(of: "c").isEmpty)
+        #expect(graph.directUpstream(of: "b") == ["a"])
+    }
+
     @Test("crossings are reduced where the order makes the difference")
     func ordering() {
         // Two blockers in one layer, each with its own dependent; a sensible order keeps the
@@ -98,5 +129,125 @@ struct DependencyGraphTests {
         let positions = DependencyGraph(crossed).layout()
         let upperFirst = positions["a1"]!.row < positions["b1"]!.row
         #expect((positions["a2"]!.row < positions["b2"]!.row) == upperFirst)
+    }
+}
+
+@Suite("Walking the graph with the arrows")
+struct GraphNeighbourTests {
+    /// A diamond: a → b → d and a → c → d.
+    let diamond = IssueSnapshot(issues: [
+        makeIssue("a"),
+        makeIssue("b", blockedBy: ["a"]),
+        makeIssue("c", blockedBy: ["a"]),
+        makeIssue("d", blockedBy: ["b", "c"]),
+    ])
+
+    @Test("left and right walk direct blockers and dependents, and stop at the ends")
+    func leftRight() {
+        let graph = DependencyGraph(diamond)
+        let left = graph.neighbour(of: "d", direction: .left)
+        #expect(left.map { graph.directUpstream(of: "d").contains($0) } == true)
+        let right = graph.neighbour(of: "a", direction: .right)
+        #expect(right.map { graph.directDownstream(of: "a").contains($0) } == true)
+        #expect(graph.neighbour(of: "a", direction: .left) == nil, "nothing blocks a")
+        #expect(graph.neighbour(of: "d", direction: .right) == nil, "nothing waits on d")
+    }
+
+    @Test("the nearest row wins a sideways step")
+    func nearestRow() {
+        let graph = DependencyGraph(diamond)
+        let positions = graph.layout()
+        let left = graph.neighbour(of: "d", direction: .left)!
+        let other: IssueID = left == "b" ? "c" : "b"
+        let dRow = positions["d"]!.row
+        #expect(abs(positions[left]!.row - dRow) <= abs(positions[other]!.row - dRow))
+    }
+
+    @Test("up and down step through a column")
+    func upDown() {
+        let graph = DependencyGraph(diamond)
+        let positions = graph.layout()
+        let upper: IssueID = positions["b"]!.row < positions["c"]!.row ? "b" : "c"
+        let lower: IssueID = upper == "b" ? "c" : "b"
+        #expect(graph.neighbour(of: upper, direction: .down) == lower)
+        #expect(graph.neighbour(of: lower, direction: .up) == upper)
+        #expect(graph.neighbour(of: upper, direction: .up) == nil, "the top of the column is the top")
+    }
+
+    @Test("with nothing focused, an arrow enters at the top left")
+    func entry() {
+        let graph = DependencyGraph(diamond)
+        #expect(graph.neighbour(of: nil, direction: .down) == "a")
+        #expect(graph.neighbour(of: "unknown", direction: .up) == "a")
+    }
+
+    @Test("down steps across into the next group of work")
+    func acrossComponents() {
+        let two = IssueSnapshot(issues: [
+            makeIssue("a"), makeIssue("b", blockedBy: ["a"]),
+            makeIssue("x"), makeIssue("y", blockedBy: ["x"]),
+        ])
+        let graph = DependencyGraph(two)
+        let positions = graph.layout()
+        let upper: IssueID = positions["a"]!.row < positions["x"]!.row ? "a" : "x"
+        let lower: IssueID = upper == "a" ? "x" : "a"
+        #expect(graph.neighbour(of: upper, direction: .down) == lower)
+    }
+}
+
+/// The pane under the details is about one bead. Before anything is drawn it has to know whether
+/// that bead is in the picture at all: a graph of other beads' dependencies, with nothing marked
+/// as the place to read from, is worse than no graph.
+@Suite("Where a bead stands in the dependency graph")
+struct DependencyStandingTests {
+    /// a → b → c and a → d; x (closed) → y; "lonely" takes part in nothing.
+    let snapshot = IssueSnapshot(issues: [
+        makeIssue("a"),
+        makeIssue("b", blockedBy: ["a"]),
+        makeIssue("c", blockedBy: ["b"]),
+        makeIssue("d", blockedBy: ["a"]),
+        makeIssue("x", status: "closed", closed: t0),
+        makeIssue("y", blockedBy: ["x"]),
+        makeIssue("lonely"),
+    ])
+
+    @Test("a drawn bead counts its whole chain, both ways")
+    func drawn() {
+        #expect(DependencyGraph.standing(of: "b", in: snapshot) == .drawn(before: 1, after: 1))
+        #expect(DependencyGraph.standing(of: "a", in: snapshot) == .drawn(before: 0, after: 3))
+        #expect(DependencyGraph.standing(of: "c", in: snapshot) == .drawn(before: 2, after: 0))
+    }
+
+    @Test("a bead nothing blocks and nothing waits on is unconnected, whatever the scope")
+    func unconnected() {
+        #expect(DependencyGraph.standing(of: "lonely", in: snapshot) == .unconnected)
+        #expect(DependencyGraph.standing(of: "lonely", in: snapshot, limitedTo: ["lonely"], includeFinished: false) == .unconnected)
+        #expect(DependencyGraph.standing(of: "gone", in: snapshot) == .unconnected, "a bead that isn't there has no dependencies either")
+    }
+
+    @Test("dependencies the scope leaves out are hidden, not absent, and it says which switch hides them")
+    func hidden() {
+        // y's only blocker is finished.
+        #expect(DependencyGraph.standing(of: "y", in: snapshot, includeFinished: false) == .hidden(byView: false, byFinished: true))
+        // The view shows b, but neither a nor c.
+        #expect(DependencyGraph.standing(of: "b", in: snapshot, limitedTo: ["b", "lonely"]) == .hidden(byView: true, byFinished: false))
+        // Both at once: the view shows y alone, and finished work is off.
+        #expect(DependencyGraph.standing(of: "y", in: snapshot, limitedTo: ["y"], includeFinished: false) == .hidden(byView: true, byFinished: true))
+    }
+
+    @Test("part of the chain showing is enough to be drawn, counted as drawn")
+    func partly() {
+        #expect(DependencyGraph.standing(of: "b", in: snapshot, limitedTo: ["a", "b"]) == .drawn(before: 1, after: 0))
+    }
+
+    @Test("when either switch alone would reveal something, the gentler one is named: finished work, inside this view")
+    func eitherSwitch() {
+        // m waits on a finished bead inside the view and blocks an open one outside it.
+        let snapshot = IssueSnapshot(issues: [
+            makeIssue("done", status: "closed", closed: t0),
+            makeIssue("m", blockedBy: ["done"]),
+            makeIssue("far", blockedBy: ["m"]),
+        ])
+        #expect(DependencyGraph.standing(of: "m", in: snapshot, limitedTo: ["done", "m"], includeFinished: false) == .hidden(byView: false, byFinished: true))
     }
 }

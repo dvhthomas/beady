@@ -89,7 +89,7 @@ struct IssueListView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(reason.blockers.isEmpty)
-                    .help(DisplayText.preview(reason.blockers.map { "\($0.id) \($0.title)" }.joined(separator: ", ")) ?? reason.summary)
+                    .help(DisplayText.preview(reason.blockers.map { "\($0.id.rawValue) \($0.title)" }.joined(separator: ", ")) ?? reason.summary)
                 }
             }
             column(.date) { issue in
@@ -109,7 +109,7 @@ struct IssueListView: View {
                     } header: {
                         HStack(spacing: 6) {
                             Text(group.title)
-                            Text("\(group.issues.count)")
+                            Text(group.issues.count, format: .number)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                             // Grouped by parent, the header is a bead: say how far along it is.
@@ -230,7 +230,7 @@ private struct OutlineRowView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .help(row.isExpanded ? "Collapse" : "Expand")
+                    .help(row.isExpanded ? String(localized: "Collapse", comment: "Tooltip on a tree disclosure") : String(localized: "Expand", comment: "Tooltip on a tree disclosure"))
                 } else {
                     Color.clear
                 }
@@ -289,22 +289,28 @@ private struct TreeIssueRow: View {
             PriorityBadge(priority: issue.priority)
         }
         .opacity(node.isMatch ? 1 : 0.5)
-        .help(node.isMatch ? issue.title : "\(issue.title)\nShown for context; doesn't match the filters")
+        .help(node.isMatch ? issue.title : String(localized: "\(issue.title)\nShown for context; doesn't match the filters", comment: "Tooltip on a dimmed tree row; the value is the bead's title"))
     }
 }
 
 // MARK: Board
 
 /// Columns follow the view's grouping (lifecycle when ungrouped). While editing, dropping a card
-/// on a column proposes that column's value, where the grouping allows it.
+/// on a column gives it that column's value, where the grouping allows it — written at once when
+/// clean, through the confirmation sheet when anything needs the user.
 struct IssueBoardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let model: WorkspaceModel
     let ui: WorkspaceUI
-    static let columnWidth: CGFloat = 290
     static let columnSpacing: CGFloat = 12
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var monitor = State<Any?>(initialValue: nil)
-    private var wheel = State(initialValue: BoardWheelScroller(columnStride: columnWidth + columnSpacing))
+    /// A wheel notch moves half a full column; an empty column's rail is narrower, so a notch
+    /// over a run of rails crosses more of them, which is what you want past empty columns.
+    private var wheel = State(initialValue: BoardWheelScroller(columnStride: BoardColumnView.fullWidth + columnSpacing))
+    /// One namespace for every card, so a card leaving one column and entering another is the
+    /// same view to SwiftUI and glides between them instead of popping.
+    private var cardSpace = Namespace()
 
     init(model: WorkspaceModel, ui: WorkspaceUI) {
         self.model = model
@@ -312,24 +318,46 @@ struct IssueBoardView: View {
     }
 
     var body: some View {
+        let columns = model.boardColumns
         // Horizontal only: each column scrolls its own cards, and a vertical axis here just let
         // the whole board float away from the top when a filter left it shorter than the pane.
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: Self.columnSpacing) {
-                ForEach(model.boardGroups) { group in
-                    BoardColumnView(group: group, model: model)
-                        .frame(width: Self.columnWidth)
+                ForEach(columns) { column in
+                    BoardColumnView(column: column, model: model, cardSpace: cardSpace.wrappedValue, select: select)
+                        .frame(width: column.cards.isEmpty ? BoardColumnView.railWidth : BoardColumnView.fullWidth)
                 }
             }
             .padding(12)
             .frame(maxHeight: .infinity, alignment: .top)
             .background(BoardScrollViewFinder(scroller: wheel.wrappedValue))
+            // Any re-arrangement animates — a confirmed drop, an undo, a background refresh —
+            // so a card is seen travelling to its new column, never vanishing from the old one,
+            // and a column emptying or filling is seen shrinking to or growing from its rail.
+            // Under Reduce Motion the move is instant; the settle glow still marks the landing.
+            .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: columns.map { $0.cards.map(\.id) })
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A click on the board that misses every card lets go of the selected one, as a click
+        // below the last row of the list does. Not while an edit is open: Escape stands down
+        // then too. A floating details pane lies over the board's end; its clicks are its own.
+        .background(ClickWatcher(except: { point, window in
+            BeadMarker.covers(point, in: window) || ui.detailsCover(point, in: window)
+        }) {
+            if model.selection != nil, model.draft == nil { model.selection = nil }
+        })
         .onAppear(perform: startWatchingKeys)
         .onDisappear(perform: stopWatchingKeys)
         .onAppear(perform: wheel.wrappedValue.start)
         .onDisappear(perform: wheel.wrappedValue.stop)
+    }
+
+    /// A click on a card or a folded sub-task. The window follows the selection on its own —
+    /// except when the bead clicked is already the selected one and its details were hidden
+    /// since: nothing changes then, and the click should still bring them up.
+    private func select(_ id: IssueID) {
+        model.selection = id
+        ui.follow(selection: id)
     }
 
     /// The board is a grid we drew ourselves, so the arrow keys have to be caught here — left to
@@ -340,7 +368,7 @@ struct IssueBoardView: View {
         let model = model
         let ui = ui
         monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
-            guard model.layout == .board, !ui.isSheetOpen, !ui.isSearchFocused,
+            guard model.presentedLayout == .board, !ui.isSheetOpen, !ui.isSearchFocused,
                   !(NSApp.keyWindow?.firstResponder is NSTextView) else { return event }
             switch event.keyCode {
             case 126: model.moveSelection(.up)
@@ -442,24 +470,92 @@ private struct BoardScrollViewFinder: NSViewRepresentable {
 }
 
 private struct BoardColumnView: View {
+    /// An empty column shrinks to this: wide enough to hit with a dragged card, narrow enough
+    /// that a board of mostly empty columns is mostly board.
+    static let railWidth: CGFloat = 56
+    static let fullWidth: CGFloat = 290
+
     @Environment(\.theme) private var theme
-    let group: IssueGroupModel
+    let column: BoardColumnModel
     let model: WorkspaceModel
+    let cardSpace: Namespace.ID
+    /// Selects the bead that was clicked and brings its details up.
+    let select: (IssueID) -> Void
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var isDropTarget = State(initialValue: false)
 
-    init(group: IssueGroupModel, model: WorkspaceModel) {
-        self.group = group
+    init(column: BoardColumnModel, model: WorkspaceModel, cardSpace: Namespace.ID, select: @escaping (IssueID) -> Void) {
+        self.column = column
         self.model = model
+        self.cardSpace = cardSpace
+        self.select = select
     }
 
+    private var isEmpty: Bool { column.cards.isEmpty }
+
     var body: some View {
+        Group {
+            if isEmpty {
+                emptyRail
+            } else {
+                cards
+            }
+        }
+        .padding(8)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(
+            isDropTarget.wrappedValue && isEmpty ? theme.accent.opacity(0.14) : theme.surface.opacity(isEmpty ? 0.55 : 1),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    isDropTarget.wrappedValue ? theme.accent : theme.border,
+                    style: StrokeStyle(
+                        lineWidth: isDropTarget.wrappedValue ? 2 : 1,
+                        dash: isEmpty && !isDropTarget.wrappedValue ? [5, 4] : []
+                    )
+                )
+                .opacity(isEmpty || isDropTarget.wrappedValue ? 1 : 0)
+        )
+        // A clean drop writes at once, with Undo in the Changes menu as the way back; the
+        // confirmation sheet appears only when something needs the user (a reason, a problem).
+        .dropDestination(for: String.self) { items, _ in
+            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: column.key) else {
+                // Nothing to do: refuse at once so the card animates home without a pause.
+                return false
+            }
+            // Staging the change is work; let the drag finish its animation first.
+            Task { @MainActor in await model.applyDrop(dragged, onGroup: column.key) }
+            return true
+        } isTargeted: { targeted in
+            isDropTarget.wrappedValue = targeted && model.canEdit
+        }
+    }
+
+    /// An empty column, shrunk to a rail with its title running down it. It exists to be
+    /// dropped on — that's why empty columns are on the board at all — so the whole strip
+    /// stays a drop target and lights up like a full column when a card is over it.
+    private var emptyRail: some View {
+        GeometryReader { proxy in
+            Text(column.title)
+                .font(.headline)
+                .foregroundStyle(isDropTarget.wrappedValue ? AnyShapeStyle(theme.accent) : AnyShapeStyle(.secondary))
+                .lineLimit(1)
+                .fixedSize()
+                .rotationEffect(.degrees(90))
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+        }
+        .accessibilityLabel(Text(column.title))
+    }
+
+    private var cards: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(group.title)
+                Text(column.title)
                     .font(.headline)
                     .lineLimit(1)
-                Text("\(group.issues.count)")
+                Text(column.cards.count, format: .number)
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -468,50 +564,69 @@ private struct BoardColumnView: View {
 
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(group.issues) { issue in
+                    ForEach(column.cards) { card in
                         IssueCard(
-                            issue: issue,
+                            issue: card.issue,
+                            children: card.children,
                             snapshot: model.snapshot,
-                            isSelected: model.selection == issue.id,
-                            openBlocker: { model.selection = $0 },
-                            removeMark: { mark in Task { await model.toggleMark(mark, on: issue.id) } }
+                            selection: model.selection,
+                            isExpanded: model.boardExpanded.contains(card.id),
+                            toggleExpansion: { model.toggleBoardCard(card.id) },
+                            select: select,
+                            canDrag: model.canEdit,
+                            removeMark: { mark in Task { await model.toggleMark(mark, on: card.id) } },
+                            menu: { issue in cardMenu(issue) }
                         )
-                            .onTapGesture { model.selection = issue.id }
-                            .draggableIssue(issue.id, when: model.canEdit)
+                            .onTapGesture { select(card.id) }
+                            // Where the card is, for the board to tell a click on a bead from
+                            // a click on the space around one.
+                            .background(BeadMarker())
+                            .draggableIssue(card.id, when: model.canEdit)
+                            .contextMenu { cardMenu(card.issue) }
+                            .matchedGeometryEffect(id: card.id, in: cardSpace)
+                            .modifier(AppliedChangeGlow(
+                                change: model.lastAppliedChange?.issueID == card.id ? model.lastAppliedChange : nil,
+                                acknowledge: { model.acknowledgeAppliedChange($0) }
+                            ))
                     }
                 }
                 .padding(2)
             }
         }
-        .padding(8)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(theme.accent, lineWidth: isDropTarget.wrappedValue ? 2 : 0)
-        )
-        // Only proposes; the confirmation sheet has the final say.
-        .dropDestination(for: String.self) { items, _ in
-            guard let dragged = IssueDragPayload.decode(items), model.canDrop(dragged, onGroup: group.key) else {
-                // Nothing to do: refuse at once so the card animates home without a pause.
-                return false
+    }
+
+    /// The card's menu, the same choices as a list row's.
+    @ViewBuilder
+    private func cardMenu(_ issue: BeadsCore.Issue) -> some View {
+        ForEach(IssueMark.allCases, id: \.self) { mark in
+            Button(MarkStyle.action(mark, isOn: issue.has(mark))) {
+                Task { await model.toggleMark(mark, on: issue.id) }
             }
-            // Staging the change is work; let the drag finish its animation first.
-            Task { @MainActor in _ = model.proposeDrop(dragged, onGroup: group.key) }
-            return true
-        } isTargeted: { targeted in
-            isDropTarget.wrappedValue = targeted && model.canEdit
+            .disabled(!model.canEdit)
         }
+        Divider()
+        Button("Focus on This Bead") { model.focus(on: issue.id) }
+            .disabled(model.snapshot?.children(of: issue.id).isEmpty != false)
+        Button("Show Details") { model.selection = issue.id }
     }
 }
 
-private struct IssueCard: View {
+private struct IssueCard<Menu: View>: View {
     @Environment(\.theme) private var theme
     let issue: Issue
+    /// Direct sub-tasks folded into this card; empty with nesting off.
+    let children: [BoardChildRow]
     let snapshot: IssueSnapshot?
-    let isSelected: Bool
-    let openBlocker: (IssueID) -> Void
+    let selection: IssueID?
+    let isExpanded: Bool
+    let toggleExpansion: () -> Void
+    let select: (IssueID) -> Void
+    let canDrag: Bool
     let removeMark: (IssueMark) -> Void
+    /// The context menu for a bead on this card, built where the model lives.
+    @ViewBuilder let menu: (Issue) -> Menu
+
+    private var isSelected: Bool { selection == issue.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -525,7 +640,7 @@ private struct IssueCard: View {
             }
             HStack(spacing: 4) {
                 MarkGlyphs(issue: issue, remove: removeMark)
-                Text("")
+                Text(verbatim: "")
                     .frame(width: 0, height: 0)
             }
             .fixedSize()
@@ -536,7 +651,7 @@ private struct IssueCard: View {
                 .help(DisplayText.preview(issue.title) ?? "")
             HStack(spacing: 6) {
                 if let snapshot, let reason = BlockedReason.of(issue.id, in: snapshot) {
-                    WaitingMark(reason: reason, snapshot: snapshot, open: openBlocker)
+                    WaitingMark(reason: reason, snapshot: snapshot, open: select)
                 }
                 if let assignee = issue.assignee {
                     Label(assignee, systemImage: "person")
@@ -559,6 +674,28 @@ private struct IssueCard: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
+            if !children.isEmpty {
+                Button(action: toggleExpansion) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        Text("^[\(children.count) sub-task](inflect: true)")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isExpanded ? "Hide the sub-tasks" : "Show the sub-tasks")
+                if isExpanded {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(children) { child in
+                            childRow(child)
+                        }
+                    }
+                }
+            }
         }
         .padding(10)
         .background(.background, in: RoundedRectangle(cornerRadius: 8))
@@ -568,17 +705,115 @@ private struct IssueCard: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
     }
+
+    /// One folded sub-task: its own status glyph — which keeps what the column said when the
+    /// child folded in from another one — title and subtree progress, selectable and draggable
+    /// like any card.
+    private func childRow(_ child: BoardChildRow) -> some View {
+        let category = snapshot?.category(of: child.issue) ?? .active
+        return HStack(spacing: 6) {
+            Image(systemName: category.symbolName)
+                .font(.caption)
+                .foregroundStyle(theme.color(category))
+            Text(child.issue.title)
+                .font(.caption)
+                .lineLimit(1)
+                .help(DisplayText.preview(child.issue.title) ?? "")
+            Spacer(minLength: 4)
+            if let completion = child.completion {
+                CompletionMeter(completion: completion)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            selection == child.id ? AnyShapeStyle(theme.selection) : AnyShapeStyle(.clear),
+            in: RoundedRectangle(cornerRadius: 5)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 5))
+        .onTapGesture { select(child.id) }
+        .draggableIssue(child.id, when: canDrag)
+        .contextMenu { menu(child.issue) }
+    }
 }
 
 
+/// Marks where a card is on the board. The board hears every click that lands on it, through
+/// the window's events; SwiftUI won't say whether a card was under the pointer, but the plain
+/// view planted behind each card has the card's frame, and AppKit will.
+struct BeadMarker: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        Self.views.add(view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
+
+    /// Every card on screen; a card that scrolls away or leaves the board drops out by itself.
+    @MainActor private static let views = NSHashTable<NSView>.weakObjects()
+
+    /// Where the cards are in `window`, in its coordinates.
+    @MainActor static func frames(in window: NSWindow) -> [CGRect] {
+        views.allObjects.filter { $0.window === window }.map { $0.convert($0.bounds, to: nil) }
+    }
+
+    /// True when `point`, in `window`'s coordinates, is on a card.
+    @MainActor static func covers(_ point: CGPoint, in window: NSWindow) -> Bool {
+        frames(in: window).contains { $0.contains(point) }
+    }
+}
+
+/// A brief accent glow around the card whose change this session just wrote. The board moves
+/// the card to its new column when the data refreshes; the glow marks where it landed, then
+/// hands the acknowledgement back to the model so a rebuilt board doesn't replay it. A fade is
+/// calm enough to keep under Reduce Motion — it is the confirmation, not decoration.
+private struct AppliedChangeGlow: ViewModifier {
+    @Environment(\.theme) private var theme
+    /// The applied change, only when it was to this card's bead.
+    let change: AppliedChange?
+    let acknowledge: (AppliedChange) -> Void
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var glows = State(initialValue: false)
+
+    init(change: AppliedChange?, acknowledge: @escaping (AppliedChange) -> Void) {
+        self.change = change
+        self.acknowledge = acknowledge
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(theme.accent, lineWidth: 3)
+                    .opacity(glows.wrappedValue ? 0.8 : 0)
+                    .allowsHitTesting(false)
+            )
+            .task(id: change) {
+                guard let change else { return }
+                glows.wrappedValue = true
+                // Hold while the card finishes travelling, then fade out and let go.
+                try? await Task.sleep(for: .milliseconds(500))
+                withAnimation(.easeOut(duration: 0.9)) { glows.wrappedValue = false }
+                try? await Task.sleep(for: .milliseconds(900))
+                acknowledge(change)
+            }
+    }
+}
+
 /// Finds the `NSTableView` backing a SwiftUI `Table` or `List`, starting from a plain `NSView`
 /// planted in the same spot with `.background(...)`: up to the nearest common ancestor, then down.
+///
+/// The climb stops at the edge of the split-view pane it started in. Past that the nearest table
+/// is the pane next door's — the sidebar's list, seen from a center pane that has no table
+/// because its view is empty — and that one is not nearby in any sense a caller means.
 @MainActor
 private enum NearbyTable {
     static func tableView(near view: NSView) -> NSTableView? {
         var ancestor: NSView? = view
         while let current = ancestor {
             if let found = descendantTable(of: current) { return found }
+            if current.superview is NSSplitView { return nil }
             ancestor = current.superview
         }
         return nil
@@ -624,24 +859,51 @@ struct FocusesOnChange<Trigger: Equatable>: NSViewRepresentable {
     let trigger: Trigger
 
     func makeNSView(context: Context) -> NSView {
-        NSView(frame: .zero)
+        let view = NSView(frame: .zero)
+        // Going between a view with beads and one with none rebuilds this spot, table and all,
+        // so the hand-over a changed trigger asked for dies with the old one. The new one takes
+        // it up — but it can also be rebuilt mid-search, as matches come and go, so it never
+        // takes the keyboard from a field.
+        context.coordinator.handKeyboard(toTableNear: view, evenFromAField: false)
+        return view
     }
 
     func updateNSView(_ view: NSView, context: Context) {
         guard context.coordinator.lastTrigger != trigger else { return }
         context.coordinator.lastTrigger = trigger
-        DispatchQueue.main.async {
-            guard let table = NearbyTable.tableView(near: view) else { return }
-            view.window?.makeFirstResponder(table)
-        }
+        context.coordinator.handKeyboard(toTableNear: view, evenFromAField: true)
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(lastTrigger: trigger)
     }
 
+    @MainActor
     final class Coordinator {
         var lastTrigger: Trigger
+        /// The hand-over in flight; a newer one replaces it.
+        private var handOver: Task<Void, Never>?
+
         init(lastTrigger: Trigger) { self.lastTrigger = lastTrigger }
+
+        /// Makes the pane's table first responder. The table may not be there yet — a view with
+        /// nothing in it draws a placeholder instead, and the table arrives a moment after —
+        /// so it looks again for a little while. Only the first look, straight after a view
+        /// switch, may take the keyboard from a text field; by a later one the user may have
+        /// clicked into it.
+        func handKeyboard(toTableNear view: NSView, evenFromAField: Bool) {
+            handOver?.cancel()
+            handOver = Task { @MainActor [weak view] in
+                for attempt in 0..<12 {
+                    if attempt > 0 { try? await Task.sleep(for: .milliseconds(50)) }
+                    guard !Task.isCancelled, let view else { return }
+                    guard let window = view.window, let table = NearbyTable.tableView(near: view) else { continue }
+                    if (evenFromAField && attempt == 0) || !(window.firstResponder is NSTextView) {
+                        window.makeFirstResponder(table)
+                    }
+                    return
+                }
+            }
+        }
     }
 }

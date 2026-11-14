@@ -47,6 +47,96 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
+## Releases and the version number
+
+Every merge to master is a release: CI works out the next version from the pull request's
+labels, writes `VERSION`, tags `vX.Y.Z` and publishes the Homebrew cask. The one decision is how
+big the change is, said with at most one label on the pull request:
+
+- no label, or `release:patch`: nearly everything — a bug fix, a tweak, a new feature, a visible
+  change in behaviour (0.1.1 → 0.1.2). The default.
+- `release:minor`: rare and never needed; the owner's way to mark a milestone early (0.1.1 → 0.2.0).
+- `release:major`: rare; it breaks how people use Beady or its files (0.1.1 → 1.0.0).
+- `release:none`: nothing in the app changes, such as a change only to the website or the README.
+
+**The patch number does the counting.** It runs 0.1.1, 0.1.2 … 0.1.99, and the patch after 0.1.99
+is 0.2.0, by itself: the middle number moves only when a hundred patches have shipped, so a new
+feature is a patch like any other and nobody labels a pull request to move it.
+
+Add a label with `gh pr create --label release:none` or `gh pr edit <number> --add-label release:none`.
+Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
+[RELEASE.md](RELEASE.md).
+
+**Agents never apply `release:minor` or `release:major`, and never recommend `release:minor`**:
+a feature ships unlabeled, as a patch. Only for a breaking change, open the PR as a **draft**,
+recommend `release:major` in the PR body, and ask the user to label it, mark it ready and merge.
+Unlabeled and patch PRs merge themselves when CI is green (the Merge-when-green workflow);
+minor/major and draft PRs wait for a human.
+
+## Claude session authority (Team-maintainer opt-in)
+
+This repository **opts in to the Team-maintainer profile** for agent sessions working in a git
+worktree on a `claude/*` branch. In such a session, without asking first, an agent may:
+
+- claim, create and close beads;
+- run quality gates (`scripts/test.sh`, `swift build`);
+- commit to the session's `claude/*` branch and push it;
+- open a pull request — **unlabeled** (which means patch) or `release:none`.
+
+Still forbidden without an explicit user request: pushing to master, pushing tags,
+force-pushing, editing `VERSION`, applying `release:minor` or `release:major`, and merging a
+minor/major pull request. **Patch releases are the norm, for features as well as fixes, and
+fully automated; the middle number moves by itself after patch 99. Minor and major labels are
+a human decision.**
+
+## The website and user guide
+
+The user-facing documentation is the website in `docs/website` (a Hugo site), published at
+<https://dvhthomas.github.io/beady/>. The README is deliberately short and points there; do
+not grow user documentation back into it. Developer documentation is `docs/DEVELOPING.md`.
+
+**The guide ships with the change.** Every release republishes the site, so whatever is in
+`docs/website` at the merge is what users read about that version. A pull request that changes
+what a user sees or does updates the guide in the same pull request:
+
+- A new or changed feature, setting, menu item, shortcut, view, filter or default: edit the
+  matching page in `docs/website/content/guide/` (and `content/_index.md` if the landing page
+  describes it). A new shortcut also goes in the tables in `guide/keyboard.md`.
+- Something removed or renamed: remove or rename it in the guide too. Search for the old words:
+  `grep -rn "old name" docs/website/content README.md`.
+- New UI worth a picture: capture it in `SnapshotMode.run` and add a line to `SHOTS` in
+  `scripts/screenshots.sh`. A snapshot the site uses that is renamed or dropped in
+  `SnapshotMode.swift` must be renamed or dropped there too, or the script fails.
+- No user-visible change (a refactor, tests, CI): say "Docs: no user-visible change" in the
+  pull request body, so it is a decision rather than an omission.
+
+Check the site builds before the pull request: `hugo --source docs/website --destination
+"$(mktemp -d)"` must finish without errors (`brew install hugo` if it is missing).
+`scripts/screenshots.sh` retakes the screenshots locally; you don't have to commit fresh ones,
+because the Website workflow (`.github/workflows/pages.yml`) retakes them on every deploy, after
+the Version workflow, including for `release:none` merges. A pull request that changes only
+the website or other documentation is `release:none`.
+
+## Build & Test
+
+```bash
+scripts/test.sh        # the whole suite (Swift Testing); the gate before any PR
+swift build            # compile check
+scripts/bundle.sh      # build build/Beady.app — test THIS dev build, not /Applications
+scripts/dev-watch.sh   # rebuild and relaunch the app on source changes
+scripts/screenshots.sh # retake the website's screenshots from the app
+hugo server --source docs/website   # preview the website at localhost:1313/beady/
+```
+
+CI runs `scripts/test.sh` on every pull request ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
+
+## Architecture Overview
+
+Pure logic (filtering, views, glossary, rendering) lives in `BeadsCore`, `BeadsData` and
+`BeadsPresentation`, each with its own test target. The `Beady` app target only wires those
+libraries to AppKit, the filesystem and the `bd` CLI. New logic goes in a library target,
+tests first.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:6cd5cc61 -->
 ## Beads Issue Tracker
 
@@ -125,3 +215,9 @@ bd prime                # Refresh Beads context
 
 **Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->
+
+## Conventions & Patterns
+
+- **Interaction design**: any change that moves or acknowledges something on screen follows
+  [docs/INTERACTION-DESIGN.md](docs/INTERACTION-DESIGN.md) — read it before adding or touching
+  animations, drag-and-drop, or any visual feedback for a user action.

@@ -1,0 +1,11 @@
+{{- /* The search box. site.js opens it (the header's button, "/" or ⌘K) and fills the results. */ -}}
+{{- $index := site.Home.OutputFormats.Get "json" }}
+<dialog class="search" data-search="{{ $index.RelPermalink }}" aria-label="Search the guide">
+  <div class="search__field">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m10.6 10.6 3.4 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <input type="search" placeholder="Search the guide" aria-label="Search the guide" autocomplete="off" spellcheck="false">
+    <kbd>Esc</kbd>
+  </div>
+  <p class="search__status" data-search-status aria-live="polite">Type to search the guide.</p>
+  <ol class="search__results" data-search-results role="listbox" aria-label="Results"></ol>
+</dialog>

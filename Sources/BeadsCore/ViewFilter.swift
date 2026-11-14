@@ -295,9 +295,13 @@ public enum FilterOptions {
             let parents = snapshot.issues
                 .filter { !snapshot.isDone($0) && !snapshot.children(of: $0.id).isEmpty }
                 .map(\.id)
+            // One walk up each issue's ancestry instead of one snapshot scan per parent.
+            let offered = Set(parents)
             var counts: [String: Int] = [:]
-            for parent in parents {
-                counts[parent.rawValue] = base.filter { snapshot.isDescendant($0, of: parent) }.count
+            for issue in base {
+                for ancestor in snapshot.ancestors(of: issue) where offered.contains(ancestor.id) {
+                    counts[ancestor.id.rawValue, default: 0] += 1
+                }
             }
             return listed(parents.map(\.rawValue), counts, hidingEmpty: true)
         case .updated, .closed:

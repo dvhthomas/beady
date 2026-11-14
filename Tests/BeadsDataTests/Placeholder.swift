@@ -6,6 +6,7 @@ final class FakeRunner: CommandRunning, @unchecked Sendable {
     struct Invocation: Equatable {
         let executable: URL
         let arguments: [String]
+        let directory: URL?
     }
 
     private let lock = NSLock()
@@ -18,8 +19,8 @@ final class FakeRunner: CommandRunning, @unchecked Sendable {
 
     var invocations: [Invocation] { lock.withLock { _invocations } }
 
-    func run(_ executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
-        lock.withLock { _invocations.append(Invocation(executable: executable, arguments: arguments)) }
+    func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval) async throws -> CommandResult {
+        lock.withLock { _invocations.append(Invocation(executable: executable, arguments: arguments, directory: directory)) }
         return try respond(arguments)
     }
 }

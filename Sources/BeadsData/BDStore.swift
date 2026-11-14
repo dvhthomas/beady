@@ -25,7 +25,13 @@ public struct BDStore: BeadsStore {
     public func currentIssue(_ id: IssueID) async throws -> Issue? {
         let result = try await gateway.result(of: .show(id))
         guard result.exitCode == 0 else {
-            if result.stderr.contains("no issue found") { return nil }
+            // A missing bead is an answer, not a failure: ChangeRunner's disappeared-issue
+            // path depends on the nil. bd has worded it "no issue found matching …" and
+            // "Issue … not found" (1.3.2), so accept either; wording that names neither the
+            // phrase nor this id stays an error.
+            let message = result.stderr.lowercased()
+            if message.contains("no issue found")
+                || (message.contains("not found") && message.contains(id.rawValue.lowercased())) { return nil }
             throw BDGateway.failure(result)
         }
         return try decodeIssueList(result.stdout).issues.first { $0.id == id }
@@ -74,6 +80,11 @@ public struct BDStore: BeadsStore {
     }
 
     public func configureBackup(folder: String) async throws {
+        // The folder comes from an open panel today, but the contract is explicit: a relative
+        // path would resolve against bd's working directory, not anywhere the user chose.
+        guard folder.hasPrefix("/") else {
+            throw BeadsDataError.commandFailed(exitCode: 1, message: "backup folder must be an absolute path")
+        }
         _ = try await gateway.run(.backupInit(folder))
         _ = try await gateway.run(.backupSync)
     }
@@ -119,6 +130,61 @@ public struct BDStore: BeadsStore {
 
     public func journalCommandPreview(_ settings: [ConfigSetting]) -> [String] {
         [gateway.preview(.configSet(settings))]
+    }
+
+    // MARK: Sharing (plan 0006)
+
+    public func sharingFacts() async throws -> SharingFacts {
+        let remotes: [DoltRemote]
+        do {
+            remotes = try BDJSON.decodeRemotes(try await gateway.run(.remoteList))
+        } catch let failure as BDJSON.DecodingFailure {
+            throw BeadsDataError.unreadableOutput(detail: failure.detail)
+        }
+        let localOnly = (try? BDJSON.decodeConfigValue(try await gateway.run(.configGet("dolt.local-only")))) == "true"
+        // Without bd's word on the storage, assume the kind where the least is offered.
+        let storage = (try? BDJSON.decodeContext(try await gateway.run(.context)))?.storage ?? .other("")
+        // The one step that goes to the network, and only when there is somewhere to go.
+        var peers: [PeerStatus] = []
+        if !remotes.isEmpty, !localOnly {
+            peers = (try? BDJSON.decodePeers(try await gateway.run(.peerStatus))) ?? []
+        }
+        return SharingFacts(remotes: remotes, peers: peers, isLocalOnly: localOnly, storage: storage)
+    }
+
+    public func workspaceSetup() async -> WorkspaceSetup {
+        WorkspaceSetup(
+            context: try? BDJSON.decodeContext(try await gateway.run(.context)),
+            checkouts: (try? BDJSON.decodeCheckouts(try await gateway.run(.worktrees))) ?? [],
+            hooks: (try? BDJSON.decodeHooks(try await gateway.run(.hooks))) ?? [],
+            exportsIssuesFile: (try? BDJSON.decodeConfigValue(try await gateway.run(.configGet("export.auto")))).map { $0 == "true" }
+        )
+    }
+
+    public func gitOriginURL() async -> String? {
+        await gateway.gitOriginURL()
+    }
+
+    /// bd's exit status is part of the answer here, so a non-zero one is decoded, not thrown.
+    public func sync() async throws -> SyncOutcome {
+        BDJSON.decodeSyncOutcome(try await gateway.result(of: .sync))
+    }
+
+    public func perform(_ step: SharingStep) async throws {
+        _ = try await gateway.run(Self.command(for: step))
+    }
+
+    public func commandPreview(for step: SharingStep) -> String {
+        gateway.preview(Self.command(for: step))
+    }
+
+    static func command(for step: SharingStep) -> BDCommand {
+        switch step {
+        case .addRemote(let name, let url, let allowGitOrigin): .remoteAdd(name: name, url: url, allowGitOrigin: allowGitOrigin)
+        case .publish: .push
+        case .sync: .sync
+        case .settleConflict(let side): .pull(keeping: side)
+        }
     }
 
     /// The bd commands a change runs, in order.

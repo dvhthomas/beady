@@ -49,6 +49,15 @@ struct BDIntegrationTests {
         #expect(blocked == bdBlocked, "only ours: \(blocked.subtracting(bdBlocked)); only bd: \(bdBlocked.subtracting(blocked))")
     }
 
+    @Test("a nonexistent id reads back as nil, which the write pipeline's conflict checks depend on")
+    func missingIssueReadsAsNil() async throws {
+        let (_, store) = try open()
+        // BDStore tells a missing bead from a real failure by bd's stderr wording ("no issue
+        // found"); the default suite's fake mirrors that wording, so only a run against real bd
+        // can notice bd rephrasing it.
+        #expect(try await store.currentIssue("beady-it-no-such-id-xyzzy") == nil)
+    }
+
     private func ids(_ output: Data) throws -> Set<String> {
         let records = try JSONSerialization.jsonObject(with: output) as? [[String: Any]] ?? []
         return Set(records.compactMap { record in

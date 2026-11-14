@@ -17,6 +17,15 @@ struct BeadyApp: App {
         if let directory = SnapshotMode.outputDirectory {
             SnapshotMode.run(to: directory)
         }
+        if let directory = SnapshotMode.switchDirectory {
+            SnapshotMode.verifySwitch(to: directory)
+        }
+        if let directory = SnapshotMode.refreshDirectory {
+            SnapshotMode.verifyRefresh(to: directory)
+        }
+        if let directory = SnapshotMode.contrastDirectory {
+            SnapshotMode.verifyContrast(to: directory)
+        }
     }
 
     var body: some Scene {
@@ -89,11 +98,14 @@ struct RootView: View {
     private var content: some View {
         Group {
             if let model = session.model {
+                // No .id(model): remounting on a workspace switch rebuilds the sidebar's table,
+                // which comes back with its selection unemphasized — the window looks unthemed
+                // until the window's key state next changes. WorkspaceView re-arms itself when
+                // a different model arrives, so the hierarchy genuinely swaps in place.
                 WorkspaceView(
                     model: model, ui: session.ui, themes: session.themes, run: session.run,
                     undo: session.undo, importFiles: session.importViews
                 )
-                    .id(ObjectIdentifier(model))
             } else {
                 WelcomeView(session: session)
             }
@@ -105,17 +117,72 @@ struct RootView: View {
         } message: {
             Text(session.openError ?? "")
         }
+        .alert(session.databaseOffer?.plan.offerTitle ?? "", isPresented: showsDatabaseOffer) {
+            Button("Create Database") { session.createDatabase() }
+            Button("Cancel", role: .cancel) { session.declineDatabase() }
+        } message: {
+            Text(session.databaseOffer.map { $0.plan.offerMessage(command: $0.command) } ?? "")
+        }
+        .alert(session.bootstrapOffer?.offer.title ?? "", isPresented: showsBootstrapOffer) {
+            Button(session.bootstrapOffer?.offer.confirmTitle ?? "") { session.runBootstrap() }
+            Button("Cancel", role: .cancel) { session.declineBootstrap() }
+        } message: {
+            Text(session.bootstrapOffer.map { $0.offer.message(command: $0.command) } ?? "")
+        }
+        .sheet(isPresented: showsResetConfiguration) {
+            ResetConfigurationSheet(
+                inventory: session.configurationInventory(),
+                onExport: { session.exportLibraryViews() },
+                onReset: { session.resetConfiguration(deletingLibrary: $0) },
+                onCancel: { session.ui.showsResetConfiguration = false }
+            )
+            .themed(session.themes)
+        }
         .alert("Couldn't Import View", isPresented: showsViewFileError) {
             Button("OK", role: .cancel) { session.dismissViewFileError() }
         } message: {
             Text(session.viewFileError ?? "")
         }
+        .alert("Relaunch Beady?", isPresented: showsRelaunchPrompt) {
+            Button("Relaunch Now") { session.relaunch() }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text("The language setting takes effect when Beady next launches.")
+        }
+    }
+
+    private var showsRelaunchPrompt: Binding<Bool> {
+        Binding(
+            get: { session.ui.showsRelaunchPrompt },
+            set: { session.ui.showsRelaunchPrompt = $0 }
+        )
+    }
+
+    private var showsResetConfiguration: Binding<Bool> {
+        Binding(
+            get: { session.ui.showsResetConfiguration },
+            set: { session.ui.showsResetConfiguration = $0 }
+        )
     }
 
     private var showsViewFileError: Binding<Bool> {
         Binding(
             get: { session.viewFileError != nil },
             set: { if !$0 { session.dismissViewFileError() } }
+        )
+    }
+
+    private var showsDatabaseOffer: Binding<Bool> {
+        Binding(
+            get: { session.databaseOffer != nil },
+            set: { if !$0 { session.declineDatabase() } }
+        )
+    }
+
+    private var showsBootstrapOffer: Binding<Bool> {
+        Binding(
+            get: { session.bootstrapOffer != nil },
+            set: { if !$0 { session.declineBootstrap() } }
         )
     }
 
@@ -168,6 +235,8 @@ struct AppCommands: Commands {
             Divider()
             Button("Export View…") { if let id = session.model?.viewID { session.run(.exportView(id)) } }
                 .disabled(session.model == nil)
+            Button(AppCommand.copyAsBDCommand(.everything).title) { if let id = session.model?.viewID { session.run(.copyAsBDCommand(id)) } }
+                .disabled(session.model == nil)
             item(.importViews, needsWorkspace: true)
         }
         CommandMenu("Beads") {
@@ -176,6 +245,14 @@ struct AppCommands: Commands {
             item(.showGraph, needsWorkspace: true)
             Divider()
             item(.refresh, needsWorkspace: true)
+            Divider()
+            item(.syncNow, needsWorkspace: true)
+                .disabled(session.model?.sharingSummary?.actions.contains(.sync) != true)
+            item(.stopSync, needsWorkspace: true)
+                .disabled(session.model?.sharingSummary?.actions.contains(.stop) != true)
+            item(.shareBeads, needsWorkspace: true)
+                .disabled(session.model?.sharingSummary?.actions.contains(.share) != true)
+            item(.workspaceSetup, needsWorkspace: true)
         }
         CommandGroup(after: .sidebar) {
             ForEach(WorkspaceModel.Layout.allCases) { layout in

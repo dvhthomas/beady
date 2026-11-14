@@ -24,7 +24,7 @@ struct CommandPaletteView: View {
     }
 
     var body: some View {
-        let results = CommandCatalog.results(for: ui.paletteQuery, model: model)
+        let results = CommandCatalog.results(for: ui.paletteQuery, model: model, workspaces: ui.recentWorkspaces, current: ui.currentWorkspacePath)
         VStack(spacing: 0) {
             TextField("Run a command or jump to a bead", text: query)
                 .textFieldStyle(.plain)
@@ -123,7 +123,7 @@ struct CommandPaletteView: View {
         let run = run
         let onClose = onClose
         monitor.wrappedValue = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { @MainActor event in
-            let results = CommandCatalog.results(for: ui.paletteQuery, model: model)
+            let results = CommandCatalog.results(for: ui.paletteQuery, model: model, workspaces: ui.recentWorkspaces, current: ui.currentWorkspacePath)
             switch event.keyCode {
             case 126, 125: // up, down
                 // With nothing to move through, let the field have the key rather than eating it.
@@ -162,10 +162,11 @@ private struct PaletteRow: Identifiable {
 struct ShortcutsView: View {
     @Environment(\.theme) private var theme
     let model: WorkspaceModel
+    let ui: WorkspaceUI
     let onClose: () -> Void
 
     var body: some View {
-        let groups = Dictionary(grouping: CommandCatalog.all(for: model).filter { $0.shortcut != nil }, by: \.group)
+        let groups = Dictionary(grouping: CommandCatalog.all(for: model, workspaces: ui.recentWorkspaces, current: ui.currentWorkspacePath).filter { $0.shortcut != nil }, by: \.group)
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Keyboard Shortcuts").font(.headline)
@@ -212,6 +213,7 @@ extension KeyBinding {
         if self.modifiers.contains(.command) { modifiers.insert(.command) }
         if self.modifiers.contains(.shift) { modifiers.insert(.shift) }
         if self.modifiers.contains(.option) { modifiers.insert(.option) }
+        if self.modifiers.contains(.control) { modifiers.insert(.control) }
         return KeyboardShortcut(KeyEquivalent(key), modifiers: modifiers)
     }
 }

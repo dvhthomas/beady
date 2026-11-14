@@ -14,12 +14,17 @@ public struct ViewPresentation: Hashable, Codable, Sendable {
     public var ordering: IssueSort
     /// The list columns to show, by id; nil for the layout's own defaults.
     public var columns: [String]?
+    /// Board only: fold a sub-task into its parent's card when the parent is also on the board.
+    /// Nil means off — every bead its own card — and, being optional, keeps old files decoding
+    /// and this field out of files that never set it.
+    public var nestsSubtasks: Bool?
 
-    public init(layout: ViewLayout = .list, grouping: IssueGrouping = .none, ordering: IssueSort = .priority, columns: [String]? = nil) {
+    public init(layout: ViewLayout = .list, grouping: IssueGrouping = .none, ordering: IssueSort = .priority, columns: [String]? = nil, nestsSubtasks: Bool? = nil) {
         self.layout = layout
         self.grouping = grouping
         self.ordering = ordering
         self.columns = columns
+        self.nestsSubtasks = nestsSubtasks
     }
 }
 

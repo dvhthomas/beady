@@ -1,5 +1,17 @@
 import Foundation
 
+/// Where one bead stands in a drawn dependency graph: the starting point the rest is read from.
+public enum DependencyStanding: Equatable, Sendable {
+    /// It is drawn. `before` beads have to finish first and `after` are waiting on it, at any
+    /// distance, counting only what the graph shows.
+    case drawn(before: Int, after: Int)
+    /// It has dependencies, but the graph as scoped draws none of them. The flags name the
+    /// switches that have to change to show them: the view's scope, finished work, or both.
+    case hidden(byView: Bool, byFinished: Bool)
+    /// Nothing blocks it and nothing waits on it.
+    case unconnected
+}
+
 /// Every `blocks` dependency in a database, laid out to be read left to right: what can start now
 /// on the left, what waits on it further right — the same reading `bd graph` gives.
 ///
@@ -27,12 +39,16 @@ public struct DependencyGraph: Sendable {
     private let dependents: [IssueID: Set<IssueID>]
     private let layers: [IssueID: Int]
 
-    public init(_ snapshot: IssueSnapshot, includeFinished: Bool = true) {
+    /// `limitedTo` scopes the graph to those beads: an edge is kept only when both of its ends
+    /// are in the set, so nothing outside ever appears — not even as a boundary stub. Nil means
+    /// the whole database.
+    public init(_ snapshot: IssueSnapshot, limitedTo visible: Set<IssueID>? = nil, includeFinished: Bool = true) {
         var edges = Set<Edge>()
         for issue in snapshot.issues {
             for dependency in issue.dependencies where dependency.kind == .blocks {
                 let blocker = dependency.dependsOnID
                 guard blocker != issue.id, let blocking = snapshot.issue(blocker) else { continue }
+                if let visible, !(visible.contains(issue.id) && visible.contains(blocker)) { continue }
                 if !includeFinished, snapshot.isDone(issue) || snapshot.isDone(blocking) { continue }
                 edges.insert(Edge(from: blocker, to: issue.id))
             }
@@ -61,9 +77,43 @@ public struct DependencyGraph: Sendable {
         layers[id]
     }
 
+    /// Whether this bead is drawn: it is only when at least one of its dependencies is.
+    public func contains(_ id: IssueID) -> Bool {
+        layers[id] != nil
+    }
+
+    /// Where one bead stands in the graph as scoped — the question to settle before drawing a
+    /// graph that is supposed to be about that bead. `limitedTo` and `includeFinished` mean what
+    /// they do in `init`.
+    public static func standing(
+        of id: IssueID,
+        in snapshot: IssueSnapshot,
+        limitedTo visible: Set<IssueID>? = nil,
+        includeFinished: Bool = true
+    ) -> DependencyStanding {
+        let drawn = DependencyGraph(snapshot, limitedTo: visible, includeFinished: includeFinished)
+        if drawn.contains(id) {
+            return .drawn(before: drawn.upstream(of: id).count, after: drawn.downstream(of: id).count)
+        }
+        guard DependencyGraph(snapshot).contains(id) else { return .unconnected }
+        // Which switch brings it back. Finished work is tried first: it keeps to this view.
+        if !includeFinished, DependencyGraph(snapshot, limitedTo: visible).contains(id) {
+            return .hidden(byView: false, byFinished: true)
+        }
+        if visible != nil, DependencyGraph(snapshot, includeFinished: includeFinished).contains(id) {
+            return .hidden(byView: true, byFinished: false)
+        }
+        return .hidden(byView: true, byFinished: true)
+    }
+
     /// The beads this one waits on directly.
     public func directUpstream(of id: IssueID) -> Set<IssueID> {
         blockers[id] ?? []
+    }
+
+    /// The beads waiting directly on this one.
+    public func directDownstream(of id: IssueID) -> Set<IssueID> {
+        dependents[id] ?? []
     }
 
     /// Everything that has to finish, at any distance, before this bead can start.
@@ -92,6 +142,46 @@ public struct DependencyGraph: Sendable {
             rowOffset += height + 1
         }
         return positions
+    }
+
+    // MARK: Walking with the arrow keys
+
+    /// A step through the drawn grid. Named apart from the board's MoveDirection so a file that
+    /// sees both modules never has to disambiguate.
+    public enum Direction: Sendable {
+        case up, down, left, right
+    }
+
+    /// Where the arrow keys land from `id`: left and right walk direct blockers and dependents,
+    /// preferring the nearest row; up and down walk the same column of the laid-out grid, which
+    /// steps across stacked groups of work. The top-left node when `id` is nil or not drawn;
+    /// nil when there is nowhere to go, so the focus stays put at an edge.
+    public func neighbour(of id: IssueID?, direction: Direction) -> IssueID? {
+        let positions = layout()
+        guard let id, let place = positions[id] else {
+            return positions.min { ($0.value.row, $0.value.column, $0.key) < ($1.value.row, $1.value.column, $1.key) }?.key
+        }
+        switch direction {
+        case .left:
+            return nearest(to: place.row, among: directUpstream(of: id), in: positions)
+        case .right:
+            return nearest(to: place.row, among: directDownstream(of: id), in: positions)
+        case .up, .down:
+            let column = positions.filter { $0.value.column == place.column && $0.key != id }
+            let candidates = direction == .up
+                ? column.filter { $0.value.row < place.row }
+                : column.filter { $0.value.row > place.row }
+            return candidates.min { (abs($0.value.row - place.row), $0.key) < (abs($1.value.row - place.row), $1.key) }?.key
+        }
+    }
+
+    /// The candidate whose drawn row is closest to `row`; ties go to the lower id, so a step is
+    /// the same every time.
+    private func nearest(to row: Int, among candidates: Set<IssueID>, in positions: [IssueID: Position]) -> IssueID? {
+        candidates
+            .compactMap { id in positions[id].map { (id, $0) } }
+            .min { (abs($0.1.row - row), $0.0) < (abs($1.1.row - row), $1.0) }?
+            .0
     }
 
     // MARK: Workings

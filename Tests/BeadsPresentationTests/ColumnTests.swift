@@ -43,6 +43,27 @@ struct ListColumnTests {
         #expect(ListColumn.title.isVisible(customized: false) == true, "the title can't be hidden")
     }
 
+    @Test("the user's choice beats the view's columns, which beat the defaults")
+    func precedence() {
+        let plain = ViewPresentation()
+        var stuck = ViewPresentation()
+        stuck.columns = ["title", "blockedBy"]
+
+        // Untouched: the view's columns decide, and without them the defaults do.
+        #expect(ListColumn.blockedBy.isVisible(customized: nil, in: stuck))
+        #expect(!ListColumn.assignee.isVisible(customized: nil, in: stuck), "the view's list is the whole list")
+        #expect(!ListColumn.blockedBy.isVisible(customized: nil, in: plain))
+        #expect(ListColumn.assignee.isVisible(customized: nil, in: plain))
+
+        // The user's drag wins over the view.
+        #expect(!ListColumn.blockedBy.isVisible(customized: false, in: stuck))
+        #expect(ListColumn.assignee.isVisible(customized: true, in: stuck))
+
+        // The title can't be hidden by anyone.
+        #expect(ListColumn.title.isVisible(customized: false, in: stuck))
+        #expect(ListColumn.title.isVisible(customized: nil, in: ViewPresentation()))
+    }
+
     @Test("columns have a sensible starting width, and the title one stretches")
     func widths() {
         #expect(ListColumn.allCases.allSatisfy { $0.idealWidth > 0 })

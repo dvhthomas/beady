@@ -23,14 +23,19 @@ struct SidebarView: View {
         // disclosure control at its trailing edge, which shoved the + aside just as the pointer
         // reached it. Drawing the header ourselves keeps the + and the chevron where they are.
         List(selection: selection) {
+            WorkspaceSwitcher(model: model, ui: ui, run: run)
+                .selectionDisabled()
+                .listRowSeparator(.hidden)
             ForEach(model.sidebarSections) { section in
-                if section.title.isEmpty {
-                    // A headerless section still needs the gap a header would have given it, or
-                    // its rows read as the tail of the section above. One blank row, as in plan
-                    // 0004's mockup: the sidebar List gives every row its full height anyway.
-                    gap
-                } else {
+                if !section.title.isEmpty {
                     header(section)
+                } else {
+                    // Starred floats at the bottom without a header; the rule keeps it from
+                    // reading as the last row of the section above it.
+                    Divider()
+                        .padding(.top, 8)
+                        .selectionDisabled()
+                        .listRowSeparator(.hidden)
                 }
                 if isExpanded(section) {
                     ForEach(section.entries) { entry in
@@ -53,14 +58,6 @@ struct SidebarView: View {
         // The chosen view is never hidden: saving a new view, importing one or picking one from
         // the palette lands in a folded section often enough that the section opens to show it.
         .onChange(of: model.viewID, initial: true) { reveal(model.viewID) }
-    }
-
-    private var gap: some View {
-        Color.clear
-            .frame(height: 1)
-            .selectionDisabled()
-            .listRowSeparator(.hidden)
-            .accessibilityHidden(true)
     }
 
     /// Title, then the + where the section takes one, then the disclosure: both at a fixed size,
@@ -93,11 +90,17 @@ struct SidebarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .help(isExpanded(section) ? "Hide" : "Show")
+            .help(disclosureHelp(section))
         }
-        .padding(.top, section.kind == .views ? 0 : 10)
+        .padding(.top, section.kind == .views ? 4 : 10)
         .selectionDisabled()
         .listRowSeparator(.hidden)
+    }
+
+    private func disclosureHelp(_ section: SidebarSection) -> String {
+        isExpanded(section)
+            ? String(localized: "Hide", comment: "Tooltip on a sidebar section's disclosure")
+            : String(localized: "Show", comment: "Tooltip on a sidebar section's disclosure")
     }
 
     private func isExpanded(_ section: SidebarSection) -> Bool {
@@ -121,26 +124,15 @@ struct SidebarView: View {
     }
 
     private func row(_ entry: SidebarEntry) -> some View {
-        Label {
-            HStack(spacing: 5) {
-                Text(entry.title)
-                if entry.isModified {
-                    Circle()
-                        .fill(theme.accent)
-                        .frame(width: 6, height: 6)
-                        .help("Unsaved changes")
-                }
-            }
-        } icon: {
-            Image(systemName: entry.symbol)
-        }
-        .badge(entry.count)
+        SidebarRowLabel(entry: entry, isSelected: entry.id == model.viewID)
         .tag(entry.id)
         .help(entry.help)
         .contextMenu {
             if entry.isBuiltIn {
                 // A built-in is locked; a copy is how you get a variation of it.
                 Button("Duplicate") { model.duplicateView(entry.id) }
+                Divider()
+                Button(AppCommand.copyAsBDCommand(entry.id).title) { run(.copyAsBDCommand(entry.id)) }
             } else if let view = model.views.first(where: { $0.id == entry.id }) {
                 Button("Rename…") { ui.promptRename(view) }
                 Button("Change Icon…") { ui.promptChangeIcon(of: view) }
@@ -150,6 +142,7 @@ struct SidebarView: View {
                 if let file = exportFile(for: view) {
                     ShareLink(item: file) { Label("Share…", systemImage: "square.and.arrow.up") }
                 }
+                Button(AppCommand.copyAsBDCommand(entry.id).title) { run(.copyAsBDCommand(entry.id)) }
                 Divider()
                 Button("Delete", role: .destructive) { model.removeView(entry.id) }
             }
@@ -173,5 +166,179 @@ struct SidebarView: View {
 
     private var selection: Binding<IssueView.ID?> {
         Binding(get: { model.viewID }, set: { if let id = $0 { model.viewID = id } })
+    }
+}
+
+/// One sidebar row's content. In a key window the selected row is painted with the *system*
+/// accent — any of Apple's eight, nothing any theme colour was chosen against — so that row
+/// draws everything — title, icon, count and the unsaved-changes dot — in the contrast-derived
+/// colour that reads on it (`SystemSelection.foreground`). The count is our own text rather
+/// than `.badge`, because a badge keeps its own secondary colour and goes illegible with the
+/// rest. Selection comes from the model and key-ness from `appearsActive`, because the
+/// sidebar List never raises `backgroundProminence` the way a Table does.
+private struct SidebarRowLabel: View {
+    let entry: SidebarEntry
+    let isSelected: Bool
+    @Environment(\.theme) private var theme
+    @Environment(\.appearsActive) private var appearsActive
+
+    var body: some View {
+        // A prominent row forces its one legible colour; otherwise the row draws as it always
+        // has — inherited text, the sidebar's own icon tinting. (An inactive window's selection
+        // is a quiet grey the theme colours already read on.)
+        if prominent {
+            content.foregroundStyle(SystemSelection.foreground)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
+        HStack(spacing: 5) {
+            Label {
+                Text(entry.title)
+            } icon: {
+                Image(systemName: entry.symbol)
+            }
+            if entry.isModified {
+                Circle()
+                    .fill(prominent ? SystemSelection.foreground : theme.accent)
+                    .frame(width: 6, height: 6)
+                    .help("Unsaved changes")
+            }
+            Spacer(minLength: 8)
+            if entry.count > 0 {
+                Text(entry.count, format: .number)
+                    .monospacedDigit()
+                    .foregroundStyle(prominent ? SystemSelection.foreground.opacity(0.85) : theme.secondaryText)
+            }
+        }
+    }
+
+    private var prominent: Bool { isSelected && appearsActive }
+}
+
+/// The top of the sidebar: which database this is, and a way to another one. Clicking opens
+/// the eight recents in File › Open Recent's order, each with its path (two checkouts of one
+/// project differ only there) and the bd prefix Beady has seen in it, then Open Other….
+/// Switching swaps the model in place, as opening always has; the Library's views stay, the
+/// counts change.
+struct WorkspaceSwitcher: View {
+    let model: WorkspaceModel
+    let ui: WorkspaceUI
+    let run: (AppCommand) -> Void
+    @Environment(\.theme) private var theme
+    /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
+    private var showsList = State(initialValue: false)
+
+    init(model: WorkspaceModel, ui: WorkspaceUI, run: @escaping (AppCommand) -> Void) {
+        self.model = model
+        self.ui = ui
+        self.run = run
+    }
+
+    var body: some View {
+        Button {
+            showsList.wrappedValue = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "cylinder.split.1x2")
+                    .foregroundStyle(theme.accent)
+                Text(model.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let prefix = model.issuePrefix {
+                    PrefixBadge(prefix: prefix)
+                        .help("The issue prefix bd uses in this workspace")
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Switch workspace (⌃⌘O cycles the recent ones)")
+        .padding(.bottom, 6)
+        .popover(isPresented: showsList.projectedValue, arrowEdge: .bottom) {
+            WorkspaceList(workspaces: ui.recentWorkspaces, current: ui.currentWorkspacePath) { command in
+                showsList.wrappedValue = false
+                run(command)
+            }
+        }
+    }
+}
+
+/// What the switcher opens: the recents, the current one ticked, and Open Other….
+struct WorkspaceList: View {
+    let workspaces: [RecentWorkspace]
+    let current: String?
+    let run: (AppCommand) -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(workspaces) { workspace in
+                let isCurrent = workspace.path == current
+                Button {
+                    run(.switchWorkspace(path: workspace.path))
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: isCurrent ? "checkmark" : "folder")
+                            .frame(width: 16)
+                            .foregroundStyle(isCurrent ? theme.accent : theme.secondaryText)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(workspace.name)
+                                .lineLimit(1)
+                            Text(workspace.path)
+                                .font(.caption)
+                                .foregroundStyle(theme.secondaryText)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer(minLength: 8)
+                        if let prefix = workspace.prefix {
+                            PrefixBadge(prefix: prefix)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isCurrent)
+                .help(workspace.path)
+            }
+            if !workspaces.isEmpty { Divider().padding(.vertical, 4) }
+            Button {
+                run(.openWorkspace)
+            } label: {
+                Label(AppCommand.openWorkspace.title, systemImage: "ellipsis.circle")
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+        .frame(width: 340)
+        .background(theme.background)
+    }
+}
+
+/// The issue prefix bd uses in a workspace, as a small capsule.
+struct PrefixBadge: View {
+    let prefix: String
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Text(prefix)
+            .font(.caption.monospaced())
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(theme.accent.opacity(0.18), in: Capsule())
     }
 }

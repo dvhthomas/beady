@@ -1,0 +1,17 @@
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="brand" href="{{ site.Home.RelPermalink }}">{{ partial "logo.html" 26 }}<span>Beady</span></a>
+    <nav class="site-nav" aria-label="Site">
+      {{- $guide := site.GetPage "/guide" }}
+      <a href="{{ $guide.RelPermalink }}"{{ if or (eq . $guide) (.IsDescendant $guide) }} aria-current="page"{{ end }}>Guide</a>
+      <a href="{{ (site.GetPage "/guide/install").RelPermalink }}">Install</a>
+      <a href="{{ site.Params.repo }}/releases">Releases</a>
+      <a class="site-nav__repo" href="{{ site.Params.repo }}">GitHub</a>
+      {{- /* Shown by the script that makes it work. */}}
+      <button type="button" class="search-open" data-search-open hidden>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m10.6 10.6 3.4 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span>Search</span><kbd aria-hidden="true">/</kbd>
+      </button>
+    </nav>
+  </div>
+</header>

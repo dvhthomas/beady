@@ -3,12 +3,14 @@
 # Swift Testing macro plugin on its own, so point the compiler at it explicitly.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=swift-flags.sh
+source "$ROOT/scripts/swift-flags.sh"
 
-EXTRA=()
+EXTRA=("${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"}")
 DEV_DIR="$(xcode-select -p 2>/dev/null || true)"
 PLUGINS="$DEV_DIR/usr/lib/swift/host/plugins/testing"
 if [[ "$DEV_DIR" == *CommandLineTools* && -d "$PLUGINS" ]]; then
-  EXTRA=(-Xswiftc -plugin-path -Xswiftc "$PLUGINS")
+  EXTRA+=(-Xswiftc -plugin-path -Xswiftc "$PLUGINS")
 fi
 
 exec swift test --package-path "$ROOT" ${EXTRA[@]+"${EXTRA[@]}"} "$@"

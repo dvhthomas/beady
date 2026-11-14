@@ -101,7 +101,7 @@ struct FilterBar: View {
     /// The layout is the one display choice worth a click rather than a menu; the Display
     /// popover keeps the same picker for people who go looking there.
     private var layoutSwitcher: some View {
-        Picker("Layout", selection: $model.layout) {
+        Picker("Layout", selection: presentedLayout) {
             ForEach(WorkspaceModel.Layout.allCases) { layout in
                 Image(systemName: DisplayText.layoutSymbol(layout))
                     .help(DisplayText.layout(layout))
@@ -111,7 +111,14 @@ struct FilterBar: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         .fixedSize()
-        .help("List, Tree or Board (⌘1, ⌘2, ⌘3)")
+        .help(model.isBoardShownAsList
+            ? String(localized: "Shown as a list: the board has nothing to split", comment: "Tooltip on the layout switcher")
+            : String(localized: "List, Tree or Board (⌘1, ⌘2, ⌘3)", comment: "Tooltip on the layout switcher"))
+    }
+
+    /// The switcher shows what is drawn; picking a segment is an explicit choice.
+    private var presentedLayout: Binding<WorkspaceModel.Layout> {
+        Binding(get: { model.presentedLayout }, set: { model.chooseLayout($0) })
     }
 
     /// Single-key shortcuts live on real (invisible) buttons rather than menu items, so they
@@ -234,7 +241,7 @@ struct FilterMenu: View {
     }
 
     private var prompt: String {
-        field.wrappedValue.map { "Filter \(DisplayText.field($0).lowercased())…" } ?? "Filter by…"
+        field.wrappedValue.map { String(localized: "Filter \(DisplayText.field($0))…", comment: "Search field prompt; the value is a filter field such as Status") } ?? String(localized: "Filter by…", comment: "Search field prompt")
     }
 
     private var fields: [FilterField] {
@@ -266,9 +273,9 @@ struct FilterValuesList: View {
                 .toggleStyle(.checkbox)
                 .lineLimit(1)
                 .disabled(model.isLocked(field))
-                .help(model.isLocked(field) ? "Part of what \(model.view.name) means; duplicate the view to change it" : (option.help ?? ""))
+                .help(model.isLocked(field) ? lockedHelp(model.view.name) : (option.help ?? ""))
                 Spacer(minLength: 12)
-                Text("\(option.count)")
+                Text(option.count, format: .number)
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -352,7 +359,7 @@ struct FilterChipView: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
-                    .help("Part of what \(model.view.name) means; duplicate the view to change it")
+                    .help(lockedHelp(model.view.name))
             } else {
                 Button {
                     model.removeFilter(chip.field)
@@ -385,7 +392,7 @@ struct DisplayOptionsView: View {
 
     var body: some View {
         Form {
-            Picker("Layout", selection: $model.layout) {
+            Picker("Layout", selection: Binding(get: { model.presentedLayout }, set: { model.chooseLayout($0) })) {
                 ForEach(WorkspaceModel.Layout.allCases) { layout in
                     Label(DisplayText.layout(layout), systemImage: DisplayText.layoutSymbol(layout)).tag(layout)
                 }
@@ -398,13 +405,19 @@ struct DisplayOptionsView: View {
                         .help(DisplayText.help(for: grouping))
                 }
             }
-            .disabled(model.layout == .tree)
+            .disabled(model.presentedLayout == .tree)
             Picker("Ordering", selection: $model.ordering) {
                 ForEach(IssueSort.allCases) { sort in
                     Text(DisplayText.sort(sort)).tag(sort)
                 }
             }
-            if model.layout == .list {
+            if model.presentedLayout == .board {
+                Toggle("Nest sub-tasks", isOn: $model.nestsSubtasks)
+                    // Grouped by parent, the columns are the parents already.
+                    .disabled(model.grouping == .parent)
+                    .help("Fold a sub-task into its parent's card when the parent is on the board")
+            }
+            if model.presentedLayout == .list {
                 Section("Columns") {
                     ForEach(ListColumn.allCases) { column in
                         Toggle(column.title(for: model.ordering), isOn: Binding(
@@ -426,6 +439,11 @@ struct DisplayOptionsView: View {
         .background(theme.background)
         .frame(width: 340)
     }
+}
+
+/// Why a chip or a value can't be changed: it defines the built-in view.
+func lockedHelp(_ viewName: String) -> String {
+    String(localized: "Part of what \(viewName) means; duplicate the view to change it", comment: "Tooltip; the value is a view's name")
 }
 
 enum FilterStyle {
