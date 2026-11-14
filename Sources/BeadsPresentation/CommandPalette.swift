@@ -87,6 +87,8 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case shareBeads
     /// One `bd sync` against the default remote.
     case syncNow
+    /// Ask bd to stop the sync that is running (plan 0007).
+    case stopSync
     /// Open the Workspace Setup sheet.
     case workspaceSetup
     case setSidebarStyle(SidebarStyle)
@@ -139,6 +141,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .turnOnJournal: "turn-on-journal"
         case .shareBeads: "share-beads"
         case .syncNow: "sync-now"
+        case .stopSync: "stop-sync"
         case .workspaceSetup: "workspace-setup"
         case .setSidebarStyle(let style): "sidebar-\(style.rawValue)"
         case .chooseTheme: "choose-theme"
@@ -192,6 +195,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .turnOnJournal: String(localized: "Turn On bd's Change Journal", bundle: .module, comment: "Command")
         case .shareBeads: SharingAction.share.title
         case .syncNow: SharingAction.sync.title
+        case .stopSync: String(localized: "Stop Syncing", bundle: .module, comment: "Command: stop the sync that is running")
         case .workspaceSetup: String(localized: "Workspace Setup…", bundle: .module, comment: "Command: open the Workspace Setup sheet")
         case .setSidebarStyle(let style): String(localized: "Sidebar: \(style.title)", bundle: .module, comment: "Command; the value is Themed or Translucent")
         case .chooseTheme: String(localized: "Theme…", bundle: .module, comment: "Command")
@@ -243,6 +247,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .turnOnJournal: ["journal", "events", "live", "activity", "who changed", "agents", "watch"]
         case .shareBeads: ["share", "remote", "team", "multiuser", "origin", "push", "publish", "dolt", "collaborate"]
         case .syncNow: ["sync", "pull", "push", "remote", "send", "receive", "fetch", "dolt"]
+        case .stopSync: ["stop", "cancel", "abort", "interrupt", "sync", "halt"]
         case .workspaceSetup: ["setup", "configuration", "health", "doctor", "worktrees", "hooks", "remote", "sharing", "backup", "status"]
         case .setSidebarStyle: ["sidebar", "translucent", "vibrancy", "material", "native"]
         case .goBack: ["back", "previous", "return", "undo navigation"]
@@ -261,7 +266,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     public var group: String {
         switch self {
         case .openWorkspace, .closeWorkspace, .switchWorkspace, .nextWorkspace, .refresh, .backUpNow, .setUpBackup, .turnOnJournal,
-             .shareBeads, .syncNow, .workspaceSetup: String(localized: "Workspace", bundle: .module, comment: "Command group")
+             .shareBeads, .syncNow, .stopSync, .workspaceSetup: String(localized: "Workspace", bundle: .module, comment: "Command group")
         case .newBead, .editSelected, .toggleMark, .showGraph: Self.beadsGroup
         case .focusSearch, .addFilter, .clearFilters: String(localized: "Find", bundle: .module, comment: "Command group")
         case .displayOptions, .toggleDetails, .toggleGraphPane, .setLayout, .setGrouping, .setOrdering,
@@ -309,7 +314,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .showView, .setGrouping, .setOrdering, .goToIssue, .setTextSize, .focusSelected, .exportView, .importViews, .resetConfiguration,
              .unfocus, .expandAll, .collapseAll, .toggleColumn, .resetColumns, .setSidebarStyle,
              .backUpNow, .setUpBackup, .turnOnJournal, .setLanguage, .copyAsBDCommand, .switchWorkspace,
-             .shareBeads, .syncNow, .workspaceSetup: []
+             .shareBeads, .syncNow, .stopSync, .workspaceSetup: []
         }
     }
 
@@ -397,6 +402,7 @@ public enum CommandCatalog {
         if model.canEdit, let actions = model.sharingSummary?.actions {
             if actions.contains(.share) { commands.append(.shareBeads) }
             if actions.contains(.sync) { commands.append(.syncNow) }
+            if actions.contains(.stop) { commands.append(.stopSync) }
         }
         commands.append(.workspaceSetup)
         // With the setting off, or after an Undo: the palette is where a change of mind goes.

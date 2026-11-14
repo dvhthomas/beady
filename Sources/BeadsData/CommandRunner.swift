@@ -12,22 +12,49 @@ public struct CommandResult: Equatable, Sendable {
     }
 }
 
+/// What happens to a running command when the task waiting for it is cancelled.
+public enum StopStyle: Equatable, Sendable {
+    /// SIGTERM, SIGKILL shortly after, and `CancellationError` at once: nobody wants the answer.
+    case terminate
+    /// SIGINT, as Ctrl-C sends it, then wait: the command's own result is returned once it has
+    /// exited. bd answers the signal by finishing what it is writing, cancelling the rest and
+    /// exiting (plan 0007). A second SIGINT follows if it is still running after a while, on
+    /// which bd exits at once, and SIGKILL only after that.
+    case interrupt
+}
+
 public protocol CommandRunning: Sendable {
     /// `directory` is the working directory for the process; nil inherits the app's.
     func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval) async throws -> CommandResult
+    func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval, stop: StopStyle) async throws -> CommandResult
 }
 
 extension CommandRunning {
     public func run(_ executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
         try await run(executable, arguments: arguments, directory: nil, timeout: timeout)
     }
+
+    /// A runner that doesn't know about stop styles stops everything the one way it knows.
+    public func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval, stop: StopStyle) async throws -> CommandResult {
+        try await run(executable, arguments: arguments, directory: directory, timeout: timeout)
+    }
 }
 
 public struct ProcessCommandRunner: CommandRunning {
     private let environment: [String: String]
+    /// After the first SIGINT of an interrupt, how long before the second.
+    private let interruptGrace: TimeInterval
+    /// After the second SIGINT, how long before SIGKILL.
+    private let killGrace: TimeInterval
 
-    public init(environment: [String: String] = ProcessCommandRunner.defaultEnvironment()) {
+    public init(
+        environment: [String: String] = ProcessCommandRunner.defaultEnvironment(),
+        interruptGrace: TimeInterval = 10,
+        killGrace: TimeInterval = 5
+    ) {
         self.environment = environment
+        self.interruptGrace = interruptGrace
+        self.killGrace = killGrace
     }
 
     /// The inherited environment with Homebrew locations appended to PATH, since apps
@@ -45,13 +72,22 @@ public struct ProcessCommandRunner: CommandRunning {
     /// Throws `BeadsDataError.timedOut` after `timeout`, or `CancellationError` if the task is
     /// cancelled; either way the process is stopped rather than left running.
     public func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval) async throws -> CommandResult {
+        try await run(executable, arguments: arguments, directory: directory, timeout: timeout, stop: .terminate)
+    }
+
+    /// With `.interrupt`, cancellation doesn't throw: the process is asked to stop and what it
+    /// then reports is returned, exit code and all.
+    public func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval, stop: StopStyle) async throws -> CommandResult {
         let run = ProcessRun(executable: executable, arguments: arguments, directory: directory, environment: environment)
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 run.start(timeout: timeout, continuation: continuation)
             }
         } onCancel: {
-            run.cancel()
+            switch stop {
+            case .terminate: run.cancel()
+            case .interrupt: run.interrupt(secondAfter: interruptGrace, killAfter: killGrace)
+            }
         }
     }
 }
@@ -77,6 +113,7 @@ private final class ProcessRun: @unchecked Sendable {
     private var launched = false
     private var exited = false
     private var cancelled = false
+    private var interruptRequested = false
     private var timedOut = false
     private var timeoutSeconds = 0
     private var continuation: CheckedContinuation<CommandResult, Error>?
@@ -126,8 +163,11 @@ private final class ProcessRun: @unchecked Sendable {
             timeoutWork = work
             return cancelled
         }
+        let interruptedWhileLaunching = lock.withLock { interruptRequested }
         if cancelledWhileLaunching {
             stop()
+        } else if interruptedWhileLaunching {
+            sendInterrupts()
         } else {
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: work)
         }
@@ -140,6 +180,39 @@ private final class ProcessRun: @unchecked Sendable {
         }
         if wasLaunched { stop() }
         finish(.failure(CancellationError()))
+    }
+
+    /// Asks the process to stop and leaves the result to its exit: nothing is reported here.
+    /// A process that was never launched has no answer to wait for, so that is a cancellation.
+    func interrupt(secondAfter: TimeInterval, killAfter: TimeInterval) {
+        let (wasLaunched, hasContinuation) = lock.withLock {
+            interruptRequested = true
+            interruptGraces = (secondAfter, killAfter)
+            return (launched, continuation != nil)
+        }
+        if wasLaunched {
+            sendInterrupts()
+        } else if !hasContinuation {
+            // Cancelled before `start`: let `start` see it as a cancellation.
+            lock.withLock { cancelled = true }
+        }
+    }
+
+    private var interruptGraces: (second: TimeInterval, kill: TimeInterval) = (10, 5)
+
+    /// SIGINT; a second if the process is still there after a while; then SIGKILL.
+    private func sendInterrupts() {
+        guard process.isRunning else { return }
+        let pid = process.processIdentifier
+        let graces = lock.withLock { interruptGraces }
+        process.interrupt()
+        DispatchQueue.global().asyncAfter(deadline: .now() + graces.second) { [self] in
+            guard !lock.withLock({ exited }) else { return }
+            kill(pid, SIGINT)
+            DispatchQueue.global().asyncAfter(deadline: .now() + graces.kill) { [self] in
+                if !lock.withLock({ exited }) { kill(pid, SIGKILL) }
+            }
+        }
     }
 
     private func pipeClosed() {

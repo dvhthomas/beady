@@ -64,8 +64,46 @@ backlogs that bd can't merge.
 **Sync Now** runs one `bd sync`: it receives what's new, then sends what's yours. Two people
 editing the same field of the same bead don't conflict; the later edit wins.
 
-Beady never syncs by itself. bd advises against automatic pushes when several writers share a
-git-hosted remote, and agents working in worktrees are writers too. Agents sync with `bd sync`.
+### Stopping a sync
+
+While a sync runs, its button reads **Stop**; **Stop Syncing** is also in the Beads menu and
+{{< k "⌘P" >}}. Stop asks bd to stop the way Ctrl-C does in a terminal, and waits for it: bd
+finishes what it is writing and exits, usually within a second. Whatever bd had already received
+or sent stays, and the next sync picks up the rest. Nothing needs repairing afterwards.
+
+A first share and the settling of a conflict can't be stopped part-way.
+
+### Syncing automatically
+
+The popover's **Sync** choice sets how often this workspace syncs by itself while its window is
+open: **When I ask** (the default), every minute, every 5 minutes or every 15 minutes. Each
+automatic sync is the same one `bd sync`; this is the timer bd's guide describes, run by Beady
+instead of cron. The choice is this Mac's alone: it changes nothing in bd's configuration or the
+repository, so teammates and agents aren't affected.
+
+What an automatic sync does with bd's answer:
+
+| bd says | Beady |
+|---|---|
+| Synced, or nothing to do | Nothing. New beads appear. |
+| An error, such as no network | Shows it once it has happened three times running, and keeps trying. |
+| A conflict | Shows **Needs a decision** and stops until you settle it. |
+| Another writer was in the way | Nothing. The next one retries. |
+| Edits bd can't publish | Shows bd's message and stops until a **Sync Now** succeeds. |
+{.table-scroll}
+
+Stopping a sync pauses automatic syncing until you press **Sync Now** or choose again.
+
+A shorter interval means fresher beads and fewer conflicts; bd's guide calls a minute
+comfortable. For a remote hosted in a git repository bd adds a caution, which is why this is off
+until you choose it:
+
+> concurrent pushes to git-protocol Dolt remotes can corrupt or strand remote history when
+> multiple writers race
+
+That is written about bd's own `dolt.auto-push` setting, which pushes after every change. `bd
+sync` is built for the race: it only replaces what it last saw on the remote, and tries again
+when someone else got there first. Beady never turns `dolt.auto-push` on.
 
 ### When a sync needs a decision
 
@@ -101,5 +139,5 @@ The list scrolls when it is taller than the screen; **Done** and **Check Again**
 
 ## What Beady won't do
 
-It never migrates a database, forces a push, removes a remote, installs git hooks or makes a
-git commit. When bd refuses something, Beady shows bd's message as it is.
+It never migrates a database, forces a push, removes a remote, installs git hooks, makes a
+git commit, changes bd's configuration to sync, or settles a conflict by itself. When bd refuses something, Beady shows bd's message as it is.

@@ -78,6 +78,9 @@ public enum SyncOutcome: Equatable, Sendable {
     /// This database and the remote's don't share a history: two separately made backlogs.
     case unrelated(String)
     case failed(String)
+    /// A person stopped it and bd reported the failure that asks for. Whatever bd had already
+    /// received or sent stays; the next sync picks up the rest (plan 0007).
+    case stopped
 
     /// bd's wording for histories that were never one database.
     public static func isUnrelatedHistory(_ message: String) -> Bool {

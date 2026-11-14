@@ -139,6 +139,15 @@ public enum BDCommand: Equatable, Sendable {
         }
     }
 
+    /// The one command a person can stop part-way. bd is asked with SIGINT and answers for
+    /// itself (plan 0007): interrupted at any point of a sync it left nothing to repair. A first
+    /// push and a conflict settlement run to the end, since each is the step that puts a
+    /// database right.
+    public var stopsGracefully: Bool {
+        if case .sync = self { return true }
+        return false
+    }
+
     /// Commands that talk to a remote, which can take as long as the network does.
     public var usesNetwork: Bool {
         switch self {
@@ -307,10 +316,11 @@ public struct BDGateway: Sendable {
     public func result(of command: BDCommand) async throws -> CommandResult {
         let project = workspace.projectDirectory
         let timeout = command.usesNetwork ? networkTimeout : timeout
+        let stop: StopStyle = command.stopsGracefully ? .interrupt : .terminate
         if command.runsInsideFolder {
-            return try await runner.run(executable, arguments: command.arguments, directory: project, timeout: timeout)
+            return try await runner.run(executable, arguments: command.arguments, directory: project, timeout: timeout, stop: stop)
         }
-        return try await runner.run(executable, arguments: ["-C", project.path] + command.arguments, directory: nil, timeout: timeout)
+        return try await runner.run(executable, arguments: ["-C", project.path] + command.arguments, directory: nil, timeout: timeout, stop: stop)
     }
 
     /// The URL of the repository's git `origin`, or nil when there is none. The one question in

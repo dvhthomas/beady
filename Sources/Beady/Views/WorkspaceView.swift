@@ -163,6 +163,15 @@ struct WorkspaceView: View {
                 await model.refreshIfChanged()
             }
         }
+        .task(id: ObjectIdentifier(model)) {
+            // The sync timer (plan 0007). The model holds the rules and the clock's reading;
+            // this only asks, every few seconds, whether a tick is due. Nothing is due until a
+            // cadence has been chosen for this workspace.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await model.autoSyncTick()
+            }
+        }
     }
 
     /// The details, with the edge you drag to resize them. A floating pane keeps showing its

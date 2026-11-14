@@ -3156,6 +3156,47 @@
         }
       }
     },
+    "Beady syncs when you press Sync Now." : {
+      "comment" : "Under the sync cadence choice, when it is manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady synchronisiert, wenn du „Jetzt synchronisieren“ drückst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady sincroniza al pulsar Sincronizar ahora."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beady synchronise lorsque vous cliquez sur Synchroniser maintenant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「今すぐ同期」を押したときに同期します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘지금 동기화’를 누르면 동기화합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Beady sincroniza quando você clica em Sincronizar agora."
+          }
+        }
+      }
+    },
     "Blocked" : {
       "comment" : "A filter field: whether something upstream blocks the bead\nFilter value",
       "localizations" : {
@@ -4633,6 +4674,88 @@
         }
       }
     },
+    "Every 15 minutes" : {
+      "comment" : "How often to sync",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle 15 Minuten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada 15 minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les 15 minutes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15分ごと"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15분마다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cada 15 minutos"
+          }
+        }
+      }
+    },
+    "Every 5 minutes" : {
+      "comment" : "How often to sync",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle 5 Minuten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada 5 minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toutes les 5 minutes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5分ごと"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5분마다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cada 5 minutos"
+          }
+        }
+      }
+    },
     "Every bead in the database, whatever its status." : {
       "comment" : "Hover help for the Everything view",
       "localizations" : {
@@ -4711,6 +4834,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Todos os beads em atividade em um quadro das categorias do ciclo de vida do bd, com a coluna done limitada aos últimos 7 dias para continuar sendo uma área de trabalho."
+          }
+        }
+      }
+    },
+    "Every minute" : {
+      "comment" : "How often to sync",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jede Minute"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada minuto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque minute"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1分ごと"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1분마다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cada minuto"
           }
         }
       }
@@ -7765,6 +7929,88 @@
         }
       }
     },
+    "Paused until this is settled." : {
+      "comment" : "Under the sync cadence choice, when a conflict or a stuck sync holds the timer",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert, bis das geklärt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pausa hasta que esto se resuelva."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pause jusqu'à ce que ce soit réglé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これが解決するまで一時停止中です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 문제가 해결될 때까지 일시 중지됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em pausa até que isso seja resolvido."
+          }
+        }
+      }
+    },
+    "Paused, because you stopped a sync. Sync Now starts it again." : {
+      "comment" : "Under the sync cadence choice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert, weil du eine Synchronisierung gestoppt hast. „Jetzt synchronisieren“ startet sie wieder."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pausa porque se detuvo una sincronización. Sincronizar ahora la reanuda."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pause, car vous avez arrêté une synchronisation. Synchroniser maintenant la relance."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期を停止したため一時停止中です。「今すぐ同期」で再開します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화를 중지했기 때문에 일시 중지되었습니다. ‘지금 동기화’를 누르면 다시 시작합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em pausa porque você interrompeu uma sincronização. Sincronizar agora a retoma."
+          }
+        }
+      }
+    },
     "Persistent and stays open indefinitely; in the frozen category." : {
       "comment" : "Hover help for bd's pinned status",
       "localizations" : {
@@ -9706,6 +9952,47 @@
         }
       }
     },
+    "Stop" : {
+      "comment" : "Button: stop the sync that is running",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stoppen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detener"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parar"
+          }
+        }
+      }
+    },
     "Stop %@ waiting for %@" : {
       "comment" : "Change summary: two bead ids",
       "localizations" : {
@@ -9749,6 +10036,88 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fazer %1$@ parar de esperar por %2$@"
+          }
+        }
+      }
+    },
+    "Stop Syncing" : {
+      "comment" : "Command: stop the sync that is running",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisierung stoppen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detener la sincronización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêter la synchronisation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期を停止"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화 중지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parar a sincronização"
+          }
+        }
+      }
+    },
+    "Stopping…" : {
+      "comment" : "Toolbar sharing status after Stop, until bd has exited",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stoppe…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deteniendo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêt…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중지하는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parando…"
           }
         }
       }
@@ -9917,6 +10286,46 @@
         }
       }
     },
+    "Sync stopped. Anything bd had already received or sent stays; the next sync picks up the rest." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisierung gestoppt. Was bd bereits empfangen oder gesendet hatte, bleibt erhalten; die nächste Synchronisierung erledigt den Rest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronización detenida. Lo que bd ya había recibido o enviado se conserva; la próxima sincronización completa el resto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisation arrêtée. Ce que bd avait déjà reçu ou envoyé est conservé ; la prochaine synchronisation fera le reste."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期を停止しました。bdがすでに受信または送信した内容はそのまま残り、残りは次回の同期で処理されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화를 중지했습니다. bd가 이미 받거나 보낸 내용은 그대로 남고, 나머지는 다음 동기화에서 처리됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronização interrompida. O que o bd já havia recebido ou enviado permanece; a próxima sincronização cuida do resto."
+          }
+        }
+      }
+    },
     "Sync with %@" : {
       "comment" : "Changes menu entry for a sync that failed; the remote's name",
       "localizations" : {
@@ -10077,6 +10486,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sincronizando…"
+          }
+        }
+      }
+    },
+    "Syncs by itself while this workspace is open." : {
+      "comment" : "Under the sync cadence choice",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisiert von selbst, solange dieser Arbeitsbereich geöffnet ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se sincroniza por sí solo mientras este espacio de trabajo esté abierto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se synchronise tout seul tant que cet espace de travail est ouvert."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このワークスペースを開いている間、自動的に同期します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 작업 공간이 열려 있는 동안 자동으로 동기화합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincroniza sozinho enquanto este espaço de trabalho estiver aberto."
           }
         }
       }
@@ -11747,6 +12197,47 @@
         }
       }
     },
+    "When I ask" : {
+      "comment" : "How often to sync: only on Sync Now",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf Anforderung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando lo pida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À la demande"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "요청할 때"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando eu pedir"
+          }
+        }
+      }
+    },
     "When bd last changed the bead, counted back from now." : {
       "comment" : "Hover help for a filter field",
       "localizations" : {
@@ -12440,6 +12931,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "backup configurado, ainda não executado"
+          }
+        }
+      }
+    },
+    "bd advises care when several writers push to a git-hosted remote; a lost race is retried." : {
+      "comment" : "Under the sync cadence choice, for a git-hosted remote",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd rät zur Vorsicht, wenn mehrere Schreiber auf ein Git-gehostetes Remote pushen; ein verlorenes Wettrennen wird wiederholt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd aconseja cuidado cuando varios escritores envían a un remoto alojado en git; una carrera perdida se reintenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "bd conseille la prudence lorsque plusieurs rédacteurs poussent vers un dépôt distant hébergé sur git ; une course perdue est retentée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数の書き込み元がgitホストのリモートにプッシュする場合は注意するようbdは勧めています。競合に負けたプッシュは再試行されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 작성자가 git 호스팅 리모트에 푸시할 때는 주의하라고 bd는 권고합니다. 경합에서 밀린 푸시는 다시 시도됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O bd recomenda cuidado quando vários escritores enviam para um remoto hospedado no git; uma corrida perdida é tentada de novo."
           }
         }
       }

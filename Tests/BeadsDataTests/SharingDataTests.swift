@@ -92,6 +92,37 @@ struct SharingGatewayTests {
         #expect(runner.invocations.allSatisfy { !$0.arguments.contains("-C") })
     }
 
+    @Test("only a sync is stopped by asking: bd finishes what it is writing and answers; the rest are stopped as before")
+    func syncStopsGracefully() async throws {
+        #expect(BDCommand.sync.stopsGracefully)
+        for command in [BDCommand.push, .pull(keeping: .mine), .bootstrap, .peerStatus, .remoteList, .context] {
+            #expect(!command.stopsGracefully)
+        }
+        final class StyleRunner: CommandRunning, @unchecked Sendable {
+            var styles: [StopStyle] = []
+            func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval) async throws -> CommandResult {
+                try await run(executable, arguments: arguments, directory: directory, timeout: timeout, stop: .terminate)
+            }
+            func run(_ executable: URL, arguments: [String], directory: URL?, timeout: TimeInterval, stop: StopStyle) async throws -> CommandResult {
+                styles.append(stop)
+                return ok("{}")
+            }
+        }
+        let runner = StyleRunner()
+        let gateway = BDGateway(workspace: workspace, executable: bd, runner: runner)
+        _ = try await gateway.result(of: .sync)
+        _ = try await gateway.result(of: .push)
+        #expect(runner.styles == [.interrupt, .terminate])
+    }
+
+    @Test("a sync bd was asked to stop reads as a failure in bd's words; the model decides it was a stop")
+    func cancelledSyncDecodes() {
+        // As bd 1.3.4 printed it when interrupted during a push.
+        let json = #"{"error": "sync failed: push: push to origin/main: Error 1105: unknown push error; context canceled", "schema_version": 1}"#
+        #expect(BDJSON.decodeSyncOutcome(CommandResult(exitCode: 1, stdout: Data(json.utf8), stderr: ""))
+            == .failed("sync failed: push: push to origin/main: Error 1105: unknown push error; context canceled"))
+    }
+
     @Test("sync, push and the remote commands go through -C like every other command")
     func theRestUseC() async throws {
         let runner = FakeRunner { _ in ok("{}") }
