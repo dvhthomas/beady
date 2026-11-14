@@ -60,6 +60,8 @@ then off it. None of this is in the docs in so many words; each line changed the
 | `bd init` on such a clone also joins rather than forks ("initialized from git remote"). | The existing Create Database path is safe; the wording is bd's plan either way. |
 | `bd sync` from a linked worktree syncs the one shared database. | One status per repository, whichever checkout is open. |
 | Embedded sync works without a `dolt` binary. | Nothing to install or check. |
+| `bd -C <folder> context` looks for the git repository in the working directory, not in `<folder>`. An app's working directory is `/`, so it answered "not a git repository" and the sheet lost the database's place, the storage and bd's version (found in 0.7.0, in a live window; the tests ran inside a repository and never saw it). | `context` runs inside the folder, like bootstrap and `worktree list`. |
+| `bd context` refuses a database under `/tmp` ("BEADS_DIR points to unsafe location"). | A lab repository for looking at the sheet has to live elsewhere. |
 | `bd doctor` is not available on embedded storage. | Workspace Setup reads `context`, `dolt remote list`, `federation status`, `worktree list` and `hooks list` instead. |
 
 Not reproduced, and so left to bd's own words: exit 3 (push race) and exit 4 (stuck working set)
@@ -100,6 +102,12 @@ runs `bd bootstrap --yes` inside the folder.
 
 **D. Workspace Setup** lists what is true of this workspace, one row a fact: database, checkouts,
 sharing, backup, git hooks, bd. A row that needs something says what, and has at most one button.
+The facts scroll and the buttons don't, so Done is in reach whatever bd reports; checkouts are
+named up to four and counted beyond that (a repository worked by agents had 91).
+
+**The popover keeps its shape while bd works.** Its buttons stay where they are, disabled, and
+the symbol turns. A popover that dropped its buttons for the length of a real sync and then put
+them back came out clipped at the top and bottom.
 
 **No automatic sync.** Beady refreshes the status when a workspace opens and after each sync, and
 syncs when asked. bd's own caution about racing pushes is the reason; with several agents writing

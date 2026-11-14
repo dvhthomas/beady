@@ -62,7 +62,19 @@ struct SharingSummaryTests {
     func working() {
         let summary = SharingState.pending(origin, toSend: 1, toReceive: 0).summary(isWorking: true)
         #expect(summary.word == "Syncing…")
+        #expect(summary.isWorking)
         #expect(summary.actions.isEmpty)
+    }
+
+    @Test("the buttons keep their places while bd works, so the popover doesn't change size under the pointer")
+    func workingKeepsItsButtons() {
+        for state in [SharingState.pending(origin, toSend: 1, toReceive: 0), .inSync(origin), .unknown(origin), .notShared] {
+            let settled = state.summary()
+            let working = state.summary(isWorking: true)
+            #expect(working.buttons == settled.actions)
+            #expect(working.detail == settled.detail)
+            #expect(settled.buttons == settled.actions && !settled.isWorking)
+        }
     }
 
     @Test("a conflict says plainly that nothing was lost, and that a side applies to every bead in conflict")
@@ -176,6 +188,35 @@ struct WorkspaceSetupRowsTests {
         #expect(rows[0].detail.contains("/repo/.beads") && rows[0].detail.contains("one writer at a time"))
         #expect(rows[1].detail.contains("2 checkouts") && rows[1].detail.contains("master, claude/x"))
         #expect(rows[5].detail.contains("1.3.4") && rows[5].detail.contains("maintainer"))
+    }
+
+    @Test("a few checkouts are named; many are counted, because ninety branch names tell nobody anything")
+    func manyCheckouts() throws {
+        func setup(_ count: Int) -> WorkspaceSetup {
+            let worktrees = (1..<count).map { Checkout(name: "wt\($0)", path: "/repo/wt\($0)", branch: "fix/agent-\($0)", isMain: false) }
+            return WorkspaceSetup(
+                context: context,
+                checkouts: [Checkout(name: "repo", path: "/repo", branch: "main", isMain: true)] + worktrees,
+                hooks: [], exportsIssuesFile: nil
+            )
+        }
+        let few = try #require(rows(setup: setup(WorkspaceSetupRows.namedCheckoutLimit)).first { $0.kind == .checkouts })
+        #expect(few.detail.contains("main, fix/agent-1"))
+
+        let many = try #require(rows(setup: setup(91)).first { $0.kind == .checkouts })
+        #expect(many.detail == "91 checkouts of this repository use the one database, so a bead changed in one is changed in all.")
+        #expect(!many.detail.contains("fix/agent"))
+
+        let justOver = try #require(rows(setup: setup(WorkspaceSetupRows.namedCheckoutLimit + 1)).first { $0.kind == .checkouts })
+        #expect(!justOver.detail.contains("fix/agent"))
+    }
+
+    @Test("the sheet's facts take what they need on a big screen and leave room for Done on a small one")
+    func factsHeight() {
+        #expect(WorkspaceSetupRows.factsMaxHeight(visibleScreenHeight: 1400) == 520)
+        #expect(WorkspaceSetupRows.factsMaxHeight(visibleScreenHeight: 640) == 360)
+        #expect(WorkspaceSetupRows.factsMaxHeight(visibleScreenHeight: 300) == 200)
+        #expect(WorkspaceSetupRows.factsMaxHeight(visibleScreenHeight: nil) == 420)
     }
 
     @Test("one checkout is not worth a row")

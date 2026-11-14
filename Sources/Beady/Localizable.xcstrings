@@ -11085,47 +11085,6 @@
         }
       }
     },
-    "What bd reports about %@." : {
-      "comment" : "Workspace Setup sheet; the workspace's name",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Was bd über %@ meldet."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lo que bd informa sobre %@."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce que bd indique à propos de %@."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@についてbdが報告する内容。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@에 대해 bd가 보고하는 내용."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O que o bd informa sobre %@."
-          }
-        }
-      }
-    },
     "What changes" : {
       "localizations" : {
         "de" : {
@@ -11362,6 +11321,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Onde"
+          }
+        }
+      }
+    },
+    "Where the beads of %@ are kept, shared and backed up, as bd reports it." : {
+      "comment" : "Workspace Setup sheet, under its title; the workspace's name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wo die Beads von %@ liegen, wie sie geteilt und gesichert werden – so, wie bd es meldet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dónde se guardan, comparten y respaldan los beads de %@, según informa bd."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Où les beads de %@ sont conservés, partagés et sauvegardés, d'après bd."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のビーズの保存場所、共有、バックアップの状況（bdの報告による）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@의 비즈가 어디에 보관되고, 공유되고, 백업되는지를 bd가 보고한 대로 보여 줍니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onde os beads de %@ ficam guardados, compartilhados e com backup, conforme o bd informa."
           }
         }
       }
