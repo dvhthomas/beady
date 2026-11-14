@@ -43,7 +43,24 @@ public struct SharingSummary: Equatable, Sendable {
     public let tone: Tone
     /// A sentence or two, for the popover and the setup sheet.
     public let detail: String
+    /// What can be started now: none while bd is working.
     public let actions: [SharingAction]
+    /// bd is running a sync or a share: the symbol turns, and the buttons wait.
+    public let isWorking: Bool
+    /// The buttons to lay out, working or not. They stay where they are while bd works, drawn
+    /// disabled, so the popover doesn't change size under the pointer: a popover that shrank for
+    /// the length of a real sync came back clipped.
+    public let buttons: [SharingAction]
+
+    public init(word: String, symbol: String, tone: Tone, detail: String, actions: [SharingAction], isWorking: Bool = false, buttons: [SharingAction]? = nil) {
+        self.word = word
+        self.symbol = symbol
+        self.tone = tone
+        self.detail = detail
+        self.actions = actions
+        self.isWorking = isWorking
+        self.buttons = buttons ?? actions
+    }
 }
 
 public extension SharingState {
@@ -53,7 +70,8 @@ public extension SharingState {
         guard isWorking else { return summary }
         return SharingSummary(
             word: String(localized: "Syncing…", bundle: .module, comment: "Toolbar sharing status while bd sync runs"),
-            symbol: "arrow.triangle.2.circlepath", tone: .quiet, detail: summary.detail, actions: []
+            symbol: "arrow.triangle.2.circlepath", tone: .quiet, detail: summary.detail, actions: [],
+            isWorking: true, buttons: summary.actions
         )
     }
 
@@ -320,6 +338,18 @@ public struct SetupRow: Equatable, Sendable, Identifiable {
 }
 
 public enum WorkspaceSetupRows {
+    /// Up to this many checkouts are listed by branch; beyond it only their number is given.
+    public static let namedCheckoutLimit = 4
+
+    /// The tallest the sheet's facts may stand before they scroll under a title and buttons
+    /// that don't. Tall enough for every row on an ordinary screen; on a small one it leaves
+    /// the room the title, the buttons and the window's own toolbar take, so Done is never
+    /// below the screen's edge. `nil` when the screen can't be asked.
+    public static func factsMaxHeight(visibleScreenHeight: Double?) -> Double {
+        guard let visibleScreenHeight else { return 420 }
+        return min(520, max(200, visibleScreenHeight - 280))
+    }
+
     /// The rows, in reading order. A row whose facts bd wouldn't give is left out.
     /// - Parameters:
     ///   - sharing: nil when bd couldn't be asked.
@@ -358,14 +388,21 @@ public enum WorkspaceSetupRows {
             detail: [count, place, storage].compactMap { $0 }.joined(separator: " "), action: nil
         ))
 
-        // Checkouts: only worth a row when there is more than one.
+        // Checkouts: only worth a row when there is more than one. A few are named, because
+        // their branches are recognisable; a repository worked by agents can have ninety, and
+        // then the count is the fact.
         if setup.checkouts.count > 1 {
-            let names = setup.checkouts.map { $0.branch.isEmpty ? $0.name : $0.branch }.joined(separator: ", ")
+            let detail: String
+            if setup.checkouts.count <= namedCheckoutLimit {
+                let names = setup.checkouts.map { $0.branch.isEmpty ? $0.name : $0.branch }.joined(separator: ", ")
+                detail = String(localized: "\(setup.checkouts.count) checkouts of this repository use the one database, so a bead changed in one is changed in all: \(names).", bundle: .module, comment: "Count of checkouts, then their branch names")
+            } else {
+                detail = String(localized: "\(setup.checkouts.count) checkouts of this repository use the one database, so a bead changed in one is changed in all.", bundle: .module, comment: "Count of checkouts, when there are too many to name")
+            }
             rows.append(SetupRow(
                 kind: .checkouts, level: .info,
                 title: String(localized: "Checkouts on this Mac", bundle: .module, comment: "Workspace Setup row"),
-                detail: String(localized: "\(setup.checkouts.count) checkouts of this repository use the one database, so a bead changed in one is changed in all: \(names).", bundle: .module, comment: "Count of checkouts, then their branch names"),
-                action: nil
+                detail: detail, action: nil
             ))
         }
 

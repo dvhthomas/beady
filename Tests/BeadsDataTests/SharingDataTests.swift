@@ -84,6 +84,14 @@ struct SharingGatewayTests {
         #expect(runner.invocations.map(\.directory) == [workspace.projectDirectory])
     }
 
+    @Test("context runs inside the folder: bd -C looks for the repository where Beady was started, finds none, and says nothing")
+    func contextRunsInFolder() async throws {
+        let runner = FakeRunner { _ in ok(#"{"bd_version":"1.3.4","dolt_mode":"embedded"}"#) }
+        _ = try await BDGateway(workspace: workspace, executable: bd, runner: runner).run(.context)
+        #expect(runner.invocations.map(\.directory) == [workspace.projectDirectory])
+        #expect(runner.invocations.allSatisfy { !$0.arguments.contains("-C") })
+    }
+
     @Test("sync, push and the remote commands go through -C like every other command")
     func theRestUseC() async throws {
         let runner = FakeRunner { _ in ok("{}") }

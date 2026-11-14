@@ -129,10 +129,12 @@ public enum BDCommand: Equatable, Sendable {
 
     /// Commands bd only gets right from inside the folder. `bd -C <folder>` refuses init outright;
     /// with bootstrap it misses the git origin's data and plans a fresh database where it should
-    /// clone the shared one; and `bd -C <folder> worktree list` reports no repository.
+    /// clone the shared one; and `bd -C <folder> worktree list` and `context` look for the
+    /// repository in the directory Beady was started from, which for an app is `/`: they report
+    /// no repository, or another one's.
     public var runsInsideFolder: Bool {
         switch self {
-        case .initDatabase, .bootstrapPlan, .bootstrap, .worktrees: true
+        case .initDatabase, .bootstrapPlan, .bootstrap, .worktrees, .context: true
         default: false
         }
     }

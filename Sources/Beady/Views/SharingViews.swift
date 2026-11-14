@@ -18,7 +18,7 @@ struct SharingIndicator: View {
             Button {
                 ui.showsSharingPopover.toggle()
             } label: {
-                Label(summary.word, systemImage: summary.symbol)
+                SharingWord(summary: summary)
                     .foregroundStyle(summary.tone == .problem ? theme.blocked : theme.text)
             }
             .labelStyle(.titleAndIcon)
@@ -38,6 +38,22 @@ struct SharingIndicator: View {
     }
 }
 
+/// The status word with its symbol. While bd works the symbol turns, which is the sign that
+/// something is happening; Reduce Motion keeps it still, and the word "Syncing…" says it instead.
+struct SharingWord: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let summary: SharingSummary
+
+    var body: some View {
+        Label {
+            Text(summary.word)
+        } icon: {
+            Image(systemName: summary.symbol)
+                .symbolEffect(.rotate, options: .repeat(.continuous), isActive: summary.isWorking && !reduceMotion)
+        }
+    }
+}
+
 /// Internal rather than private so the offscreen snapshots can render it without a toolbar.
 struct SharingPopover: View {
     @Environment(\.theme) private var theme
@@ -48,7 +64,7 @@ struct SharingPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(summary.word, systemImage: summary.symbol)
+            SharingWord(summary: summary)
                 .font(.headline)
                 .foregroundStyle(summary.tone == .problem ? theme.blocked : theme.text)
 
@@ -76,20 +92,19 @@ struct SharingPopover: View {
 
             if let side = ui.confirmingConflictSide {
                 confirmation(for: side)
-            } else if !summary.actions.isEmpty {
+            } else if !summary.buttons.isEmpty {
                 HStack {
-                    ForEach(Array(summary.actions.enumerated()), id: \.offset) { _, action in
+                    ForEach(Array(summary.buttons.enumerated()), id: \.offset) { _, action in
                         Button(action.title) { perform(action) }
-                            .disabled(model.isSyncing || !model.canEdit)
+                            .disabled(summary.isWorking || !model.canEdit)
+                            // The command is there for whoever wants it, and out of the way.
+                            .help(model.command(for: action) ?? "")
                     }
-                    if model.isSyncing { ProgressView().controlSize(.small) }
-                }
-                if let command = summary.actions.compactMap(model.command(for:)).first, summary.actions.contains(.sync) {
-                    Text(command)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // Always laid out, so the row is the same height working or not.
+                    ProgressView()
+                        .controlSize(.small)
+                        .opacity(summary.isWorking ? 1 : 0)
+                        .accessibilityHidden(!summary.isWorking)
                 }
             }
 
@@ -108,6 +123,8 @@ struct SharingPopover: View {
         }
         .padding(16)
         .frame(width: 400)
+        // Its own height, always: a popover's window follows the content's ideal size.
+        .fixedSize(horizontal: false, vertical: true)
         .background(theme.background)
     }
 
@@ -389,15 +406,61 @@ struct WorkspaceSetupSheet: View {
         )
     }
 
+    private var factsMaxHeight: CGFloat {
+        let screen = (NSApp.keyWindow?.screen ?? NSScreen.main)?.visibleFrame.height
+        return WorkspaceSetupRows.factsMaxHeight(visibleScreenHeight: screen.map(Double.init))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Workspace Setup")
                     .font(.title3.weight(.semibold))
-                Text("What bd reports about \(model.title).", comment: "Workspace Setup sheet; the workspace's name")
+                Text("Where the beads of \(model.title) are kept, shared and backed up, as bd reports it.", comment: "Workspace Setup sheet, under its title; the workspace's name")
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
+            // The facts scroll and the buttons don't: however much bd reports, Done stays in
+            // reach. `fixedSize` lets the scroll view be as short as its content.
+            ScrollView {
+                facts
+            }
+            .frame(maxHeight: factsMaxHeight)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                if model.isSyncing { ProgressView().controlSize(.small) }
+                Spacer()
+                Button("Check Again") {
+                    Task {
+                        await model.refreshSetup()
+                        await model.refreshSharing()
+                    }
+                }
+                .disabled(model.isSyncing)
+                Button("Done") { ui.showsWorkspaceSetup = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 620)
+        .background(theme.background)
+        // Esc closes it too; Return is Done's.
+        .background {
+            Button("Done") { ui.showsWorkspaceSetup = false }
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
+        .task {
+            await model.refreshSetup()
+            await model.refreshSharing()
+        }
+    }
+
+    private var facts: some View {
+        VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { Divider() }
@@ -430,28 +493,8 @@ struct WorkspaceSetupSheet: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-
-            HStack {
-                if model.isSyncing { ProgressView().controlSize(.small) }
-                Spacer()
-                Button("Check Again") {
-                    Task {
-                        await model.refreshSetup()
-                        await model.refreshSharing()
-                    }
-                }
-                .disabled(model.isSyncing)
-                Button("Done") { ui.showsWorkspaceSetup = false }
-                    .keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(20)
-        .frame(width: 620)
-        .background(theme.background)
-        .task {
-            await model.refreshSetup()
-            await model.refreshSharing()
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The read-only commands the rows come from, as they would be typed in the repository.

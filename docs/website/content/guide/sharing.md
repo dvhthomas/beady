@@ -27,7 +27,8 @@ The toolbar says where the open database lives besides this Mac:
 {.table-scroll}
 
 Click it for the sentence behind the word and the one thing to do about it. Beady asks bd about
-the remote when a workspace opens and after each sync; **Check Again** asks on demand.
+the remote when a workspace opens and after each sync; **Check Again** asks on demand. While bd
+is working the word is **Syncing…** and its symbol turns.
 
 ## Sharing a database
 
@@ -86,7 +87,8 @@ open workspace, a row a fact:
 
 - **Database**: how many beads, and where bd keeps them.
 - **Checkouts on this Mac**: git worktrees of one repository all use the one database, so a
-  bead changed in one is changed in all.
+  bead changed in one is changed in all. Up to four are named by branch; more than that, as in
+  a repository worked by many agents, are counted.
 - **Sharing**: the same word and sentence as the toolbar.
 - **Backup**: whether one is set up; see [Backing up]({{< relref "workspaces.md#backing-up" >}}).
 - **Commits**: whether bd's git hooks are installed. They are what can put beads into commits,

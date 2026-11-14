@@ -1300,6 +1300,47 @@
         }
       }
     },
+    "%lld checkouts of this repository use the one database, so a bead changed in one is changed in all." : {
+      "comment" : "Count of checkouts, when there are too many to name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Checkouts dieses Repositorys verwenden dieselbe Datenbank; ein in einem geänderter Bead ist also in allen geändert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld copias de trabajo de este repositorio usan la misma base de datos, así que un bead cambiado en una cambia en todas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld copies de travail de ce dépôt utilisent la même base de données ; un bead modifié dans l'une l'est dans toutes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリポジトリの%lld個のチェックアウトが同じデータベースを使用しているため、1つで変更したビーズはすべてで変更されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 저장소의 체크아웃 %lld개가 하나의 데이터베이스를 사용하므로, 한 곳에서 바꾼 비즈는 모든 곳에서 바뀝니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cópias de trabalho deste repositório usam o mesmo banco de dados; um bead alterado em uma é alterado em todas."
+          }
+        }
+      }
+    },
     "%lld checkouts of this repository use the one database, so a bead changed in one is changed in all: %@." : {
       "comment" : "Count of checkouts, then their branch names",
       "localizations" : {
