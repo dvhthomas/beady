@@ -138,8 +138,13 @@ public final class WorkspaceModel {
         staleAfter: TimeInterval = 300,
         activityWindow: TimeInterval = 600,
         /// Whether to turn bd's change journal on when this workspace opens.
-        journalPolicy: JournalPolicy = .manual
+        journalPolicy: JournalPolicy = .manual,
+        /// How often this workspace was left syncing by itself, and where to note a new choice.
+        syncCadence: SyncCadence = .manual,
+        noteSyncCadence: ((SyncCadence) -> Void)? = nil
     ) {
+        self.autoSync = AutoSync(cadence: syncCadence)
+        self.noteSyncCadence = noteSyncCadence
         self.title = title
         self.store = store
         self.allowsWriting = allowsWriting
@@ -885,8 +890,15 @@ public final class WorkspaceModel {
     /// The last sync this session. A halted merge leaves nothing for bd to report afterwards,
     /// so this is how a conflict stays on screen until it is settled.
     public private(set) var lastSync: SyncOutcome?
+    /// What is running: a sync, which can be stopped, or a share or a settlement, which can't.
+    public private(set) var sharingActivity: SharingActivity = .idle
     /// True while a sync, a share or a conflict settlement is running.
-    public private(set) var isSyncing = false
+    public var isSyncing: Bool { sharingActivity != .idle }
+    /// The sync timer: its cadence, and what the last sync means for the next tick (plan 0007).
+    public private(set) var autoSync: AutoSync
+    /// The running `bd sync`, so Stop has something to cancel.
+    @ObservationIgnored private var syncTask: Task<SyncOutcome, Error>?
+    @ObservationIgnored private let noteSyncCadence: ((SyncCadence) -> Void)?
     /// What the last sharing action has to say that the status doesn't: a failure in bd's words.
     public private(set) var sharingNotice: String?
     /// The checkouts, hooks and storage bd reports, for the Workspace Setup sheet.
@@ -899,7 +911,23 @@ public final class WorkspaceModel {
     }
 
     public var sharingSummary: SharingSummary? {
-        sharingState?.summary(isWorking: isSyncing)
+        sharingState?.summary(activity: sharingActivity)
+    }
+
+    /// How often this workspace syncs by itself. This Mac's choice: it is kept in Beady's
+    /// preferences by whoever opened the model, and changes nothing in bd's configuration.
+    public var syncCadence: SyncCadence {
+        get { autoSync.cadence }
+        set {
+            guard newValue != autoSync.cadence else { return }
+            autoSync.choose(newValue)
+            noteSyncCadence?(newValue)
+        }
+    }
+
+    /// The line under the cadence choice.
+    public var autoSyncCaption: String {
+        autoSync.caption(remote: sharingState?.remote)
     }
 
     /// Asks bd where the database is shared and how it stands against that remote. This is the
@@ -915,6 +943,11 @@ public final class WorkspaceModel {
         gitOrigin = await store.gitOriginURL()
     }
 
+    /// False for the one notice that isn't a complaint: the word that a sync was stopped.
+    public var sharingNoticeIsFailure: Bool {
+        sharingNotice != SyncOutcome.stopped.notice
+    }
+
     public func dismissSharingNotice() {
         sharingNotice = nil
     }
@@ -922,29 +955,76 @@ public final class WorkspaceModel {
     /// One `bd sync`: pull, check, push. Nothing is retried here; bd does its own bounded
     /// retrying, and a second press is the user's to make.
     public func syncNow() async {
+        await runSync(automatic: false)
+    }
+
+    /// Asks bd to stop the sync that is running. bd is sent the signal Ctrl-C sends, finishes
+    /// what it is writing and exits; `syncNow` then reads how things stand. Only a sync can be
+    /// stopped: a share and a settlement run to the end.
+    public func stopSync() {
+        guard sharingActivity == .syncing else { return }
+        sharingActivity = .stopping
+        syncTask?.cancel()
+    }
+
+    /// Called every few seconds while the window is open. Runs one sync when the timer's rules
+    /// say one is due, and otherwise does nothing.
+    public func autoSyncTick() async {
+        let isBusy = isSyncing || isWriting || isBackingUp
+        guard autoSync.isDue(at: now(), state: sharingState, isBusy: isBusy, canWrite: allowsWriting) else { return }
+        await runSync(automatic: true)
+    }
+
+    private func runSync(automatic: Bool) async {
         guard allowsWriting, !isSyncing else { return }
-        isSyncing = true
-        defer { isSyncing = false }
-        sharingNotice = nil
+        sharingActivity = .syncing
+        if !automatic { sharingNotice = nil }
         let remote = sharing?.remote?.name ?? SharePlan.remoteName
-        do {
-            let outcome = try await store.sync()
-            lastSync = outcome
-            sharingNotice = outcome.notice
-            switch outcome {
-            case .synced:
-                record(summary: String(localized: "Synced with \(remote)", bundle: .module, comment: "Changes menu entry; the remote's name"))
-            case .conflict:
-                record(summary: String(localized: "Sync with \(remote) stopped on a conflict", bundle: .module, comment: "Changes menu entry; the remote's name"), error: SharingFailure(message: String(localized: "Nothing was sent and nothing here was lost.", bundle: .module)))
-            case .busy, .stuck, .unrelated, .failed:
-                record(summary: String(localized: "Sync with \(remote)", bundle: .module, comment: "Changes menu entry for a sync that failed; the remote's name"), error: SharingFailure(message: outcome.notice ?? ""))
-            case .noRemote, .localOnly:
-                break
-            }
-        } catch {
-            sharingNotice = error.localizedDescription
-            record(summary: String(localized: "Sync with \(remote)", bundle: .module, comment: "Changes menu entry for a sync that failed; the remote's name"), error: error)
+
+        // Its own task, so Stop cancels the sync and not whoever asked for it.
+        let task = Task { [store] in try await store.sync() }
+        syncTask = task
+        let answer: Result<SyncOutcome, Error>
+        do { answer = .success(try await task.value) } catch { answer = .failure(error) }
+        syncTask = nil
+        let stopRequested = sharingActivity == .stopping
+
+        let outcome: SyncOutcome
+        var thrown: Error?
+        switch answer {
+        case .success(let reported):
+            outcome = reported.afterStop(requested: stopRequested)
+        case .failure(let error):
+            outcome = stopRequested ? .stopped : .failed(error.localizedDescription)
+            if !stopRequested { thrown = error }
         }
+        lastSync = outcome
+        let shown = autoSync.record(outcome, at: now(), automatic: automatic) == .show
+        if shown {
+            sharingNotice = thrown?.localizedDescription ?? outcome.notice
+        } else if outcome == .synced {
+            // A good sync answers whatever an earlier one complained of.
+            sharingNotice = nil
+        }
+
+        // The Changes menu lists what a person did and what they need to know: a quiet tick is
+        // neither, and a stop is not a failure.
+        let failedSummary = String(localized: "Sync with \(remote)", bundle: .module, comment: "Changes menu entry for a sync that failed; the remote's name")
+        switch outcome {
+        case .synced:
+            if !automatic {
+                record(summary: String(localized: "Synced with \(remote)", bundle: .module, comment: "Changes menu entry; the remote's name"))
+            }
+        case .conflict:
+            record(summary: String(localized: "Sync with \(remote) stopped on a conflict", bundle: .module, comment: "Changes menu entry; the remote's name"), error: SharingFailure(message: String(localized: "Nothing was sent and nothing here was lost.", bundle: .module)))
+        case .busy, .stuck, .unrelated, .failed:
+            if shown {
+                record(summary: failedSummary, error: thrown ?? SharingFailure(message: outcome.notice ?? ""))
+            }
+        case .noRemote, .localOnly, .stopped:
+            break
+        }
+        sharingActivity = .idle
         await afterSharingAction()
     }
 
@@ -963,7 +1043,7 @@ public final class WorkspaceModel {
         switch action {
         case .sync: store.commandPreview(for: .sync)
         case .settleConflict(let side): store.commandPreview(for: .settleConflict(keeping: side))
-        case .share, .checkAgain: nil
+        case .share, .checkAgain, .stop: nil
         }
     }
 
@@ -972,8 +1052,8 @@ public final class WorkspaceModel {
     @discardableResult
     public func share(_ plan: SharePlan) async -> Bool {
         guard allowsWriting, !isSyncing, plan.canShare else { return false }
-        isSyncing = true
-        defer { isSyncing = false }
+        sharingActivity = .working
+        defer { sharingActivity = .idle }
         sharingNotice = nil
         let summary = String(localized: "Shared beads with \(plan.destination)", bundle: .module, comment: "Changes menu entry; the remote's URL")
         do {
@@ -997,7 +1077,7 @@ public final class WorkspaceModel {
     /// embedded storage (`SharingState.conflict(_, canChooseSide:)`).
     public func settleConflict(keeping side: ConflictSide) async {
         guard allowsWriting, !isSyncing, case .conflict(let remote, true) = sharingState else { return }
-        isSyncing = true
+        sharingActivity = .working
         sharingNotice = nil
         do {
             try await store.perform(.settleConflict(keeping: side))
@@ -1008,11 +1088,11 @@ public final class WorkspaceModel {
         } catch {
             sharingNotice = error.localizedDescription
             record(summary: String(localized: "Settle the conflict with \(remote.name)", bundle: .module, comment: "Changes menu entry for a settlement that failed; the remote's name"), error: error)
-            isSyncing = false
+            sharingActivity = .idle
             await afterSharingAction()
             return
         }
-        isSyncing = false
+        sharingActivity = .idle
         // The pull merged; the push is what tells the remote.
         await syncNow()
     }

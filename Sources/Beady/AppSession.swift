@@ -254,7 +254,9 @@ final class AppSession {
                     turnsOnAutomatically: turnsOnJournal,
                     wasTurnedOffByHand: journalsTurnedOn.contains(path),
                     noteTurnedOn: { [weak self] in self?.rememberJournalTurnedOn(at: path) }
-                )
+                ),
+                syncCadence: syncCadence(at: path),
+                noteSyncCadence: { [weak self] in self?.rememberSyncCadence($0, at: path) }
             )
             openError = nil
             ui.currentWorkspacePath = path
@@ -287,6 +289,22 @@ final class AppSession {
     /// not this window's.
     private var journalsTurnedOn: [String] {
         preferences?.stringArray(forKey: Self.journalsTurnedOnKey) ?? []
+    }
+
+    /// How often each workspace syncs by itself (plan 0007), by folder, in seconds. This Mac's
+    /// choice: it is not in bd's configuration, so no teammate or agent inherits it.
+    private static let syncCadencesKey = "syncCadences"
+
+    private func syncCadence(at path: String) -> SyncCadence {
+        let saved = preferences?.dictionary(forKey: Self.syncCadencesKey) as? [String: Int] ?? [:]
+        return SyncCadence(seconds: saved[path] ?? 0)
+    }
+
+    private func rememberSyncCadence(_ cadence: SyncCadence, at path: String) {
+        guard let preferences else { return }
+        var saved = preferences.dictionary(forKey: Self.syncCadencesKey) as? [String: Int] ?? [:]
+        saved[path] = cadence == .manual ? nil : cadence.rawValue
+        preferences.set(saved, forKey: Self.syncCadencesKey)
     }
 
     private func rememberJournalTurnedOn(at path: String) {
@@ -654,6 +672,8 @@ final class AppSession {
             }
         case .syncNow:
             if let model { Task { await model.syncNow() } }
+        case .stopSync:
+            model?.stopSync()
         case .workspaceSetup:
             if model != nil { ui.promptWorkspaceSetup() }
         case .openSettings: NSApp?.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)

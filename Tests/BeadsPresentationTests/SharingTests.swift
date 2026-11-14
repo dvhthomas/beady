@@ -382,10 +382,190 @@ struct SharingModelTests {
         let model = await model(store)
         await model.syncNow()
         #expect(model.sharingNotice?.contains("sync failed: push: rejected") == true)
+        #expect(model.sharingNoticeIsFailure)
         #expect(model.sharingState == .pending(origin, toSend: 1, toReceive: 0))
         #expect(model.activity.first?.succeeded == false)
         model.dismissSharingNotice()
         #expect(model.sharingNotice == nil)
+    }
+
+    // MARK: Stopping (plan 0007)
+
+    /// Runs until `condition` holds, for state that changes on another task.
+    func eventually(_ condition: () -> Bool) async -> Bool {
+        for _ in 0..<400 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return condition()
+    }
+
+    @Test("a running sync can be stopped: bd is asked, its answer is waited for, and nothing is recorded as an error")
+    func stopSync() async {
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts(ahead: 1)
+        store.syncRunsUntilStopped = true
+        let model = await model(store)
+        let running = Task { await model.syncNow() }
+        #expect(await eventually { model.sharingActivity == .syncing })
+        #expect(model.sharingSummary?.word == "Syncing…")
+        #expect(model.sharingSummary?.actions == [.stop])
+        // The button that was Sync Now is Stop, in the same place.
+        #expect(model.sharingSummary?.buttons == [.stop])
+
+        model.stopSync()
+        #expect(model.sharingActivity == .stopping)
+        #expect(model.sharingSummary?.word == "Stopping…")
+        #expect(model.sharingSummary?.actions == [])
+        await running.value
+
+        #expect(model.lastSync == .stopped)
+        #expect(model.sharingActivity == .idle && !model.isSyncing)
+        #expect(model.sharingNotice == "Sync stopped. Anything bd had already received or sent stays; the next sync picks up the rest.")
+        #expect(model.activity.isEmpty, "a stop is not a failure")
+        #expect(!model.sharingNoticeIsFailure, "and isn't drawn as one")
+        // The standing is read again, so what is left to send shows.
+        #expect(model.sharingState == .pending(origin, toSend: 1, toReceive: 0))
+    }
+
+    @Test("a sync that finished before the stop reached it is what it is")
+    func stopTooLate() async {
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts(ahead: 1)
+        store.sharingAfterAction = facts()
+        store.syncRunsUntilStopped = true
+        store.answerWhenStopped = .conflict(tables: ["issues"])
+        let model = await model(store)
+        let running = Task { await model.syncNow() }
+        #expect(await eventually { model.sharingActivity == .syncing })
+        model.stopSync()
+        await running.value
+        #expect(model.lastSync == .conflict(tables: ["issues"]))
+        #expect(model.sharingState == .conflict(origin, canChooseSide: true))
+    }
+
+    @Test("there is nothing to stop when nothing is syncing, and a share or a settlement isn't stoppable")
+    func nothingToStop() async {
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts()
+        let model = await model(store)
+        model.stopSync()
+        #expect(model.sharingActivity == .idle)
+        #expect(SharingState.inSync(origin).summary(activity: .working).actions == [])
+        #expect(SharingState.inSync(origin).summary(activity: .working).buttons == [.sync])
+    }
+
+    // MARK: Automatic sync (plan 0007)
+
+    @Test("nothing syncs by itself until a cadence is chosen; then a tick is one bd sync, and the next waits its interval")
+    func automaticTicks() async {
+        let clock = Clock(t0)
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts(ahead: 1)
+        store.sharingAfterAction = facts()
+        var noted: [SyncCadence] = []
+        let model = WorkspaceModel(title: "engine", store: store, now: { clock.now }, noteSyncCadence: { noted.append($0) })
+        await model.load()
+        await model.refreshSharing()
+
+        await model.autoSyncTick()
+        #expect(store.syncs == 0)
+
+        model.syncCadence = .everyFiveMinutes
+        #expect(noted == [.everyFiveMinutes])
+        await model.autoSyncTick()
+        #expect(store.syncs == 1)
+        #expect(model.sharingState == .inSync(origin))
+        #expect(model.activity.isEmpty, "a quiet tick doesn't fill the Changes menu")
+
+        clock.advance(299)
+        await model.autoSyncTick()
+        #expect(store.syncs == 1)
+        clock.advance(1)
+        await model.autoSyncTick()
+        #expect(store.syncs == 2)
+    }
+
+    @Test("a workspace opens with the cadence it was left with")
+    func rememberedCadence() async {
+        let store = StubStore([makeIssue("a")])
+        let model = WorkspaceModel(title: "engine", store: store, now: { t0 }, syncCadence: .everyMinute)
+        #expect(model.syncCadence == .everyMinute)
+        #expect(model.autoSyncCaption == "Syncs by itself while this workspace is open.")
+    }
+
+    @Test("an automatic failure is shown only when it repeats; a conflict is shown at once and stops the timer")
+    func automaticFailures() async {
+        let clock = Clock(t0)
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts(ahead: 1)
+        store.syncOutcomes = [.failed("offline"), .busy, .failed("offline"), .failed("still offline"), .conflict(tables: ["issues"])]
+        let model = WorkspaceModel(title: "engine", store: store, now: { clock.now }, syncCadence: .everyMinute)
+        await model.load()
+        await model.refreshSharing()
+
+        for _ in 0..<3 {
+            await model.autoSyncTick()
+            clock.advance(60)
+            #expect(model.sharingNotice == nil)
+        }
+        await model.autoSyncTick()
+        clock.advance(60)
+        #expect(model.sharingNotice?.contains("still offline") == true)
+        #expect(model.activity.count == 1 && model.activity.first?.succeeded == false)
+
+        await model.autoSyncTick()
+        clock.advance(60)
+        #expect(model.sharingState == .conflict(origin, canChooseSide: true))
+        let syncs = store.syncs
+        await model.autoSyncTick()
+        #expect(store.syncs == syncs, "no tick while a decision is waiting")
+        #expect(model.autoSyncCaption == "Paused until this is settled.")
+    }
+
+    @Test("stopping an automatic sync pauses the timer until a sync is asked for by hand")
+    func stopPausesTheTimer() async {
+        let clock = Clock(t0)
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts()
+        store.syncRunsUntilStopped = true
+        let model = WorkspaceModel(title: "engine", store: store, now: { clock.now }, syncCadence: .everyMinute)
+        await model.load()
+        await model.refreshSharing()
+
+        let tick = Task { await model.autoSyncTick() }
+        #expect(await eventually { model.sharingActivity == .syncing })
+        model.stopSync()
+        await tick.value
+        clock.advance(600)
+        await model.autoSyncTick()
+        #expect(store.syncs == 1)
+        #expect(model.autoSyncCaption == "Paused, because you stopped a sync. Sync Now starts it again.")
+
+        store.syncRunsUntilStopped = false
+        await model.syncNow()
+        clock.advance(60)
+        await model.autoSyncTick()
+        #expect(store.syncs == 3)
+    }
+
+    @Test("a tick never runs in a read-only window, and never makes the first publish")
+    func automaticLimits() async {
+        let store = StubStore([makeIssue("a")])
+        store.sharing = facts()
+        let readOnly = WorkspaceModel(title: "engine", store: store, allowsWriting: false, now: { t0 }, syncCadence: .everyMinute)
+        await readOnly.load()
+        await readOnly.refreshSharing()
+        await readOnly.autoSyncTick()
+        #expect(store.syncs == 0)
+
+        store.sharing = SharingFacts(remotes: [origin], peers: [PeerStatus(name: "origin", isReachable: true, reachError: nil, ahead: nil, behind: nil)], isLocalOnly: false, storage: .embedded)
+        let unsent = WorkspaceModel(title: "engine", store: store, now: { t0 }, syncCadence: .everyMinute)
+        await unsent.load()
+        await unsent.refreshSharing()
+        #expect(unsent.sharingState == .neverPublished(origin))
+        await unsent.autoSyncTick()
+        #expect(store.syncs == 0)
     }
 
     @Test("two separate backlogs are named as that after a sync finds them")
@@ -524,4 +704,13 @@ struct JoiningTests {
         #expect(offer.confirmTitle == "Set Up")
         #expect(offer.message(command: "x").contains("Found backup in .beads/backup"))
     }
+}
+
+/// A clock a test can move.
+final class Clock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+    init(_ date: Date) { self.date = date }
+    var now: Date { lock.withLock { date } }
+    func advance(_ seconds: TimeInterval) { lock.withLock { date = date.addingTimeInterval(seconds) } }
 }

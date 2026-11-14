@@ -109,7 +109,8 @@ named up to four and counted beyond that (a repository worked by agents had 91).
 the symbol turns. A popover that dropped its buttons for the length of a real sync and then put
 them back came out clipped at the top and bottom.
 
-**No automatic sync.** Beady refreshes the status when a workspace opens and after each sync, and
+**No automatic sync** (amended by [0007](0007-stopping-and-automatic-sync.md): a person can now
+choose a timer, off by default, for the reasons given here). Beady refreshes the status when a workspace opens and after each sync, and
 syncs when asked. bd's own caution about racing pushes is the reason; with several agents writing
 through worktrees, an app that pushed by itself would be one more racer. If it is wanted later,
 the place for it is bd's `dolt.auto-push`, which is bd's to throttle.

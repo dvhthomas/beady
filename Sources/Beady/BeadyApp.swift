@@ -248,6 +248,8 @@ struct AppCommands: Commands {
             Divider()
             item(.syncNow, needsWorkspace: true)
                 .disabled(session.model?.sharingSummary?.actions.contains(.sync) != true)
+            item(.stopSync, needsWorkspace: true)
+                .disabled(session.model?.sharingSummary?.actions.contains(.stop) != true)
             item(.shareBeads, needsWorkspace: true)
                 .disabled(session.model?.sharingSummary?.actions.contains(.share) != true)
             item(.workspaceSetup, needsWorkspace: true)

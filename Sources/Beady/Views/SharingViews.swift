@@ -87,7 +87,7 @@ struct SharingPopover: View {
             }
 
             if let notice = model.sharingNotice {
-                SharingNotice(text: notice)
+                SharingNotice(text: notice, isFailure: model.sharingNoticeIsFailure)
             }
 
             if let side = ui.confirmingConflictSide {
@@ -96,7 +96,8 @@ struct SharingPopover: View {
                 HStack {
                     ForEach(Array(summary.buttons.enumerated()), id: \.offset) { _, action in
                         Button(action.title) { perform(action) }
-                            .disabled(summary.isWorking || !model.canEdit)
+                            // What can be started now: while a sync runs, only Stop.
+                            .disabled(!summary.actions.contains(action) || !model.canEdit)
                             // The command is there for whoever wants it, and out of the way.
                             .help(model.command(for: action) ?? "")
                     }
@@ -106,6 +107,10 @@ struct SharingPopover: View {
                         .opacity(summary.isWorking ? 1 : 0)
                         .accessibilityHidden(!summary.isWorking)
                 }
+            }
+
+            if model.sharingState?.offersSyncCadence == true {
+                cadence
             }
 
             Divider()
@@ -126,6 +131,28 @@ struct SharingPopover: View {
         // Its own height, always: a popover's window follows the content's ideal size.
         .fixedSize(horizontal: false, vertical: true)
         .background(theme.background)
+    }
+
+    /// How often this workspace syncs by itself (plan 0007), and one line on what that means.
+    /// The line always takes two lines' room, so choosing doesn't resize the popover.
+    private var cadence: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker(selection: Binding(get: { model.syncCadence }, set: { model.syncCadence = $0 })) {
+                ForEach(SyncCadence.allCases) { cadence in
+                    Text(cadence.title).tag(cadence)
+                }
+            } label: {
+                Text("Sync", comment: "Sharing popover: label of the choice of how often to sync")
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .disabled(!model.canEdit)
+            Text(model.autoSyncCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2, reservesSpace: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Settling a conflict throws one side's version of the conflicted beads away, so it is
@@ -161,19 +188,22 @@ struct SharingPopover: View {
         case .sync: run(.syncNow)
         case .checkAgain: Task { await model.refreshSharing() }
         case .settleConflict(let side): ui.confirmingConflictSide = side
+        case .stop: run(.stopSync)
         }
     }
 }
 
-/// A failure, in bd's own words: selectable, and never taller than the window can take.
+/// What the last sharing action has to say: a failure in bd's own words, or the plain word that
+/// a sync was stopped. Selectable, and never taller than the window can take.
 private struct SharingNotice: View {
     @Environment(\.theme) private var theme
     let text: String
+    var isFailure = true
 
     var body: some View {
         ScrollView {
-            Label(text, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(theme.blocked)
+            Label(text, systemImage: isFailure ? "exclamationmark.triangle.fill" : "stop.circle")
+                .foregroundStyle(isFailure ? theme.blocked : theme.secondaryText)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -223,7 +253,7 @@ struct ShareBeadsSheet: View {
             }
 
             if let notice = model.sharingNotice {
-                SharingNotice(text: notice)
+                SharingNotice(text: notice, isFailure: model.sharingNoticeIsFailure)
             }
 
             HStack {
@@ -471,7 +501,7 @@ struct WorkspaceSetupSheet: View {
             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
             if let notice = model.sharingNotice {
-                SharingNotice(text: notice)
+                SharingNotice(text: notice, isFailure: model.sharingNoticeIsFailure)
             }
 
             DisclosureGroup(isExpanded: showsMechanics.projectedValue) {
@@ -523,7 +553,8 @@ struct WorkspaceSetupSheet: View {
             Spacer(minLength: 8)
             if let action = row.action {
                 Button(action.title) { perform(action) }
-                    .disabled(model.isSyncing || model.isBackingUp || !model.canEdit)
+                    // Stop is the one thing to press while a sync runs.
+                    .disabled(action == .sharing(.stop) ? false : (model.isSyncing || model.isBackingUp || !model.canEdit))
             }
         }
         .padding(.vertical, 10)
@@ -550,6 +581,7 @@ struct WorkspaceSetupSheet: View {
         case .sharing(.share): run(.shareBeads)
         case .sharing(.sync): run(.syncNow)
         case .sharing(.checkAgain): Task { await model.refreshSharing() }
+        case .sharing(.stop): run(.stopSync)
         case .sharing(.settleConflict):
             // The decision is made in the popover, where it is asked twice.
             ui.showsWorkspaceSetup = false

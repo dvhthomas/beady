@@ -190,6 +190,42 @@ struct ProcessCommandRunnerTests {
         #expect(await waitUntil(seconds: 6) { kill(pid, 0) != 0 }, "process \(pid) survived the timeout")
     }
 
+    @Test("an interruptible command is asked to stop with SIGINT, and its own answer comes back once it has exited")
+    func interruptReturnsTheAnswer() async throws {
+        // bd's shape: it traps the signal, says what it was doing, and exits 1.
+        let script = #"trap 'echo "{\"error\":\"sync failed: context canceled\"}"; exit 1' INT; while true; do sleep 0.1; done"#
+        let started = Date()
+        let task = Task { try await ProcessCommandRunner().run(sh, arguments: ["-c", script], directory: nil, timeout: 30, stop: .interrupt) }
+        try await Task.sleep(for: .milliseconds(400))
+        task.cancel()
+        let result = try await task.value
+        #expect(result.exitCode == 1)
+        #expect(String(decoding: result.stdout, as: UTF8.self).contains("context canceled"))
+        #expect(Date().timeIntervalSince(started) < 5)
+    }
+
+    @Test("a command that ignores the interrupt gets a second, then is killed, so a hung bd can't hold the window")
+    func interruptBackstop() async throws {
+        let pidFile = try makeTempDirectory().appendingPathComponent("pid")
+        let script = "trap '' INT; echo $$ > '\(pidFile.path)'; exec sleep 30"
+        let runner = ProcessCommandRunner(interruptGrace: 0.3, killGrace: 0.3)
+        let task = Task { try await runner.run(sh, arguments: ["-c", script], directory: nil, timeout: 30, stop: .interrupt) }
+        #expect(await waitUntil(seconds: 3) { readPID(pidFile) != nil })
+        task.cancel()
+        let result = try await task.value
+        #expect(result.exitCode != 0)
+        let pid = try #require(readPID(pidFile))
+        #expect(await waitUntil(seconds: 3) { kill(pid, 0) != 0 }, "process \(pid) survived")
+    }
+
+    @Test("an ordinary command is still stopped at once when its task is cancelled")
+    func terminateIsUnchanged() async throws {
+        let task = Task { try await ProcessCommandRunner().run(sh, arguments: ["-c", "sleep 30"], directory: nil, timeout: 30, stop: .terminate) }
+        try await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
     @Test("returns once the process exits, even if a grandchild still holds the pipe")
     func grandchildHoldsPipe() async throws {
         let started = Date()

@@ -12,9 +12,12 @@ public enum SharingAction: Equatable, Sendable {
     /// Ask bd again how the database stands against its remote.
     case checkAgain
     case settleConflict(keeping: ConflictSide)
+    /// Ask bd to stop the sync that is running (plan 0007).
+    case stop
 
     public var title: String {
         switch self {
+        case .stop: String(localized: "Stop", bundle: .module, comment: "Button: stop the sync that is running")
         case .share: String(localized: "Share Beads…", bundle: .module, comment: "Button and command: open the Share Beads sheet")
         case .sync: String(localized: "Sync Now", bundle: .module, comment: "Button and command: run bd sync")
         case .checkAgain: String(localized: "Check Again", bundle: .module, comment: "Button: ask bd about the remote again")
@@ -22,6 +25,17 @@ public enum SharingAction: Equatable, Sendable {
         case .settleConflict(.theirs): String(localized: "Take the Remote's", bundle: .module, comment: "Button: settle a conflict for the remote side")
         }
     }
+}
+
+/// What the window is doing about sharing right now.
+public enum SharingActivity: Equatable, Sendable {
+    case idle
+    /// One `bd sync` is running, and can be stopped.
+    case syncing
+    /// bd has been asked to stop and hasn't exited yet.
+    case stopping
+    /// A share or a conflict settlement is running. Each runs to the end.
+    case working
 }
 
 /// The one thing the toolbar says about sharing, and the sentence behind it.
@@ -64,15 +78,50 @@ public struct SharingSummary: Equatable, Sendable {
 }
 
 public extension SharingState {
-    /// `isWorking` is true while a sync or a share is running.
+    /// Whether the choice of how often to sync belongs on screen: only for a database that has
+    /// been shared, since the first publish is Share Beads's to make.
+    var offersSyncCadence: Bool {
+        switch self {
+        case .inSync, .pending, .unknown, .unreachable, .conflict, .unrelated: true
+        case .keptLocal, .notShared, .neverPublished: false
+        }
+    }
+
+    /// `isWorking` is true while a share or a settlement is running.
     func summary(isWorking: Bool = false) -> SharingSummary {
+        summary(activity: isWorking ? .working : .idle)
+    }
+
+    /// The summary while something is running keeps the settled sentence and the buttons'
+    /// places. A sync's own button becomes Stop; nothing else can be started.
+    func summary(activity: SharingActivity) -> SharingSummary {
         let summary = settledSummary
-        guard isWorking else { return summary }
-        return SharingSummary(
-            word: String(localized: "Syncing…", bundle: .module, comment: "Toolbar sharing status while bd sync runs"),
-            symbol: "arrow.triangle.2.circlepath", tone: .quiet, detail: summary.detail, actions: [],
-            isWorking: true, buttons: summary.actions
-        )
+        let syncing = String(localized: "Syncing…", bundle: .module, comment: "Toolbar sharing status while bd sync runs")
+        // Stop takes Sync Now's place, or stands beside what is there when a sync was started
+        // from somewhere the popover doesn't offer one.
+        let withStop = summary.actions.contains(.sync)
+            ? summary.actions.map { $0 == .sync ? SharingAction.stop : $0 }
+            : summary.actions + [.stop]
+        switch activity {
+        case .idle:
+            return summary
+        case .working:
+            return SharingSummary(
+                word: syncing, symbol: "arrow.triangle.2.circlepath", tone: .quiet, detail: summary.detail,
+                actions: [], isWorking: true, buttons: summary.actions
+            )
+        case .syncing:
+            return SharingSummary(
+                word: syncing, symbol: "arrow.triangle.2.circlepath", tone: .quiet, detail: summary.detail,
+                actions: [.stop], isWorking: true, buttons: withStop
+            )
+        case .stopping:
+            return SharingSummary(
+                word: String(localized: "Stopping…", bundle: .module, comment: "Toolbar sharing status after Stop, until bd has exited"),
+                symbol: "arrow.triangle.2.circlepath", tone: .quiet, detail: summary.detail,
+                actions: [], isWorking: true, buttons: withStop
+            )
+        }
     }
 
     private var settledSummary: SharingSummary {
@@ -174,7 +223,16 @@ public extension SyncOutcome {
             String(localized: "bd found edits it can't publish and can't clear by itself, so nothing was sent. bd says: \(message)", bundle: .module, comment: "bd's message")
         case .failed(let message):
             String(localized: "The sync didn't go through. bd says: \(message)", bundle: .module, comment: "bd's message")
+        case .stopped:
+            String(localized: "Sync stopped. Anything bd had already received or sent stays; the next sync picks up the rest.", bundle: .module)
         }
+    }
+
+    /// What a sync's answer means when the person had asked it to stop: the failure bd then
+    /// reports is the stop itself. Anything else is a sync that got there first, and stands.
+    func afterStop(requested: Bool) -> SyncOutcome {
+        guard requested, case .failed = self else { return self }
+        return .stopped
     }
 }
 

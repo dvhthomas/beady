@@ -132,8 +132,18 @@ final class StubStore: BeadsStore, @unchecked Sendable {
     }
     func workspaceSetup() async -> WorkspaceSetup { setup }
     func gitOriginURL() async -> String? { origin }
+    /// A sync that keeps running until its task is cancelled, then answers as bd does when
+    /// interrupted: a failure whose words say the context was cancelled.
+    var syncRunsUntilStopped = false
+    /// What a stopped sync answers with; a sync that got there first answers `.synced`.
+    var answerWhenStopped: SyncOutcome = .failed("sync failed: push: push to origin/main: Error 1105: unknown push error; context canceled")
+
     func sync() async throws -> SyncOutcome {
         syncs += 1
+        if syncRunsUntilStopped {
+            while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(5)) }
+            return answerWhenStopped
+        }
         let outcome = syncOutcomes.isEmpty ? .synced : syncOutcomes.removeFirst()
         if outcome == .synced, let next = sharingAfterAction { sharing = next }
         return outcome
