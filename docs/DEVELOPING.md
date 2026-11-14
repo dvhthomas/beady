@@ -131,8 +131,9 @@ notice updates the guide in the same pull request**; see "The website and user g
 
 ## Releasing
 
-Every merge to master is a release. A `release:minor` or `release:major` label on the pull
-request says how big it is; no label means a patch. CI works out the next version, writes
+Every merge to master is a release, and nearly every release is a patch: no label on the pull
+request, for a feature as much as a fix. The patch number counts to 99 and the next one rolls
+into the next minor by itself (0.1.99, then 0.2.0). CI works out the next version, writes
 `VERSION`, tags it, builds the app, attaches the zip to a GitHub Release, and rewrites the
 Homebrew cask. [RELEASE.md](../RELEASE.md) has the details and what to check afterwards.
 

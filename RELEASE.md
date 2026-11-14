@@ -14,15 +14,23 @@ Say it with a label on the pull request. At most one; none is fine.
 
 | Label | When | From 0.1.1 |
 |---|---|---|
-| *no label*, or `release:patch` | A bug fix or a minor tweak. The default, so forgetting is safe. | 0.1.2 |
-| `release:minor` | Something more significant: a new feature, a visible change in behaviour. | 0.2.0 |
+| *no label*, or `release:patch` | Nearly everything: a bug fix, a tweak, a new feature, a visible change in behaviour. The default, so forgetting is safe. | 0.1.2 |
+| `release:minor` | Rare, and never needed: the middle number moves by itself (below). For marking a milestone before the patch number gets there. | 0.2.0 |
 | `release:major` | Rare. It breaks how people use Beady or the files it writes. | 1.0.0 |
 | `release:none` | Rare. Nothing worth shipping on its own, like a README typo. Merged alone it releases nothing; merged alongside a patch, the patch wins. | 0.1.1 |
 
 ```bash
-gh pr create --label release:minor ...      # when opening
-gh pr edit <number> --add-label release:minor   # afterwards
+gh pr create --label release:none ...      # when opening
+gh pr edit <number> --add-label release:none   # afterwards
 ```
+
+### The patch number does the counting
+
+Patches are the everyday release, so the last number is the one that climbs: 0.1.1, 0.1.2 …
+0.1.94 … 0.1.99. The patch after 0.1.99 is 0.2.0: `scripts/next-version.sh bump` rolls the
+hundredth patch into the next minor by itself (`PATCHES_PER_MINOR`). So the middle number says
+roughly how many hundred releases there have been, not how many features, and nobody has to
+decide when it moves. A new feature is a patch like any other.
 
 The Release size check ([.github/workflows/release-size.yml](.github/workflows/release-size.yml))
 fails a pull request that carries two `release:*` labels, or one it doesn't know, or that edits
@@ -78,7 +86,8 @@ gh run watch --repo dvhthomas/beady --exit-status
   ```bash
   scripts/next-version.sh current                 # 0.1.1
   scripts/next-version.sh size release:minor bug  # minor
-  scripts/next-version.sh bump 0.1.1 minor        # 0.2.0
+  scripts/next-version.sh bump 0.1.1 patch        # 0.1.2
+  scripts/next-version.sh bump 0.1.99 patch       # 0.2.0
   ```
 
 ## Check what landed
@@ -107,10 +116,11 @@ and works as soon as it is on master.
 
 A `release:minor` or `release:major` label makes the workflow stand aside, so those always
 wait for a human to label and merge. Agents are forbidden from applying minor/major labels
-(CLAUDE.md, enforced by a hook) and open a pull request that deserves one as a **draft**,
-which the workflow also skips — so a bigger release never slips through as a patch while you
-read the recommendation. Label it, mark it ready, and merge; or disagree, mark it ready
-unlabeled, and it ships as a patch.
+(CLAUDE.md, enforced by a hook), and they don't recommend `release:minor` at all: a feature
+goes up unlabeled and ships as a patch. A breaking change is the one thing they open as a
+**draft**, recommending `release:major`; the workflow skips drafts too, so it never slips
+through as a patch while you read the recommendation. Label it, mark it ready, and merge; or
+disagree, mark it ready unlabeled, and it ships as a patch.
 
 ### Optional hardening: branch protection
 

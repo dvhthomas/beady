@@ -1,8 +1,9 @@
 # Fails a pull request that is unclear about how big a release it is, so the
 # Version workflow can turn the merged PRs into a version number without
-# guessing. The one decision is a label: none for a bug fix or tweak (patch),
-# release:minor for a feature, release:major for a break, release:none for a
-# change nobody needs shipped. VERSION itself is written on merge and must not
+# guessing. The one decision is a label: none for a fix or a feature (patch,
+# which counts to 99 and then rolls into the next minor by itself),
+# release:major for a break, release:none for a change nobody needs shipped,
+# and release:minor only to mark a milestone early. VERSION itself is written on merge and must not
 # be edited by hand. See RELEASE.md.
 name: Release size
 
