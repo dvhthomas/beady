@@ -13,7 +13,7 @@ that shows exactly what will happen.**
 
 Press {{< k "⌘N" >}}.
 
-{{< shot name="new-bead" crop="340" alt="The top of the New Bead form: a title field, a type menu, priority buttons from P0 to P4, a parent menu and the start of the description." caption="A new bead needs a title; type, priority, parent and description are there if you want them." >}}
+{{< shot name="new-bead" alt="The New Bead form: a title field, then a type menu, priority buttons from P0 to P4 and a parent menu on one line, a description box, and Cancel and Review buttons." caption="A new bead needs a title; type, priority, parent and description are there if you want them." >}}
 
 ## Editing a bead
 

@@ -86,10 +86,7 @@ struct EditBeadForm: View {
 
     private var titleField: some View {
         field("Title") {
-            TextField("Title", text: draft.title)
-                .textFieldStyle(.roundedBorder)
-                .font(.title3)
-                .labelsHidden()
+            LineField("Title", text: draft.title, font: .title3)
         }
     }
 
@@ -119,8 +116,7 @@ struct EditBeadForm: View {
     private var assigneeField: some View {
         field("Assignee") {
             HStack(spacing: 8) {
-                TextField("Unassigned", text: draft.assignee)
-                    .textFieldStyle(.roundedBorder)
+                LineField("Unassigned", text: draft.assignee)
                     .frame(maxWidth: 260)
                 if !model.knownAssignees.isEmpty {
                     Menu {
@@ -300,34 +296,6 @@ struct FormField<Content: View>: View {
     }
 }
 
-/// A multi-line text box that reads as one: a visible edge, the theme's surface, and a prompt
-/// while empty. The bare `TextEditor` is a white rectangle with no affordance.
-struct ProseEditor: View {
-    @Environment(\.theme) private var theme
-    let text: Binding<String>
-    let prompt: String
-    let minHeight: CGFloat
-
-    var body: some View {
-        TextEditor(text: text)
-            .font(.body)
-            .scrollContentBackground(.hidden)
-            .padding(6)
-            .frame(minHeight: minHeight)
-            .background(theme.surface, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.border))
-            .overlay(alignment: .topLeading) {
-                if text.wrappedValue.isEmpty {
-                    Text(prompt)
-                        .foregroundStyle(theme.secondaryText)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 14)
-                        .allowsHitTesting(false)
-                }
-            }
-    }
-}
-
 /// Typing a label that doesn't exist yet. Its own view so the text it holds is its own business.
 private struct LabelEntry: View {
     let add: (String) -> Void
@@ -338,8 +306,7 @@ private struct LabelEntry: View {
     }
 
     var body: some View {
-        TextField("Add a label", text: text.projectedValue)
-            .textFieldStyle(.roundedBorder)
+        LineField("Add a label", text: text.projectedValue)
             .frame(maxWidth: 180)
             .onSubmit {
                 add(text.wrappedValue)
