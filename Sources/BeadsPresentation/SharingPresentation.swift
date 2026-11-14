@@ -330,7 +330,7 @@ public struct SharePlan: Equatable, Sendable {
         )]
         if ridesInGit {
             consequences.append(String(
-                localized: "bd keeps the beads in that repository under refs/dolt/data, outside every branch, and adds one small branch named __dolt_remote_info__. Commits, branches and pull requests are untouched.",
+                localized: "bd keeps the beads in that repository under refs/dolt/data, outside every branch. Commits, branches and pull requests are untouched.",
                 bundle: .module, comment: "Share Beads: what appears on a git remote"
             ))
         }

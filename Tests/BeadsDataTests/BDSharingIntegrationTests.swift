@@ -59,6 +59,13 @@ struct BDSharingIntegrationTests {
         let published = try await firstStore.sharingFacts()
         #expect(SharingState.derive(published) == .inSync(try #require(published.remote)))
 
+        // The beads went to refs/dolt/data and nothing else did: no __dolt_remote_info__ branch,
+        // which GitHub would offer as a pull request after every push.
+        let refs = try await runner.run(URL(fileURLWithPath: "/usr/bin/git"), arguments: ["ls-remote", origin.path], timeout: 60)
+        let names = String(decoding: refs.stdout, as: UTF8.self).split(separator: "\n").compactMap { $0.split(separator: "\t").last.map(String.init) }
+        #expect(names.contains("refs/dolt/data"))
+        #expect(!names.contains { $0.contains("__dolt_remote_info__") }, "refs on the origin: \(names)")
+
         // bd's config travels with the code, so the second clone knows it uses beads.
         try await git(["push", "-q", "origin", "HEAD"], in: first)
         try await git(["clone", "-q", origin.path, second.path])

@@ -38,8 +38,7 @@ who works on these beads, and before anything runs it shows:
 - **who will be able to read them**: anyone who can read the remote can read every bead and its
   history, so sharing to a public repository makes the beads public;
 - **what appears on the remote**: bd keeps the beads under `refs/dolt/data`, outside every
-  branch, and adds one small branch named `__dolt_remote_info__`. Commits, branches and pull
-  requests are untouched;
+  branch. Commits, branches and pull requests are untouched;
 - **what changes in the repository**: bd records the remote as `sync.remote` in
   `.beads/config.yaml`. Commit that file with git so other clones find the beads;
 - **the commands**, under *How this will be done*: `bd dolt remote add` and `bd dolt push`.
@@ -48,6 +47,30 @@ The remote is your repository's own git origin unless you type another. Any Dolt
 DoltHub, S3, GCS, Azure or a folder.
 
 Choosing **Only me, on this Mac** shares nothing and offers a backup instead.
+
+### The `__dolt_remote_info__` branch
+
+Run from a terminal, bd also pushes a branch named `__dolt_remote_info__` to a git remote, again
+on every push. It holds one file that says where the beads are, and no beads. Because it is a
+new push each time, GitHub offers it as a pull request after every sync.
+
+Beady switches that branch off for the bd commands it runs, so sharing and syncing from Beady
+never create or update it. To switch it off for bd in a terminal as well, including the agents
+that run bd there, set `DOLT_REMOTE_INFO_BRANCH` to an empty value, for example in `~/.zshrc`:
+
+```bash
+export DOLT_REMOTE_INFO_BRANCH=
+```
+
+A branch that is already on the remote stays until someone deletes it, which loses nothing:
+
+```bash
+git push origin --delete __dolt_remote_info__
+```
+
+Anyone who pushes with bd and without that setting brings it back. If you would rather keep the
+branch, start Beady with `DOLT_REMOTE_INFO_BRANCH` set to the name you want; Beady leaves a value
+it was started with alone.
 
 ## Getting the beads on another Mac
 

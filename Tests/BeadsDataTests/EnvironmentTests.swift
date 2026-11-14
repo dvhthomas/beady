@@ -148,6 +148,26 @@ struct ProcessCommandRunnerTests {
         #expect(result.exitCode == 3)
     }
 
+    @Test("bd is told not to push Dolt's info branch, which GitHub offers as a pull request after every sync")
+    func noInfoBranch() {
+        let environment = ProcessCommandRunner.defaultEnvironment(base: ["PATH": "/usr/bin:/bin"])
+        // Set and empty is Dolt's "disabled"; unset would mean the default name, __dolt_remote_info__.
+        #expect(environment["DOLT_REMOTE_INFO_BRANCH"] == "")
+    }
+
+    @Test("a DOLT_REMOTE_INFO_BRANCH the app was started with is left as it is", arguments: ["dolt-info", ""])
+    func infoBranchAlreadyChosen(chosen: String) {
+        let environment = ProcessCommandRunner.defaultEnvironment(base: ["PATH": "/usr/bin:/bin", "DOLT_REMOTE_INFO_BRANCH": chosen])
+        #expect(environment["DOLT_REMOTE_INFO_BRANCH"] == chosen)
+    }
+
+    @Test("the empty value reaches the child process as set, not as missing")
+    func emptyValueIsPassed() async throws {
+        let runner = ProcessCommandRunner(environment: ProcessCommandRunner.defaultEnvironment(base: ["PATH": "/usr/bin:/bin"]))
+        let result = try await runner.run(sh, arguments: ["-c", "echo \"[${DOLT_REMOTE_INFO_BRANCH-unset}]\""], timeout: 10)
+        #expect(String(decoding: result.stdout, as: UTF8.self) == "[]\n")
+    }
+
     @Test("a working directory, when given, is where the process runs")
     func workingDirectory() async throws {
         let directory = try makeTempDirectory()

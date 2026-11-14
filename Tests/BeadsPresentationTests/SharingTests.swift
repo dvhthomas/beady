@@ -124,11 +124,12 @@ struct SharePlanTests {
         #expect(!plan.consequences.contains { $0.contains("refs/dolt/data") }, "a Dolt service has no git refs")
     }
 
-    @Test("who can read comes first, and a git remote is told about the ref and the branch bd adds")
+    @Test("who can read comes first, and a git remote is told about the ref; Beady's pushes add no branch")
     func consequences() {
         let plan = SharePlan.make(facts: .none, gitOrigin: gitOrigin, url: gitOrigin, audience: .team)
         #expect(plan.consequences.first?.contains("Anyone who can read \(gitOrigin)") == true)
-        #expect(plan.consequences.contains { $0.contains("refs/dolt/data") && $0.contains("__dolt_remote_info__") })
+        #expect(plan.consequences.contains { $0.contains("refs/dolt/data") && $0.contains("outside every branch") })
+        #expect(!plan.consequences.contains { $0.contains("__dolt_remote_info__") }, "the runner switches Dolt's info branch off")
         #expect(plan.consequences.contains { $0.contains(".beads/config.yaml") && $0.contains("Commit") })
         #expect(plan.consequences.contains { $0.contains("bd bootstrap") && $0.contains("same bd version") })
         #expect(plan.consequences.last?.contains("never by itself") == true)
