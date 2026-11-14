@@ -1300,94 +1300,6 @@
         }
       }
     },
-    "%lld checkouts of this repository use the one database, so a bead changed in one is changed in all." : {
-      "comment" : "Count of checkouts, when there are too many to name",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld Checkouts dieses Repositorys verwenden dieselbe Datenbank; ein in einem geänderter Bead ist also in allen geändert."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld copias de trabajo de este repositorio usan la misma base de datos, así que un bead cambiado en una cambia en todas."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld copies de travail de ce dépôt utilisent la même base de données ; un bead modifié dans l'une l'est dans toutes."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このリポジトリの%lld個のチェックアウトが同じデータベースを使用しているため、1つで変更したビーズはすべてで変更されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 저장소의 체크아웃 %lld개가 하나의 데이터베이스를 사용하므로, 한 곳에서 바꾼 비즈는 모든 곳에서 바뀝니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld cópias de trabalho deste repositório usam o mesmo banco de dados; um bead alterado em uma é alterado em todas."
-          }
-        }
-      }
-    },
-    "%lld checkouts of this repository use the one database, so a bead changed in one is changed in all: %@." : {
-      "comment" : "Count of checkouts, then their branch names",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld Checkouts dieses Repositorys verwenden dieselbe Datenbank; ein in einem geänderter Bead ist also in allen geändert: %2$@."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld checkouts of this repository use the one database, so a bead changed in one is changed in all: %2$@."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld copias de trabajo de este repositorio usan la misma base de datos, así que un bead cambiado en una cambia en todas: %2$@."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld copies de travail de ce dépôt utilisent la même base de données ; un bead modifié dans l'une l'est dans toutes : %2$@."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このリポジトリの%1$lld個のチェックアウトが同じデータベースを使用しているため、1つで変更したビーズはすべてで変更されます：%2$@。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 저장소의 체크아웃 %1$lld개가 하나의 데이터베이스를 사용하므로, 한 곳에서 바꾼 비즈는 모든 곳에서 바뀝니다: %2$@."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld cópias de trabalho deste repositório usam o mesmo banco de dados; um bead alterado em uma é alterado em todas: %2$@."
-          }
-        }
-      }
-    },
     "%lld to receive" : {
       "comment" : "Toolbar sharing status: count of remote changes",
       "localizations" : {
@@ -1513,6 +1425,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld a enviar · %2$lld a receber"
+          }
+        }
+      }
+    },
+    "%lld working copies of this repository (git worktrees, such as the ones agents work in) are on this Mac. They share this one database, so a bead changed in one is changed in all." : {
+      "comment" : "Count of checkouts, when there are too many to name",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Mac gibt es %lld Arbeitskopien dieses Repositorys (Git-Worktrees, etwa die, in denen Agenten arbeiten). Sie teilen sich diese eine Datenbank; ein in einer geänderter Bead ist also in allen geändert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En este Mac hay %lld copias de trabajo de este repositorio (worktrees de git, como las que usan los agentes). Comparten esta única base de datos, así que un bead cambiado en una cambia en todas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce Mac contient %lld copies de travail de ce dépôt (worktrees git, comme ceux où travaillent les agents). Elles partagent cette seule base de données ; un bead modifié dans l'une l'est dans toutes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacには、このリポジトリの作業コピー（エージェントが作業するものなどのgitワークツリー）が%lld個あります。すべてがこの1つのデータベースを共有しているため、1つで変更したビーズはすべてで変更されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에는 이 저장소의 작업 사본(에이전트가 작업하는 것과 같은 git 워크트리)이 %lld개 있습니다. 모두 이 하나의 데이터베이스를 함께 쓰므로, 한 곳에서 바꾼 비즈는 모든 곳에서 바뀝니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este Mac tem %lld cópias de trabalho deste repositório (worktrees do git, como as que os agentes usam). Elas compartilham este único banco de dados; um bead alterado em uma é alterado em todas."
+          }
+        }
+      }
+    },
+    "%lld working copies of this repository (git worktrees: %@) are on this Mac. They share this one database, so a bead changed in one is changed in all." : {
+      "comment" : "Count of checkouts, then their branch names",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Mac gibt es %1$lld Arbeitskopien dieses Repositorys (Git-Worktrees: %2$@). Sie teilen sich diese eine Datenbank; ein in einer geänderter Bead ist also in allen geändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld working copies of this repository (git worktrees: %2$@) are on this Mac. They share this one database, so a bead changed in one is changed in all."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En este Mac hay %1$lld copias de trabajo de este repositorio (worktrees de git: %2$@). Comparten esta única base de datos, así que un bead cambiado en una cambia en todas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce Mac contient %1$lld copies de travail de ce dépôt (worktrees git : %2$@). Elles partagent cette seule base de données ; un bead modifié dans l'une l'est dans toutes."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacには、このリポジトリの作業コピー（gitワークツリー：%2$@）が%1$lld個あります。すべてがこの1つのデータベースを共有しているため、1つで変更したビーズはすべてで変更されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에는 이 저장소의 작업 사본(git 워크트리: %2$@)이 %1$lld개 있습니다. 모두 이 하나의 데이터베이스를 함께 쓰므로, 한 곳에서 바꾼 비즈는 모든 곳에서 바뀝니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este Mac tem %1$lld cópias de trabalho deste repositório (worktrees do git: %2$@). Elas compartilham este único banco de dados; um bead alterado em uma é alterado em todas."
           }
         }
       }
@@ -2993,6 +2993,87 @@
         }
       }
     },
+    "Beads stay out of git commits. bd's git hooks are installed (%@), and they add nothing about beads while export.auto is off." : {
+      "comment" : "Hook names",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beads bleiben aus Git-Commits heraus. Die Git-Hooks von bd sind installiert (%@), fügen aber nichts über Beads hinzu, solange export.auto aus ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los beads no entran en los commits de git. Los hooks de git de bd están instalados (%@), pero no añaden nada sobre los beads mientras export.auto esté desactivado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les beads restent hors des commits git. Les hooks git de bd sont installés (%@), mais n'ajoutent rien sur les beads tant qu'export.auto est désactivé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビーズはgitコミットに含まれません。bdのgitフックはインストールされています（%@）が、export.autoがオフの間はビーズについて何も追加しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비즈는 git 커밋에 들어가지 않습니다. bd의 git 훅이 설치되어 있지만(%@), export.auto가 꺼져 있는 동안에는 비즈에 관한 내용을 추가하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os beads ficam fora dos commits do git. Os hooks do git do bd estão instalados (%@), mas não adicionam nada sobre os beads enquanto export.auto estiver desativado."
+          }
+        }
+      }
+    },
+    "Beads stay out of git commits. bd's optional git hooks, which can add them, aren't installed, and sharing doesn't need them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beads bleiben aus Git-Commits heraus. Die optionalen Git-Hooks von bd, die sie hinzufügen können, sind nicht installiert, und zum Teilen werden sie nicht gebraucht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los beads no entran en los commits de git. Los hooks de git opcionales de bd, que pueden añadirlos, no están instalados, y compartir no los necesita."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les beads restent hors des commits git. Les hooks git facultatifs de bd, qui peuvent les y ajouter, ne sont pas installés, et le partage n'en a pas besoin."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビーズはgitコミットに含まれません。ビーズをコミットに追加できるbdの任意のgitフックはインストールされておらず、共有にも必要ありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비즈는 git 커밋에 들어가지 않습니다. 비즈를 커밋에 추가할 수 있는 bd의 선택적 git 훅이 설치되어 있지 않으며, 공유에는 필요하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os beads ficam fora dos commits do git. Os hooks opcionais do git do bd, que podem adicioná-los, não estão instalados, e o compartilhamento não precisa deles."
+          }
+        }
+      }
+    },
     "Beads with an open blocker upstream, computed from the dependency graph rather than read from the stored blocked status." : {
       "comment" : "Hover help for the Stuck view",
       "localizations" : {
@@ -3444,47 +3525,6 @@
         }
       }
     },
-    "Checkouts on this Mac" : {
-      "comment" : "Workspace Setup row",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checkouts auf diesem Mac"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copias de trabajo en este Mac"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copies de travail sur ce Mac"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このMac上のチェックアウト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 Mac의 체크아웃"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cópias de trabalho neste Mac"
-          }
-        }
-      }
-    },
     "Choose Folder…" : {
       "comment" : "Workspace Setup button: pick a backup folder",
       "localizations" : {
@@ -3768,47 +3808,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Coluna: %@"
-          }
-        }
-      }
-    },
-    "Commits" : {
-      "comment" : "Workspace Setup row: git hooks",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Commits"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Commits"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Commits"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コミット"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "커밋"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Commits"
           }
         }
       }
@@ -4467,6 +4466,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Done"
+          }
+        }
+      }
+    },
+    "Each git commit carries a copy of the beads: bd keeps .beads/issues.jsonl current and its pre-commit hook adds that file (hooks installed: %@). Sharing doesn't need this." : {
+      "comment" : "Hook names",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeder Git-Commit enthält eine Kopie der Beads: bd hält .beads/issues.jsonl aktuell, und sein pre-commit-Hook fügt die Datei hinzu (installierte Hooks: %@). Zum Teilen wird das nicht gebraucht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada commit de git lleva una copia de los beads: bd mantiene .beads/issues.jsonl al día y su hook pre-commit añade ese archivo (hooks instalados: %@). Compartir no lo necesita."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque commit git emporte une copie des beads : bd tient .beads/issues.jsonl à jour et son hook pre-commit ajoute ce fichier (hooks installés : %@). Le partage n'en a pas besoin."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各gitコミットにビーズのコピーが含まれます。bdが.beads/issues.jsonlを最新に保ち、pre-commitフックがそのファイルを追加します（インストール済みのフック：%@）。共有には必要ありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 git 커밋에 비즈 사본이 포함됩니다. bd가 .beads/issues.jsonl을 최신으로 유지하고 pre-commit 훅이 그 파일을 추가합니다(설치된 훅: %@). 공유에는 필요하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada commit do git leva uma cópia dos beads: o bd mantém .beads/issues.jsonl atualizado e seu hook pre-commit adiciona esse arquivo (hooks instalados: %@). O compartilhamento não precisa disso."
           }
         }
       }
@@ -5214,6 +5254,47 @@
         }
       }
     },
+    "Git commits" : {
+      "comment" : "Workspace Setup row: git hooks",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Git-Commits"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commits de git"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commits git"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gitコミット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "git 커밋"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commits do git"
+          }
+        }
+      }
+    },
     "Go to %@" : {
       "comment" : "Command; the value is a view's name",
       "localizations" : {
@@ -5665,43 +5746,43 @@
         }
       }
     },
-    "Kept outside this checkout, in %@." : {
+    "Kept outside this folder, in %@." : {
       "comment" : "A folder path",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Liegt außerhalb dieses Checkouts, in %@."
+            "value" : "Liegt außerhalb dieses Ordners, in %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guardados fuera de esta copia de trabajo, en %@."
+            "value" : "Guardados fuera de esta carpeta, en %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Conservés hors de cette copie de travail, dans %@."
+            "value" : "Conservés hors de ce dossier, dans %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このチェックアウトの外に保存されています：%@。"
+            "value" : "このフォルダの外に保存されています：%@。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 체크아웃 밖에 보관됨: %@."
+            "value" : "이 폴더 밖에 보관됨: %@."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Guardados fora desta cópia de trabalho, em %@."
+            "value" : "Guardados fora desta pasta, em %@."
           }
         }
       }
@@ -6657,6 +6738,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Próximo espaço de trabalho"
+          }
+        }
+      }
+    },
+    "No database server to run: bd reads and writes these files itself, one program at a time." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Datenbankserver nötig: bd liest und schreibt diese Dateien selbst, immer nur ein Programm zur selben Zeit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay que ejecutar ningún servidor de base de datos: bd lee y escribe estos archivos directamente, un programa a la vez."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun serveur de base de données à lancer : bd lit et écrit ces fichiers lui-même, un programme à la fois."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースサーバーは不要です。bdがこれらのファイルを直接読み書きし、一度に書き込めるプログラムは1つです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "데이터베이스 서버를 실행할 필요가 없습니다. bd가 이 파일들을 직접 읽고 쓰며, 한 번에 한 프로그램만 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não é preciso executar um servidor de banco de dados: o bd lê e grava estes arquivos diretamente, um programa por vez."
           }
         }
       }
@@ -12077,6 +12198,47 @@
         }
       }
     },
+    "Worktrees on this Mac" : {
+      "comment" : "Workspace Setup row",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worktrees auf diesem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worktrees en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worktrees sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMac上のワークツリー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 워크트리"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worktrees neste Mac"
+          }
+        }
+      }
+    },
     "assignees" : {
       "comment" : "Plural noun in a chip such as ‘3 assignees’",
       "localizations" : {
@@ -12689,46 +12851,6 @@
         }
       }
     },
-    "bd's embedded storage: no server, one writer at a time." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eingebetteter Speicher von bd: kein Server, immer nur ein Schreiber."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Almacenamiento integrado de bd: sin servidor, un solo escritor a la vez."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stockage intégré de bd : pas de serveur, un seul écrivain à la fois."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bdの組み込みストレージ：サーバなし、書き込みは一度に1つ。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bd의 내장 저장 방식: 서버 없음, 한 번에 하나만 쓰기."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Armazenamento embutido do bd: sem servidor, um gravador por vez."
-          }
-        }
-      }
-    },
     "bd's frozen category: deliberately set aside, which is deferred and pinned unless this database adds its own." : {
       "comment" : "Hover help; keep bd's words frozen, deferred and pinned as they are",
       "localizations" : {
@@ -12807,128 +12929,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Os hooks git do bd estão instalados (%@) e pelo menos um é de um bd mais antigo. bd hooks install os atualiza."
-          }
-        }
-      }
-    },
-    "bd's git hooks are installed (%@), and bd keeps .beads/issues.jsonl current, so the pre-commit hook adds that file to commits. Sharing doesn't need either." : {
-      "comment" : "Hook names",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Git-Hooks von bd sind installiert (%@), und bd hält .beads/issues.jsonl aktuell; der pre-commit-Hook fügt diese Datei daher zu Commits hinzu. Zum Teilen ist beides nicht nötig."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los hooks de git de bd están instalados (%@) y bd mantiene .beads/issues.jsonl al día, así que el hook pre-commit añade ese archivo a los commits. Compartir no necesita ninguna de las dos cosas."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les hooks git de bd sont installés (%@) et bd tient .beads/issues.jsonl à jour ; le hook pre-commit ajoute donc ce fichier aux commits. Le partage n'a besoin ni de l'un ni de l'autre."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bdのgitフックがインストールされており（%@）、bdが.beads/issues.jsonlを最新に保つため、pre-commitフックがこのファイルをコミットに追加します。共有にはどちらも不要です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bd의 git 훅이 설치되어 있고(%@) bd가 .beads/issues.jsonl을 최신으로 유지하므로, pre-commit 훅이 이 파일을 커밋에 추가합니다. 공유에는 둘 다 필요하지 않습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Os hooks git do bd estão instalados (%@), e o bd mantém .beads/issues.jsonl atualizado; por isso o hook pre-commit adiciona esse arquivo aos commits. O compartilhamento não precisa de nenhum dos dois."
-          }
-        }
-      }
-    },
-    "bd's git hooks are installed (%@). They add nothing about beads to commits while export.auto is off." : {
-      "comment" : "Hook names",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Git-Hooks von bd sind installiert (%@). Solange export.auto aus ist, fügen sie Commits nichts zu Beads hinzu."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los hooks de git de bd están instalados (%@). Mientras export.auto esté desactivado, no añaden nada sobre beads a los commits."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les hooks git de bd sont installés (%@). Tant que export.auto est désactivé, ils n'ajoutent rien concernant les beads aux commits."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bdのgitフックがインストールされています（%@）。export.autoがオフの間は、ビーズに関するものをコミットに追加しません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bd의 git 훅이 설치되어 있습니다(%@). export.auto가 꺼져 있는 동안에는 커밋에 비즈 관련 내용을 추가하지 않습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Os hooks git do bd estão instalados (%@). Enquanto export.auto estiver desativado, eles não adicionam nada sobre beads aos commits."
-          }
-        }
-      }
-    },
-    "bd's git hooks aren't installed, so beads never ride in a commit. Sharing doesn't need them." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Git-Hooks von bd sind nicht installiert, Beads landen also nie in einem Commit. Zum Teilen sind sie nicht nötig."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los hooks de git de bd no están instalados, así que los beads nunca viajan en un commit. Compartir no los necesita."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les hooks git de bd ne sont pas installés ; les beads ne voyagent donc jamais dans un commit. Le partage n'en a pas besoin."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bdのgitフックはインストールされていないため、ビーズがコミットに含まれることはありません。共有にフックは不要です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "bd의 git 훅이 설치되어 있지 않으므로 비즈가 커밋에 실리는 일은 없습니다. 공유에는 훅이 필요하지 않습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Os hooks git do bd não estão instalados, então os beads nunca entram em um commit. O compartilhamento não precisa deles."
           }
         }
       }

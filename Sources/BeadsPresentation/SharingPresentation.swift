@@ -370,14 +370,14 @@ public enum WorkspaceSetupRows {
         let place: String? = setup.context.flatMap { context in
             context.beadsDirectory.map { directory in
                 context.isRedirected
-                    ? String(localized: "Kept outside this checkout, in \(directory).", bundle: .module, comment: "A folder path")
+                    ? String(localized: "Kept outside this folder, in \(directory).", bundle: .module, comment: "A folder path")
                     : String(localized: "Kept in \(directory).", bundle: .module, comment: "A folder path")
             }
         }
         let storage: String? = setup.context.map { context in
             switch context.storage {
             case .embedded:
-                String(localized: "bd's embedded storage: no server, one writer at a time.", bundle: .module)
+                String(localized: "No database server to run: bd reads and writes these files itself, one program at a time.", bundle: .module)
             case .other(let mode):
                 String(localized: "Stored through a Dolt server (\(mode)).", bundle: .module, comment: "bd's word for the storage mode")
             }
@@ -395,13 +395,13 @@ public enum WorkspaceSetupRows {
             let detail: String
             if setup.checkouts.count <= namedCheckoutLimit {
                 let names = setup.checkouts.map { $0.branch.isEmpty ? $0.name : $0.branch }.joined(separator: ", ")
-                detail = String(localized: "\(setup.checkouts.count) checkouts of this repository use the one database, so a bead changed in one is changed in all: \(names).", bundle: .module, comment: "Count of checkouts, then their branch names")
+                detail = String(localized: "\(setup.checkouts.count) working copies of this repository (git worktrees: \(names)) are on this Mac. They share this one database, so a bead changed in one is changed in all.", bundle: .module, comment: "Count of checkouts, then their branch names")
             } else {
-                detail = String(localized: "\(setup.checkouts.count) checkouts of this repository use the one database, so a bead changed in one is changed in all.", bundle: .module, comment: "Count of checkouts, when there are too many to name")
+                detail = String(localized: "\(setup.checkouts.count) working copies of this repository (git worktrees, such as the ones agents work in) are on this Mac. They share this one database, so a bead changed in one is changed in all.", bundle: .module, comment: "Count of checkouts, when there are too many to name")
             }
             rows.append(SetupRow(
                 kind: .checkouts, level: .info,
-                title: String(localized: "Checkouts on this Mac", bundle: .module, comment: "Workspace Setup row"),
+                title: String(localized: "Worktrees on this Mac", bundle: .module, comment: "Workspace Setup row"),
                 detail: detail, action: nil
             ))
         }
@@ -447,20 +447,20 @@ public enum WorkspaceSetupRows {
             let detail: String
             if installed.isEmpty {
                 level = .good
-                detail = String(localized: "bd's git hooks aren't installed, so beads never ride in a commit. Sharing doesn't need them.", bundle: .module)
+                detail = String(localized: "Beads stay out of git commits. bd's optional git hooks, which can add them, aren't installed, and sharing doesn't need them.", bundle: .module)
             } else if installed.contains(where: \.isOutdated) {
                 level = .attention
                 detail = String(localized: "bd's git hooks are installed (\(names)) and at least one is from an older bd. bd hooks install refreshes them.", bundle: .module, comment: "Hook names")
             } else if setup.exportsIssuesFile == true {
                 level = .info
-                detail = String(localized: "bd's git hooks are installed (\(names)), and bd keeps .beads/issues.jsonl current, so the pre-commit hook adds that file to commits. Sharing doesn't need either.", bundle: .module, comment: "Hook names")
+                detail = String(localized: "Each git commit carries a copy of the beads: bd keeps .beads/issues.jsonl current and its pre-commit hook adds that file (hooks installed: \(names)). Sharing doesn't need this.", bundle: .module, comment: "Hook names")
             } else {
                 level = .info
-                detail = String(localized: "bd's git hooks are installed (\(names)). They add nothing about beads to commits while export.auto is off.", bundle: .module, comment: "Hook names")
+                detail = String(localized: "Beads stay out of git commits. bd's git hooks are installed (\(names)), and they add nothing about beads while export.auto is off.", bundle: .module, comment: "Hook names")
             }
             rows.append(SetupRow(
                 kind: .commits, level: level,
-                title: String(localized: "Commits", bundle: .module, comment: "Workspace Setup row: git hooks"),
+                title: String(localized: "Git commits", bundle: .module, comment: "Workspace Setup row: git hooks"),
                 detail: detail, action: nil
             ))
         }
