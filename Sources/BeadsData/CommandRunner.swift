@@ -57,8 +57,15 @@ public struct ProcessCommandRunner: CommandRunning {
         self.killGrace = killGrace
     }
 
+    /// Dolt's name for the branch it force-pushes beside `refs/dolt/data` on every push to a git
+    /// remote, `__dolt_remote_info__` by default. Set and empty means no such branch.
+    public static let doltInfoBranchVariable = "DOLT_REMOTE_INFO_BRANCH"
+
     /// The inherited environment with Homebrew locations appended to PATH, since apps
-    /// launched from Finder don't get the login shell's PATH.
+    /// launched from Finder don't get the login shell's PATH, and with Dolt's info branch
+    /// switched off: it holds one pointer file and no beads, and because it is pushed again on
+    /// every sync, GitHub offers it as a pull request every time. A value the app was started
+    /// with, a name or the empty string, is left alone.
     public static func defaultEnvironment(
         base: [String: String] = ProcessInfo.processInfo.environment
     ) -> [String: String] {
@@ -66,6 +73,9 @@ public struct ProcessCommandRunner: CommandRunning {
         let existing = (base["PATH"] ?? "/usr/bin:/bin").split(separator: ":").map(String.init)
         let extra = ["/opt/homebrew/bin", "/usr/local/bin"].filter { !existing.contains($0) }
         environment["PATH"] = (existing + extra).joined(separator: ":")
+        if environment[doltInfoBranchVariable] == nil {
+            environment[doltInfoBranchVariable] = ""
+        }
         return environment
     }
 

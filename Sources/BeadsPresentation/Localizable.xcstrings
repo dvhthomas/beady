@@ -13383,43 +13383,43 @@
         }
       }
     },
-    "bd keeps the beads in that repository under refs/dolt/data, outside every branch, and adds one small branch named __dolt_remote_info__. Commits, branches and pull requests are untouched." : {
+    "bd keeps the beads in that repository under refs/dolt/data, outside every branch. Commits, branches and pull requests are untouched." : {
       "comment" : "Share Beads: what appears on a git remote",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "bd legt die Beads in diesem Repository unter refs/dolt/data ab, außerhalb aller Branches, und fügt einen kleinen Branch namens __dolt_remote_info__ hinzu. Commits, Branches und Pull Requests bleiben unberührt."
+            "value" : "bd legt die Beads in diesem Repository unter refs/dolt/data ab, außerhalb aller Branches. Commits, Branches und Pull Requests bleiben unberührt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "bd guarda los beads en ese repositorio bajo refs/dolt/data, fuera de todas las ramas, y añade una rama pequeña llamada __dolt_remote_info__. Los commits, las ramas y las pull requests no se tocan."
+            "value" : "bd guarda los beads en ese repositorio bajo refs/dolt/data, fuera de todas las ramas. Los commits, las ramas y las pull requests no se tocan."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "bd conserve les beads dans ce dépôt sous refs/dolt/data, en dehors de toutes les branches, et ajoute une petite branche nommée __dolt_remote_info__. Les commits, les branches et les pull requests ne sont pas touchés."
+            "value" : "bd conserve les beads dans ce dépôt sous refs/dolt/data, en dehors de toutes les branches. Les commits, les branches et les pull requests ne sont pas touchés."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "bdはビーズをそのリポジトリのrefs/dolt/data以下（どのブランチにも属さない場所）に保存し、__dolt_remote_info__という小さなブランチを1つ追加します。コミット、ブランチ、プルリクエストには触れません。"
+            "value" : "bdはビーズをそのリポジトリのrefs/dolt/data以下（どのブランチにも属さない場所）に保存します。コミット、ブランチ、プルリクエストには触れません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "bd는 비즈를 해당 저장소의 refs/dolt/data 아래, 모든 브랜치 바깥에 보관하고 __dolt_remote_info__라는 작은 브랜치를 하나 추가합니다. 커밋, 브랜치, 풀 리퀘스트는 건드리지 않습니다."
+            "value" : "bd는 비즈를 해당 저장소의 refs/dolt/data 아래, 모든 브랜치 바깥에 보관합니다. 커밋, 브랜치, 풀 리퀘스트는 건드리지 않습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O bd mantém os beads nesse repositório em refs/dolt/data, fora de todos os branches, e adiciona um pequeno branch chamado __dolt_remote_info__. Commits, branches e pull requests não são tocados."
+            "value" : "O bd mantém os beads nesse repositório em refs/dolt/data, fora de todos os branches. Commits, branches e pull requests não são tocados."
           }
         }
       }

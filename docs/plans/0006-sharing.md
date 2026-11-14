@@ -145,3 +145,20 @@ the popover and both sheets.
 - Changing or removing a remote, more than one remote, and federation peers: shown, not managed.
 - Installing git hooks. They are optional for sharing, and they are what puts beads into commits.
 - Teammates' bd versions and last sync: bd has no command that reports them.
+
+## Amendment, 2026-11-14: no info branch from Beady (bdv-cgp)
+
+The finding above, that the first push creates a branch named `__dolt_remote_info__`, undersold
+it: Dolt force-pushes that branch on **every** push, so GitHub offers "Compare & pull request"
+after every sync. Dolt reads `DOLT_REMOTE_INFO_BRANCH` for the branch's name, and a value that is
+set and empty means no branch (`ResolveInfoBranch` in Dolt's `go/store/blobstore/git_refs.go`).
+Checked with bd 1.3.4 against a local git remote: without the variable the remote gets
+`refs/dolt/data` and the branch; with it empty, `refs/dolt/data` alone, and a fresh clone still
+joins with `bd bootstrap`.
+
+- `ProcessCommandRunner.defaultEnvironment` sets the variable to empty for every command Beady
+  runs, unless the app was started with a value of its own, which is left alone.
+- The Share Beads sheet no longer names the branch, since Beady's push doesn't make one. The
+  guide says what the branch is, how to switch it off for bd in a terminal, and how to delete one.
+- Beady does not delete a branch that is already there, and can't stop a teammate's bd from
+  pushing it again. bd may make this the default itself (gastownhall/beads#7945, open).
