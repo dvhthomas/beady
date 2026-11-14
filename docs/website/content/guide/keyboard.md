@@ -33,6 +33,7 @@ Press {{< k "?" >}} in the app for the full list.
 | {{< k "⌘1" >}} {{< k "⌘2" >}} {{< k "⌘3" >}} | List, Board, Tree |
 | {{< k "⌘I" >}} | Show or dock the details pane |
 | {{< k "⌘G" >}} | Dependency graph |
+| {{< k "⇧⌘G" >}} | Open or close Dependencies in the details pane |
 | {{< k "Esc" >}} | Let go of the selection, or close floating details |
 
 ### Changing

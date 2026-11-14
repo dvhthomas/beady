@@ -69,11 +69,13 @@ Select a bead and its details appear on the right: status, priority, type, assig
 and dates, then links to its parent, what blocks it, what it blocks and its children, then
 the description, notes and close reason.
 
-{{< shot name="details" alt="The details pane for one bead, with back and forward arrows at the top, its status, priority and dates, links to its parent, the bead blocking it and the bead it blocks, its description, and a small dependency graph pinned underneath." caption="Details, with the dependency graph pinned beneath." >}}
+{{< shot name="details" alt="The details pane for one bead, with back and forward arrows at the top, its status, priority and dates, links to its parent, the bead blocking it and the bead it blocks, its description, and an open Dependencies section underneath: a small graph with the bead's own card tagged Selected." caption="Details, with the Dependencies section open beneath." >}}
 
 - Click a linked bead to go to it. The arrows at the top go back and forward.
 - **History** shows each change bd recorded, such as "status · open → in_progress", and who
   made it.
+- **Dependencies**, at the foot of the pane, opens a small graph about the selected bead. See
+  [Blockers and the graph]({{< relref "dependencies.md#dependencies-in-the-details-pane" >}}).
 - {{< k "⌘I" >}} docks the pane so it stays open. If it's hidden, clicking a bead floats the
   details over the beads; {{< k "Esc" >}}, a click elsewhere or the pane's ✕ sends them away.
 

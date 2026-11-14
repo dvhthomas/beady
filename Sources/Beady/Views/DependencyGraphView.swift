@@ -13,8 +13,8 @@ struct DependencyGraphView: View {
     let ui: WorkspaceUI
     /// Set when the graph is its own window: it needs nothing from you, so Escape closes it.
     var close: (() -> Void)?
-    /// Pinned into the details pane: the selection is the focus, a click selects, and the
-    /// toolbar keeps to what fits a narrow pane.
+    /// The Dependencies section of the details pane: the selection is the focus, a click
+    /// selects, and the toolbar keeps to what fits a narrow pane.
     var embedded = false
     /// `State` as a plain DynamicProperty: Command Line Tools lack the @State macro plugin.
     private var monitor = State<Any?>(initialValue: nil)
@@ -33,12 +33,19 @@ struct DependencyGraphView: View {
     var body: some View {
         let graph = Self.currentGraph(model: model, ui: ui)
         let positions = graph.layout()
+        // In the pane, a selected bead the graph doesn't draw leaves nothing to read, zoom or
+        // scope: the statement says what's true of it, and carries its own way to the rest.
+        let notDrawnID = embedded ? model.selection.flatMap { graph.contains($0) ? nil : $0 } : nil
         VStack(spacing: 0) {
             if !embedded {
                 toolbar(graph)
                 Divider()
             }
-            if graph.nodes.isEmpty {
+            if let id = notDrawnID {
+                // The pane is about the selected bead. With it nowhere in the picture, other
+                // beads' dependencies say nothing about it, so say what is true of it instead.
+                notDrawn(id)
+            } else if graph.nodes.isEmpty {
                 ContentUnavailableView {
                     Label("No Dependencies", systemImage: "point.3.connected.trianglepath.dotted")
                 } description: {
@@ -54,7 +61,7 @@ struct DependencyGraphView: View {
             } else {
                 canvas(graph, positions)
             }
-            if embedded {
+            if embedded, notDrawnID == nil {
                 Divider()
                 embeddedBar
             }
@@ -72,6 +79,47 @@ struct DependencyGraphView: View {
             limitedTo: ui.graphFollowsView ? Set(model.visibleIssues.map(\.id)) : nil,
             includeFinished: ui.graphIncludesFinished
         )
+    }
+
+    /// Where the selected bead stands in the graph as the pane would draw it; nil with nothing
+    /// selected. The pane's header reads it open or closed.
+    static func standing(model: WorkspaceModel, ui: WorkspaceUI) -> DependencyStanding? {
+        guard let id = model.selection, let snapshot = model.snapshot else { return nil }
+        return DependencyGraph.standing(
+            of: id,
+            in: snapshot,
+            limitedTo: ui.graphFollowsView ? Set(model.visibleIssues.map(\.id)) : nil,
+            includeFinished: ui.graphIncludesFinished
+        )
+    }
+
+    /// The selected bead takes part in nothing the graph draws: either it has no dependencies,
+    /// or the scope leaves them out, and then one button brings them back.
+    private func notDrawn(_ id: IssueID) -> some View {
+        let standing = Self.standing(model: model, ui: ui)
+        return VStack(spacing: 8) {
+            if case .hidden(let byView, let byFinished) = standing {
+                Text("Dependencies Hidden")
+                    .font(.headline)
+                Text("\(id.rawValue) has dependencies, but they are finished or outside this view.")
+                    .font(.callout)
+                    .foregroundStyle(theme.secondaryText)
+                Button("Show Them") {
+                    if byView { ui.graphFollowsView = false }
+                    if byFinished { ui.graphIncludesFinished = true }
+                }
+                .controlSize(.small)
+            } else {
+                Text("No Dependencies")
+                    .font(.headline)
+                Text("Nothing has to finish before \(id.rawValue), and nothing is waiting on it.")
+                    .font(.callout)
+                    .foregroundStyle(theme.secondaryText)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// Arrow keys walk the drawn graph, but only while the dependency window itself has the
@@ -128,7 +176,7 @@ struct DependencyGraphView: View {
         .padding(.vertical, 5)
     }
 
-    /// Which bead the graph is about: the window's own focus, or the selection when pinned.
+    /// Which bead the graph is about: the window's own focus, or the selection in the pane.
     private var focusID: IssueID? {
         embedded ? model.selection : ui.graphFocus
     }
@@ -187,7 +235,7 @@ struct DependencyGraphView: View {
         }
         .font(.caption)
         .foregroundStyle(theme.secondaryText)
-        // The focus the graph actually draws with: pinned, that's the selection.
+        // The focus the graph actually draws with: in the pane, that's the selection.
         .opacity(focusID == nil ? 0 : 1)
     }
 
@@ -269,7 +317,7 @@ struct DependencyGraphView: View {
         let finished = category == .done
         let zoom = ui.graphZoom
         return Button {
-            // Pinned, the graph follows the selection, so following a bead means selecting it.
+            // In the pane, the graph follows the selection, so following a bead means selecting it.
             // In the window too, a click selects — that records the step in Go Back — and the
             // window keeps its own focus so it stays on what you're following.
             if embedded {
@@ -302,8 +350,11 @@ struct DependencyGraphView: View {
             .background(background(for: role), in: RoundedRectangle(cornerRadius: 8 * zoom))
             .overlay(
                 RoundedRectangle(cornerRadius: 8 * zoom)
-                    .strokeBorder(border(for: role), lineWidth: role == .focus ? 2.5 : (role == .upstream ? 2 : 1))
+                    .strokeBorder(border(for: role), lineWidth: role == .focus ? 3 : (role == .upstream ? 2 : 1))
             )
+            .overlay(alignment: .topLeading) {
+                if role == .focus { startTag(zoom: zoom) }
+            }
             .opacity(role == .unrelated ? 0.3 : (finished && role == .idle ? 0.6 : 1))
         }
         .buttonStyle(.plain)
@@ -318,6 +369,27 @@ struct DependencyGraphView: View {
                 Button("Show in Main Window") { model.selection = issue.id }
             }
         }
+    }
+
+    /// The bead the graph is read from, named on its card. Its border and the tint of what waits
+    /// on it are the same accent, so the outline alone doesn't say which card is the start: the
+    /// tag does, in words, and the bold and tinted chains lead away from it either side.
+    private func startTag(zoom: CGFloat) -> some View {
+        HStack(spacing: 3 * zoom) {
+            Image(systemName: "scope")
+            if embedded {
+                Text("Selected", comment: "Tag on the card of the selected bead in the details pane's dependency graph: the one the highlighted chains start from")
+            } else {
+                Text("Following", comment: "Tag on the card of the bead the dependency window is following: the one the highlighted chains start from")
+            }
+        }
+        .font(.system(size: 10 * zoom, weight: .semibold))
+        .foregroundStyle(Color(RGB.legibleForeground(on: theme.colors.accent)))
+        .padding(.horizontal, 6 * zoom)
+        .padding(.vertical, 2 * zoom)
+        .background(theme.accent, in: Capsule())
+        // Astride the top edge, so it reads as a label on the card rather than part of its text.
+        .offset(x: 10 * zoom, y: -8 * zoom)
     }
 
     private func background(for role: Role) -> Color {

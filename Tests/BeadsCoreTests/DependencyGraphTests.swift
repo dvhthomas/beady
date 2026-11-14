@@ -194,3 +194,60 @@ struct GraphNeighbourTests {
         #expect(graph.neighbour(of: upper, direction: .down) == lower)
     }
 }
+
+/// The pane under the details is about one bead. Before anything is drawn it has to know whether
+/// that bead is in the picture at all: a graph of other beads' dependencies, with nothing marked
+/// as the place to read from, is worse than no graph.
+@Suite("Where a bead stands in the dependency graph")
+struct DependencyStandingTests {
+    /// a → b → c and a → d; x (closed) → y; "lonely" takes part in nothing.
+    let snapshot = IssueSnapshot(issues: [
+        makeIssue("a"),
+        makeIssue("b", blockedBy: ["a"]),
+        makeIssue("c", blockedBy: ["b"]),
+        makeIssue("d", blockedBy: ["a"]),
+        makeIssue("x", status: "closed", closed: t0),
+        makeIssue("y", blockedBy: ["x"]),
+        makeIssue("lonely"),
+    ])
+
+    @Test("a drawn bead counts its whole chain, both ways")
+    func drawn() {
+        #expect(DependencyGraph.standing(of: "b", in: snapshot) == .drawn(before: 1, after: 1))
+        #expect(DependencyGraph.standing(of: "a", in: snapshot) == .drawn(before: 0, after: 3))
+        #expect(DependencyGraph.standing(of: "c", in: snapshot) == .drawn(before: 2, after: 0))
+    }
+
+    @Test("a bead nothing blocks and nothing waits on is unconnected, whatever the scope")
+    func unconnected() {
+        #expect(DependencyGraph.standing(of: "lonely", in: snapshot) == .unconnected)
+        #expect(DependencyGraph.standing(of: "lonely", in: snapshot, limitedTo: ["lonely"], includeFinished: false) == .unconnected)
+        #expect(DependencyGraph.standing(of: "gone", in: snapshot) == .unconnected, "a bead that isn't there has no dependencies either")
+    }
+
+    @Test("dependencies the scope leaves out are hidden, not absent, and it says which switch hides them")
+    func hidden() {
+        // y's only blocker is finished.
+        #expect(DependencyGraph.standing(of: "y", in: snapshot, includeFinished: false) == .hidden(byView: false, byFinished: true))
+        // The view shows b, but neither a nor c.
+        #expect(DependencyGraph.standing(of: "b", in: snapshot, limitedTo: ["b", "lonely"]) == .hidden(byView: true, byFinished: false))
+        // Both at once: the view shows y alone, and finished work is off.
+        #expect(DependencyGraph.standing(of: "y", in: snapshot, limitedTo: ["y"], includeFinished: false) == .hidden(byView: true, byFinished: true))
+    }
+
+    @Test("part of the chain showing is enough to be drawn, counted as drawn")
+    func partly() {
+        #expect(DependencyGraph.standing(of: "b", in: snapshot, limitedTo: ["a", "b"]) == .drawn(before: 1, after: 0))
+    }
+
+    @Test("when either switch alone would reveal something, the gentler one is named: finished work, inside this view")
+    func eitherSwitch() {
+        // m waits on a finished bead inside the view and blocks an open one outside it.
+        let snapshot = IssueSnapshot(issues: [
+            makeIssue("done", status: "closed", closed: t0),
+            makeIssue("m", blockedBy: ["done"]),
+            makeIssue("far", blockedBy: ["m"]),
+        ])
+        #expect(DependencyGraph.standing(of: "m", in: snapshot, limitedTo: ["done", "m"], includeFinished: false) == .hidden(byView: false, byFinished: true))
+    }
+}

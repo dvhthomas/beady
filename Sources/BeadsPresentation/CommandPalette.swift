@@ -68,7 +68,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
     case goToIssue(IssueID, title: String)
     case toggleMark(IssueMark)
     case showGraph
-    /// Pins the dependency graph into the details pane, following the selected bead; again unpins.
+    /// Opens the Dependencies section of the details pane, its graph following the selected bead; again closes it.
     case toggleGraphPane
     case goBack
     case goForward
@@ -179,7 +179,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .toggleMark(.pinned): String(localized: "Toggle Pin", bundle: .module, comment: "Command")
         case .toggleMark(.starred): String(localized: "Toggle Star", bundle: .module, comment: "Command")
         case .showGraph: String(localized: "Show Dependency Graph", bundle: .module, comment: "Command")
-        case .toggleGraphPane: String(localized: "Pin Dependency Graph to Details", bundle: .module, comment: "Command: show the dependency graph as a pane in the details panel, or hide it again")
+        case .toggleGraphPane: String(localized: "Toggle Dependency Graph in Details", bundle: .module, comment: "Command: open the Dependencies section at the foot of the details panel, or close it again")
         case .goBack: String(localized: "Back", bundle: .module, comment: "Command: to the last bead looked at")
         case .goForward: String(localized: "Forward", bundle: .module, comment: "Command: to the bead come back from")
         case .focusSelected: String(localized: "Focus on Selected Bead", bundle: .module, comment: "Command: narrow the view to everything under it")
@@ -233,7 +233,7 @@ public enum AppCommand: Equatable, Sendable, Identifiable {
         case .setOrdering: ["sort", "order", "arrange"]
         case .goToIssue: ["bead", "issue", "go to"]
         case .showGraph: ["graph", "dependencies", "blockers", "unblock", "chain", "why blocked"]
-        case .toggleGraphPane: ["graph", "pin", "pane", "details", "inspector", "dependencies", "split", "dock"]
+        case .toggleGraphPane: ["graph", "show", "hide", "expand", "collapse", "section", "pane", "details", "inspector", "dependencies", "blockers", "pin", "split", "dock"]
         case .focusSelected: ["focus", "subtree", "children", "zoom in", "scope"]
         case .unfocus: ["unfocus", "leave", "out", "back to view"]
         case .expandAll: ["expand", "open all", "unfold"]

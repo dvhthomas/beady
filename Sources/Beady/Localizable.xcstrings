@@ -264,6 +264,46 @@
         }
       }
     },
+    "%@ has dependencies, but they are finished or outside this view." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hat Abhängigkeiten, aber sie sind erledigt oder außerhalb dieser Ansicht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tiene dependencias, pero están terminadas o fuera de esta vista."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ a des dépendances, mais elles sont terminées ou hors de cette vue."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ には依存関係がありますが、完了済みか、このビューの外にあります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에는 의존성이 있지만, 이미 끝났거나 이 보기 밖에 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tem dependências, mas elas estão concluídas ou fora desta visualização."
+          }
+        }
+      }
+    },
     "%@ has unsaved changes" : {
       "localizations" : {
         "de" : {
@@ -3654,6 +3694,46 @@
         }
       }
     },
+    "Dependencies Hidden" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abhängigkeiten ausgeblendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dependencias ocultas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dépendances masquées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依存関係は非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "의존성이 가려짐"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dependências ocultas"
+          }
+        }
+      }
+    },
     "Description" : {
       "localizations" : {
         "de" : {
@@ -4698,6 +4778,47 @@
         }
       }
     },
+    "Following" : {
+      "comment" : "Tag on the card of the bead the dependency window is following: the one the highlighted chains start from",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verfolgt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siguiendo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suivi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追跡中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "따라가는 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguindo"
+          }
+        }
+      }
+    },
     "Forward" : {
       "localizations" : {
         "de" : {
@@ -4935,6 +5056,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ocultar"
+          }
+        }
+      }
+    },
+    "Hide the dependency graph (⇧⌘G)" : {
+      "comment" : "Tooltip on the Dependencies header in the details pane, when open",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abhängigkeitsgraph ausblenden (⇧⌘G)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar el grafo de dependencias (⇧⌘G)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masquer le graphe des dépendances (⇧⌘G)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依存関係グラフを隠す（⇧⌘G）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "의존성 그래프 가리기(⇧⌘G)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ocultar o grafo de dependências (⇧⌘G)"
           }
         }
       }
@@ -6504,6 +6666,46 @@
         }
       }
     },
+    "Nothing has to finish before %@, and nothing is waiting on it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts muss vor %@ fertig sein, und nichts wartet darauf."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada tiene que terminar antes de %@, y nada está a la espera de este."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien ne doit se terminer avant %@, et rien n'est en attente de celui-ci."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の前に完了が必要なものはなく、これを待っているものもありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@보다 먼저 끝나야 하는 것이 없고, 이 비즈를 기다리는 것도 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada precisa terminar antes de %@, e nada está esperando por ele."
+          }
+        }
+      }
+    },
     "Nothing in this database waits on anything else." : {
       "localizations" : {
         "de" : {
@@ -7503,47 +7705,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Faz parte do que %@ significa; duplique a visualização para alterá-lo"
-          }
-        }
-      }
-    },
-    "Pin the dependency graph under the details, following the selected bead (⇧⌘G)" : {
-      "comment" : "Tooltip",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Den Abhängigkeitsgraph unter den Details anheften; er folgt dem ausgewählten Bead (⇧⌘G)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fijar el grafo de dependencias bajo los detalles, siguiendo el bead seleccionado (⇧⌘G)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Épingler le graphe des dépendances sous les détails, en suivant le bead sélectionné (⇧⌘G)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "依存関係グラフを詳細の下にピン留めし、選択したビーズに追従させます（⇧⌘G）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "의존성 그래프를 세부사항 아래에 고정하고 선택한 비즈를 따라갑니다(⇧⌘G)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fixar o grafo de dependências sob os detalhes, acompanhando o bead selecionado (⇧⌘G)"
           }
         }
       }
@@ -8951,6 +9112,47 @@
         }
       }
     },
+    "Selected" : {
+      "comment" : "Tag on the card of the selected bead in the details pane's dependency graph: the one the highlighted chains start from",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgewählt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccionado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionné"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecionado"
+          }
+        }
+      }
+    },
     "Sending…" : {
       "comment" : "Share Beads sheet, while bd pushes",
       "localizations" : {
@@ -9194,6 +9396,46 @@
         }
       }
     },
+    "Show Them" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einblenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrarlas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "표시"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar"
+          }
+        }
+      }
+    },
     "Show as List" : {
       "localizations" : {
         "de" : {
@@ -9310,6 +9552,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mostrar ou ocultar os detalhes do bead"
+          }
+        }
+      }
+    },
+    "Show the dependency graph here, following the selected bead (⇧⌘G)" : {
+      "comment" : "Tooltip on the Dependencies header in the details pane, when closed",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abhängigkeitsgraph hier anzeigen, er folgt dem ausgewählten Bead (⇧⌘G)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar aquí el grafo de dependencias, siguiendo el bead seleccionado (⇧⌘G)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher ici le graphe des dépendances, en suivant le bead sélectionné (⇧⌘G)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択中のビーズに追従する依存関係グラフをここに表示（⇧⌘G）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 비즈를 따라가는 의존성 그래프를 여기에 표시(⇧⌘G)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar aqui o grafo de dependências, seguindo o bead selecionado (⇧⌘G)"
           }
         }
       }
@@ -10758,87 +11041,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Desafixar"
-          }
-        }
-      }
-    },
-    "Unpin the dependency graph (⇧⌘G)" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Den Abhängigkeitsgraph lösen (⇧⌘G)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desfijar el grafo de dependencias (⇧⌘G)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Désépingler le graphe des dépendances (⇧⌘G)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "依存関係グラフのピン留めを解除（⇧⌘G）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "의존성 그래프 고정 해제(⇧⌘G)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desafixar o grafo de dependências (⇧⌘G)"
-          }
-        }
-      }
-    },
-    "Unpin the dependency graph from this pane (⇧⌘G)" : {
-      "comment" : "Tooltip",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Den Abhängigkeitsgraph aus diesem Bereich lösen (⇧⌘G)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desfijar el grafo de dependencias de este panel (⇧⌘G)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Désépingler le graphe des dépendances de ce panneau (⇧⌘G)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このパネルから依存関係グラフのピン留めを解除（⇧⌘G）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 패널에서 의존성 그래프 고정 해제(⇧⌘G)"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desafixar o grafo de dependências deste painel (⇧⌘G)"
           }
         }
       }

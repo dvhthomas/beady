@@ -4,6 +4,7 @@ import SwiftUI
 
 struct IssueDetailView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var model: WorkspaceModel
     /// Panels shared with the menu bar; nil where there is no window around the pane.
     var ui: WorkspaceUI?
@@ -28,8 +29,9 @@ struct IssueDetailView: View {
     var body: some View {
         // The bar is pinned to the top in both states, where it sits when a bead is selected;
         // what's below takes the rest of the height, so the empty state centres in the pane
-        // rather than hanging just under the arrows. The pinned graph, when there is one, takes
-        // the bottom, at a height you drag.
+        // rather than hanging just under the arrows. The Dependencies section is the foot of the
+        // pane: a header that is always there, and under it, when open, the graph at a height
+        // you drag.
         VStack(alignment: .leading, spacing: 0) {
             // In a window the bar is always there, so the close button never moves; without one
             // (a snapshot of the pane alone) it shows only for the history arrows.
@@ -38,13 +40,17 @@ struct IssueDetailView: View {
             }
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if let ui, ui.showsGraphPane {
-                GraphPaneDivider(ui: ui)
+            if let ui {
+                // Open, its top edge drags; closed, it is one line of header and a rule above it.
+                GraphPaneDivider(ui: ui, resizes: ui.showsGraphPane)
                 GraphPane(model: model, ui: ui)
-                    .frame(height: ui.graphPaneHeight)
+                    .frame(height: ui.showsGraphPane ? ui.graphPaneHeight : nil)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Keyed to the state, not the click, so the header, ⇧⌘G and the palette all open it the
+        // same way.
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: ui?.showsGraphPane)
         .onChange(of: model.selection) { model.endEditing() }
         .onChange(of: model.editRequests) {
             if let id = model.selection { model.beginEditing(id) }
@@ -226,18 +232,6 @@ private struct IssueDetailContent: View {
                 }
             } label: {
                 Label("Move To", systemImage: "arrow.turn.down.right")
-            }
-
-            if let ui {
-                Button {
-                    ui.showsGraphPane.toggle()
-                } label: {
-                    Image(systemName: ui.showsGraphPane ? "pin.slash" : "point.3.connected.trianglepath.dotted")
-                }
-                .accessibilityLabel(AppCommand.toggleGraphPane.title)
-                .help(ui.showsGraphPane
-                    ? String(localized: "Unpin the dependency graph from this pane (⇧⌘G)", comment: "Tooltip")
-                    : String(localized: "Pin the dependency graph under the details, following the selected bead (⇧⌘G)", comment: "Tooltip"))
             }
         }
         .controlSize(.small)
@@ -495,9 +489,14 @@ private struct HistoryRow: View {
     }
 }
 
-/// The dependency graph as the bottom of the details pane: the selected bead in the middle,
-/// what it waits on in bold, what waits on it tinted, the rest faded. It follows the selection
-/// as you move down a list, which is the point of pinning it here rather than opening a window.
+/// The Dependencies section at the foot of the details pane: a header that is always there and
+/// opens and closes the section, the way History's does, and under it the graph, about the
+/// selected bead — what it waits on in bold, what waits on it tinted, the rest faded. It follows
+/// the selection as you move down a list, which is the point of having it here rather than in a
+/// window.
+///
+/// The header is the one control for both directions, in one place, and says nothing of pins: a
+/// pin is something a bead has, and its button is a few rows up.
 struct GraphPane: View {
     @Environment(\.theme) private var theme
     let model: WorkspaceModel
@@ -505,11 +504,43 @@ struct GraphPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Label("Dependencies", systemImage: "point.3.connected.trianglepath.dotted")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(theme.secondaryText)
-                Spacer()
+            header
+            if ui.showsGraphPane {
+                DependencyGraphView(model: model, ui: ui, embedded: true)
+            }
+        }
+        .background(theme.background)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Button {
+                ui.showsGraphPane.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(ui.showsGraphPane ? 90 : 0))
+                    Text("Dependencies")
+                        .font(.subheadline.weight(.semibold))
+                    // Where the selected bead stands, so the closed header already says whether
+                    // there is anything to open.
+                    if let summary = DisplayText.dependencySummary(DependencyGraphView.standing(model: model, ui: ui)) {
+                        Text(verbatim: summary)
+                            .font(.caption)
+                            .foregroundStyle(theme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                // The whole row is the target, not the chevron.
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(ui.showsGraphPane
+                ? String(localized: "Hide the dependency graph (⇧⌘G)", comment: "Tooltip on the Dependencies header in the details pane, when open")
+                : String(localized: "Show the dependency graph here, following the selected bead (⇧⌘G)", comment: "Tooltip on the Dependencies header in the details pane, when closed"))
+            if ui.showsGraphPane {
                 Button {
                     ui.openGraph(focusing: model.selection)
                 } label: {
@@ -517,33 +548,28 @@ struct GraphPane: View {
                 }
                 .buttonStyle(.plain)
                 .help("Open the graph in its own window (⌘G)")
-                Button {
-                    ui.showsGraphPane = false
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(.plain)
-                .help("Unpin the dependency graph (⇧⌘G)")
             }
-            .controlSize(.small)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            DependencyGraphView(model: model, ui: ui, embedded: true)
         }
-        .background(theme.background)
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 }
 
-/// The draggable edge above the pinned graph.
+/// The edge above the Dependencies section: a rule, and with the section open, a handle that
+/// drags its height.
 private struct GraphPaneDivider: View {
     @Environment(\.theme) private var theme
     let ui: WorkspaceUI
+    let resizes: Bool
     private var startHeight = State<Double?>(initialValue: nil)
+    private var hovering = State(initialValue: false)
 
     static let range = 160.0...600.0
 
-    init(ui: WorkspaceUI) {
+    init(ui: WorkspaceUI, resizes: Bool) {
         self.ui = ui
+        self.resizes = resizes
     }
 
     var body: some View {
@@ -553,7 +579,15 @@ private struct GraphPaneDivider: View {
             .padding(.vertical, 3)
             .contentShape(Rectangle())
             .onHover { inside in
-                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+                guard resizes || hovering.wrappedValue else { return }
+                // Pushes and pops stay paired even if the section closes under the pointer.
+                if inside, !hovering.wrappedValue {
+                    NSCursor.resizeUpDown.push()
+                    hovering.wrappedValue = true
+                } else if !inside, hovering.wrappedValue {
+                    NSCursor.pop()
+                    hovering.wrappedValue = false
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
@@ -562,7 +596,8 @@ private struct GraphPaneDivider: View {
                         startHeight.wrappedValue = start
                         ui.graphPaneHeight = min(max(start - drag.translation.height, Self.range.lowerBound), Self.range.upperBound)
                     }
-                    .onEnded { _ in startHeight.wrappedValue = nil }
+                    .onEnded { _ in startHeight.wrappedValue = nil },
+                including: resizes ? .all : .none
             )
     }
 }

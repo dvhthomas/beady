@@ -862,9 +862,27 @@ enum SnapshotMode {
             model.selection = waiting.id
             model.selection = blocker.id
             capture("15-detail-with-back", IssueDetailView(model: model).frame(width: 420, height: 700))
-            // The dependency graph pinned under the details, following the selection.
+            // The Dependencies section at the foot of the details: closed, a header that says
+            // where the bead stands; open, the graph with the selected bead tagged as the start.
+            session.ui.showsGraphPane = false
+            capture("24a-detail-dependencies-closed", IssueDetailView(model: model, ui: session.ui).frame(width: 420, height: 820))
             session.ui.showsGraphPane = true
             capture("24-detail-with-graph-pane", IssueDetailView(model: model, ui: session.ui).frame(width: 420, height: 820))
+            // A bead that takes part in no dependency: a plain statement, not other beads' graph.
+            let connected = Set(DependencyGraph(snapshot).nodes.map(\.id))
+            if let loner = snapshot.issues.first(where: { !connected.contains($0.id) }) {
+                model.selection = loner.id
+                capture("24b-detail-no-dependencies", IssueDetailView(model: model, ui: session.ui).frame(width: 420, height: 820))
+            }
+            // One whose dependencies the scope leaves out: finished work, switched off.
+            let finished = session.ui.graphIncludesFinished
+            session.ui.graphIncludesFinished = false
+            let open = Set(DependencyGraph(snapshot, includeFinished: false).nodes.map(\.id))
+            if let hidden = snapshot.issues.first(where: { connected.contains($0.id) && !open.contains($0.id) }) {
+                model.selection = hidden.id
+                capture("24c-detail-dependencies-hidden", IssueDetailView(model: model, ui: session.ui).frame(width: 420, height: 820))
+            }
+            session.ui.graphIncludesFinished = finished
             session.ui.showsGraphPane = false
             // Nothing selected but history behind it: the bar stays at the top and the placeholder
             // centres in what's left, at two heights, and says what the arrows do.
