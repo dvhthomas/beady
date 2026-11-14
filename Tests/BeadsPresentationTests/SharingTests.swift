@@ -185,8 +185,8 @@ struct WorkspaceSetupRowsTests {
         )
         let rows = rows(setup: setup)
         #expect(rows.map(\.kind) == [.database, .checkouts, .sharing, .backup, .commits, .bd])
-        #expect(rows[0].detail.contains("/repo/.beads") && rows[0].detail.contains("one writer at a time"))
-        #expect(rows[1].detail.contains("2 checkouts") && rows[1].detail.contains("master, claude/x"))
+        #expect(rows[0].detail.contains("/repo/.beads") && rows[0].detail.contains("No database server to run"))
+        #expect(rows[1].detail.contains("2 working copies") && rows[1].detail.contains("master, claude/x"))
         #expect(rows[5].detail.contains("1.3.4") && rows[5].detail.contains("maintainer"))
     }
 
@@ -201,10 +201,11 @@ struct WorkspaceSetupRowsTests {
             )
         }
         let few = try #require(rows(setup: setup(WorkspaceSetupRows.namedCheckoutLimit)).first { $0.kind == .checkouts })
-        #expect(few.detail.contains("main, fix/agent-1"))
+        #expect(few.title == "Worktrees on this Mac")
+        #expect(few.detail.contains("git worktrees: main, fix/agent-1") && few.detail.contains("share this one database"))
 
         let many = try #require(rows(setup: setup(91)).first { $0.kind == .checkouts })
-        #expect(many.detail == "91 checkouts of this repository use the one database, so a bead changed in one is changed in all.")
+        #expect(many.detail == "91 working copies of this repository (git worktrees, such as the ones agents work in) are on this Mac. They share this one database, so a bead changed in one is changed in all.")
         #expect(!many.detail.contains("fix/agent"))
 
         let justOver = try #require(rows(setup: setup(WorkspaceSetupRows.namedCheckoutLimit + 1)).first { $0.kind == .checkouts })
@@ -258,22 +259,24 @@ struct WorkspaceSetupRowsTests {
             try #require(rows(setup: WorkspaceSetup(context: nil, checkouts: [], hooks: hooks, exportsIssuesFile: exports)).first { $0.kind == .commits })
         }
         let none = try row([GitHook(name: "pre-commit", isInstalled: false)], exports: true)
-        #expect(none.level == .good && none.detail.contains("never ride in a commit"))
+        #expect(none.title == "Git commits")
+        #expect(none.level == .good && none.detail.hasPrefix("Beads stay out of git commits."))
         let exporting = try row([GitHook(name: "pre-commit", isInstalled: true), GitHook(name: "pre-push", isInstalled: true)], exports: true)
         #expect(exporting.level == .info && exporting.detail.contains("pre-commit, pre-push") && exporting.detail.contains(".beads/issues.jsonl"))
+        #expect(exporting.detail.hasPrefix("Each git commit carries a copy of the beads"))
         let quiet = try row([GitHook(name: "pre-commit", isInstalled: true)], exports: false)
-        #expect(quiet.detail.contains("export.auto is off"))
+        #expect(quiet.detail.hasPrefix("Beads stay out of git commits.") && quiet.detail.contains("export.auto is off"))
         let old = try row([GitHook(name: "pre-commit", isInstalled: true, isOutdated: true)], exports: false)
         #expect(old.level == .attention && old.detail.contains("bd hooks install"))
         // bd wouldn't list its hooks: no row, rather than a claim that there are none.
         #expect(!rows(setup: .unknown).contains { $0.kind == .commits })
     }
 
-    @Test("a database kept outside the checkout is said to be")
+    @Test("a database kept outside the folder is said to be")
     func redirected() {
         let elsewhere = WorkspaceContext(bdVersion: nil, storage: .other("server"), role: nil, isWorktree: false, repoRoot: "/repo", beadsDirectory: "/Users/ada/project-beads/.beads", isRedirected: true)
         let rows = rows(setup: WorkspaceSetup(context: elsewhere, checkouts: [], hooks: [], exportsIssuesFile: nil))
-        #expect(rows[0].detail.contains("Kept outside this checkout, in /Users/ada/project-beads/.beads."))
+        #expect(rows[0].detail.contains("Kept outside this folder, in /Users/ada/project-beads/.beads."))
         #expect(rows[0].detail.contains("Dolt server (server)"))
         #expect(!rows.contains { $0.kind == .bd }, "no version from bd, no row")
     }

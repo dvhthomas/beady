@@ -85,16 +85,19 @@ else merges as usual.
 **Workspace Setup…**, in the Beads menu and {{< k "⌘P" >}}, lists what bd reports about the
 open workspace, a row a fact:
 
-- **Database**: how many beads, and where bd keeps them.
-- **Checkouts on this Mac**: git worktrees of one repository all use the one database, so a
-  bead changed in one is changed in all. Up to four are named by branch; more than that, as in
-  a repository worked by many agents, are counted.
+- **Database**: how many beads, and the folder bd keeps them in. bd's default storage needs no
+  server; one program writes at a time.
+- **Worktrees on this Mac**: every working copy of the repository (git worktrees, such as the
+  ones agents work in) uses the one database, so a bead changed in one is changed in all. Up to
+  four are named by branch; more than that are counted.
 - **Sharing**: the same word and sentence as the toolbar.
 - **Backup**: whether one is set up; see [Backing up]({{< relref "workspaces.md#backing-up" >}}).
-- **Commits**: whether bd's git hooks are installed. They are what can put beads into commits,
-  and sharing doesn't need them.
+- **Git commits**: whether beads end up in your git commits. They do only when bd's optional
+  git hooks are installed and bd is set to export `.beads/issues.jsonl`; sharing needs neither.
 - **bd**: its version. Everyone sharing a database should run the same one; bd refuses to mix
   them.
+
+The list scrolls when it is taller than the screen; **Done** and **Check Again** stay put.
 
 ## What Beady won't do
 
