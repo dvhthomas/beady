@@ -73,7 +73,9 @@ to edit.
 ## Views of your own
 
 The **+** beside My Views saves the current view under a name. Your views remember
-everything: filters, search, layout, grouping, ordering and columns.
+everything: filters, search, layout, grouping, ordering and columns. The chevron beside a
+section's title folds it away; a section opens again by itself when the view you choose is in
+it.
 
 | To | Do this |
 |---|---|

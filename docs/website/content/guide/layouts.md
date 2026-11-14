@@ -34,6 +34,9 @@ drops.) You still confirm the change before anything is written.
 If a grouping would put everything in one column, the board says *Nothing to split* and
 offers the groupings that would spread the beads out.
 
+A wide board scrolls sideways with a trackpad swipe, or by tilting a mouse wheel: each tilt
+glides the board half a column.
+
 Turn on **Nest sub-tasks** in Display to fold children into their parent's card.
 
 {{< shot name="board-nested" alt="The Pipeline board with sub-tasks nested inside their parent epic's card, one epic expanded to show its children." caption="Sub-tasks folded into their parents, with one epic opened." >}}

@@ -55,11 +55,14 @@ struct SidebarView: View {
             importFiles(files)
             return true
         }
+        // The chosen view is never hidden: saving a new view, importing one or picking one from
+        // the palette lands in a folded section often enough that the section opens to show it.
+        .onChange(of: model.viewID, initial: true) { reveal(model.viewID) }
     }
 
     /// Title, then the + where the section takes one, then the disclosure: both at a fixed size,
-    /// always drawn, so nothing moves under the pointer. The disclosure is disabled, not hidden,
-    /// when there is nothing to fold away.
+    /// always drawn, so nothing moves under the pointer. The disclosure folds an empty section
+    /// too: a control that looks live but does nothing reads as broken.
     private func header(_ section: SidebarSection) -> some View {
         HStack(spacing: 2) {
             Text(section.title)
@@ -87,7 +90,6 @@ struct SidebarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .disabled(!section.canCollapse)
             .help(disclosureHelp(section))
         }
         .padding(.top, section.kind == .views ? 4 : 10)
@@ -96,8 +98,7 @@ struct SidebarView: View {
     }
 
     private func disclosureHelp(_ section: SidebarSection) -> String {
-        guard section.canCollapse else { return String(localized: "Nothing to hide", comment: "Tooltip on a sidebar section's disclosure") }
-        return isExpanded(section)
+        isExpanded(section)
             ? String(localized: "Hide", comment: "Tooltip on a sidebar section's disclosure")
             : String(localized: "Show", comment: "Tooltip on a sidebar section's disclosure")
     }
@@ -110,6 +111,12 @@ struct SidebarView: View {
         var kinds = collapsedKinds
         if expanded { kinds.remove(section.kind.rawValue) } else { kinds.insert(section.kind.rawValue) }
         collapsedSections = kinds.sorted().joined(separator: ",")
+    }
+
+    private func reveal(_ id: IssueView.ID) {
+        guard let section = model.sidebarSections.first(where: { $0.entries.contains { $0.id == id } }),
+              !isExpanded(section) else { return }
+        setExpanded(true, section)
     }
 
     private var collapsedKinds: Set<String> {
