@@ -892,7 +892,8 @@ enum SnapshotMode {
         }
 
         model.selection = nil
-        capture("10-new-bead", NewBeadForm(model: model, onCancel: {}))
+        // At its own height, as the sheet shows it, rather than stretched to the capture window.
+        capture("10-new-bead", NewBeadForm(model: model, onCancel: {}).fixedSize(horizontal: false, vertical: true))
 
         // The edit form, which is the thing being overhauled.
         if let subject = snapshot.issues.first(where: { !snapshot.openBlockers(of: $0).isEmpty }) {

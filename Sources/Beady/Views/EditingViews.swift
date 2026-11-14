@@ -141,7 +141,6 @@ struct NewBeadForm: View {
     private var priority = State(initialValue: 2)
     private var parent: State<IssueID?>
     private var description = State(initialValue: "")
-    private var titleFocus = FocusState<Bool>()
 
     init(model: WorkspaceModel, onCancel: @escaping () -> Void) {
         self.model = model
@@ -167,12 +166,10 @@ struct NewBeadForm: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("New Bead").font(.title3.weight(.semibold))
             FormField(title: "Title") {
-                TextField("What needs doing?", text: title.projectedValue)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.title3)
-                    .labelsHidden()
-                    .focused(titleFocus.projectedValue)
+                LineField("What needs doing?", text: title.projectedValue, font: .title3, focusesOnAppear: true)
             }
+            // What kind of bead, how urgent, and where it hangs: three short answers on one line,
+            // with the parent taking whatever width is left for its title.
             HStack(alignment: .top, spacing: 16) {
                 FormField(title: "Type") {
                     Picker("Type", selection: type.projectedValue) {
@@ -191,18 +188,18 @@ struct NewBeadForm: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-            }
-            FormField(title: "Parent") {
-                Picker("Parent", selection: parent.projectedValue) {
-                    Text("None").tag(IssueID?.none)
-                    ForEach(parentChoices) { issue in
-                        Text("\(issue.id.rawValue) — \(issue.title)").lineLimit(1).tag(IssueID?.some(issue.id))
+                FormField(title: "Parent") {
+                    Picker("Parent", selection: parent.projectedValue) {
+                        Text("None").tag(IssueID?.none)
+                        ForEach(parentChoices) { issue in
+                            Text("\(issue.id.rawValue) — \(issue.title)").lineLimit(1).tag(IssueID?.some(issue.id))
+                        }
                     }
+                    .labelsHidden()
                 }
-                .labelsHidden()
             }
             FormField(title: "Description") {
-                ProseEditor(text: description.projectedValue, prompt: "What is this bead about?", minHeight: 140)
+                ProseEditor(text: description.projectedValue, prompt: String(localized: "What is this bead about?"), minHeight: 140)
             }
             HStack {
                 Spacer()
@@ -224,7 +221,6 @@ struct NewBeadForm: View {
         .padding(20)
         .frame(width: 560)
         .background(theme.background)
-        .onAppear { titleFocus.wrappedValue = true }
     }
 }
 
