@@ -59,6 +59,13 @@ expect_out  "minor bumps the middle and resets patch"    0.2.0  bump 0.1.1 minor
 expect_out  "major bumps the first and resets the rest"  1.0.0  bump 0.1.1 major
 expect_out  "none leaves the version alone"              0.1.1  bump 0.1.1 none
 expect_out  "numbers, not digits: 9 goes to 10"          0.1.10 bump 0.1.9 patch
+expect_out  "patches run through two digits"             0.1.95 bump 0.1.94 patch
+expect_out  "99 is the last patch of a minor"            0.1.99 bump 0.1.98 patch
+expect_out  "the hundredth patch is the next minor"      0.2.0  bump 0.1.99 patch
+expect_out  "rolling over past minor 9"                  0.10.0 bump 0.9.99 patch
+expect_out  "rolling over leaves the major alone"        1.3.0  bump 1.2.99 patch
+expect_out  "a patch number past 99 rolls over too"      0.2.0  bump 0.1.150 patch
+expect_out  "none never rolls over"                      0.1.99 bump 0.1.99 none
 expect_out  "minor past 9"                               0.10.0 bump 0.9.3 minor
 expect_fail "a leading v is not part of the version"     "v0.1.1" bump v0.1.1 patch
 expect_fail "two numbers are not a version"              "0.1" bump 0.1 patch

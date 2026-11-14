@@ -53,17 +53,23 @@ Every merge to master is a release: CI works out the next version from the pull 
 labels, writes `VERSION`, tags `vX.Y.Z` and publishes the Homebrew cask. The one decision is how
 big the change is, said with at most one label on the pull request:
 
-- no label, or `release:patch`: a bug fix or a minor tweak (0.1.1 → 0.1.2). The default.
-- `release:minor`: a new feature or a visible change in behaviour (0.1.1 → 0.2.0).
+- no label, or `release:patch`: nearly everything — a bug fix, a tweak, a new feature, a visible
+  change in behaviour (0.1.1 → 0.1.2). The default.
+- `release:minor`: rare and never needed; the owner's way to mark a milestone early (0.1.1 → 0.2.0).
 - `release:major`: rare; it breaks how people use Beady or its files (0.1.1 → 1.0.0).
 - `release:none`: nothing in the app changes, such as a change only to the website or the README.
 
-Add it with `gh pr create --label release:minor` or `gh pr edit <number> --add-label release:minor`.
+**The patch number does the counting.** It runs 0.1.1, 0.1.2 … 0.1.99, and the patch after 0.1.99
+is 0.2.0, by itself: the middle number moves only when a hundred patches have shipped, so a new
+feature is a patch like any other and nobody labels a pull request to move it.
+
+Add a label with `gh pr create --label release:none` or `gh pr edit <number> --add-label release:none`.
 Never edit `VERSION` by hand; the Release size check fails a pull request that does. Details in
 [RELEASE.md](RELEASE.md).
 
-**Agents never apply `release:minor` or `release:major`** — open the PR as a **draft**,
-recommend the size in the PR body, and ask the user to label it, mark it ready and merge.
+**Agents never apply `release:minor` or `release:major`, and never recommend `release:minor`**:
+a feature ships unlabeled, as a patch. Only for a breaking change, open the PR as a **draft**,
+recommend `release:major` in the PR body, and ask the user to label it, mark it ready and merge.
 Unlabeled and patch PRs merge themselves when CI is green (the Merge-when-green workflow);
 minor/major and draft PRs wait for a human.
 
@@ -78,9 +84,10 @@ worktree on a `claude/*` branch. In such a session, without asking first, an age
 - open a pull request — **unlabeled** (which means patch) or `release:none`.
 
 Still forbidden without an explicit user request: pushing to master, pushing tags,
-force-pushing, editing `VERSION`, applying `release:minor` or `release:major` (recommend one
-in the PR body and ask the user), and merging a minor/major pull request. **Patch releases are
-the norm and fully automated; minor and major releases are a human decision.**
+force-pushing, editing `VERSION`, applying `release:minor` or `release:major`, and merging a
+minor/major pull request. **Patch releases are the norm, for features as well as fixes, and
+fully automated; the middle number moves by itself after patch 99. Minor and major labels are
+a human decision.**
 
 ## The website and user guide
 

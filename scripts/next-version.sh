@@ -4,11 +4,12 @@
 #
 #     scripts/next-version.sh size <label>...         # one PR's labels -> patch|minor|major|none
 #     scripts/next-version.sh largest <size>...       # the biggest of several sizes
-#     scripts/next-version.sh bump <version> <size>   # 0.1.1 minor -> 0.2.0
+#     scripts/next-version.sh bump <version> <size>   # 0.1.1 patch -> 0.1.2, 0.1.99 patch -> 0.2.0
 #     scripts/next-version.sh [-C <repo>] current     # highest v* tag reachable from HEAD, without the v
 #
 # A pull request says how big a release it is with one release:* label.
-# No label means patch, so forgetting is safe; two release:* labels, or one
+# No label means patch, which is nearly every release: fixes and features alike.
+# Forgetting is safe; two release:* labels, or one
 # that isn't patch, minor, major or none, is an error and fails the Release
 # size check on the PR. The Version workflow (.github/workflows/version.yml)
 # chains these: current -> size for each merged PR -> largest -> bump.
@@ -47,6 +48,10 @@ largest() {
   echo "$best"
 }
 
+# Patches are the everyday release, so the last number does the counting: 0.1.0 to 0.1.99,
+# and the hundredth patch is 0.2.0. The middle number moves by itself; nobody has to decide.
+PATCHES_PER_MINOR=100
+
 bump() {
   [ $# -eq 2 ] || die "usage: next-version.sh bump <version> <size>"
   local version="$1" size="$2" major minor patch
@@ -55,7 +60,8 @@ bump() {
   case "$size" in
     major) echo "$((major + 1)).0.0" ;;
     minor) echo "$major.$((minor + 1)).0" ;;
-    patch) echo "$major.$minor.$((patch + 1))" ;;
+    patch) if [ $((patch + 1)) -ge "$PATCHES_PER_MINOR" ]; then echo "$major.$((minor + 1)).0"
+           else echo "$major.$minor.$((patch + 1))"; fi ;;
     none)  echo "$version" ;;
     *) die "unknown size '$size'" ;;
   esac
